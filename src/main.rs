@@ -1,12 +1,12 @@
 pub mod game;
 pub mod test_demo;
 
-use std::{io::stdout, marker::PhantomData};
+use std::io::stdout;
 
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{game::Game, test_demo::{new_test_demo, TestDemo}};
+use crate::{game::Game, test_demo::TestDemo};
 
 #[derive(Copy, Clone, EnumIter)]
 pub enum GameType {
@@ -22,7 +22,7 @@ impl GameType {
 
 	pub fn new(self) -> Box<dyn Game> {
 		match self {
-			Self::TestDemo => Box::new(new_test_demo()),
+			Self::TestDemo => Box::new(TestDemo::new()),
 		}
 	}
 }

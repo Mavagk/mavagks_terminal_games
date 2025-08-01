@@ -12,8 +12,10 @@ impl Game for TestDemo {
 	fn click(&mut self, _pos: (u16, u16), _button: crossterm::event::MouseButton) {}
 }
 
-pub fn new_test_demo() -> TestDemo {
-	TestDemo {
-
+impl TestDemo {
+	pub fn new() -> Self {
+		TestDemo {
+			
+		}
 	}
 }
