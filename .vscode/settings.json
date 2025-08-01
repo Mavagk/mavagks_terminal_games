@@ -1,0 +1,9 @@
+{
+	"cSpell.words": [
+		"crossterm",
+		"mavagks",
+		"termion"
+	],
+	"terminal.explorerKind": "external",
+	"terminal.integrated.defaultProfile.windows": null
+}
