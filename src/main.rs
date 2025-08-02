@@ -1,30 +1,34 @@
 pub mod game;
 pub mod test_demo;
-pub mod console_writer;
+pub mod console;
+pub mod log_events_test;
 
 use std::{collections::HashMap, io::{stdin, stdout, Write}};
 
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
-use crossterm::event::read;
+use crossterm::event::{read, Event};
 
-use crate::{console_writer::ConsoleWriter, game::Game, test_demo::TestDemo};
+use crate::{console::Console, game::Game, log_events_test::LogEventsTest, test_demo::TestDemo};
 
 #[derive(Copy, Clone, EnumIter, FromRepr)]
 pub enum GameType {
 	TestDemo,
+	LogEventsTest,
 }
 
 impl GameType {
 	pub fn info(self) -> (&'static str, &'static str, &'static str) {
 		match self {
 			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td"),
+			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le"),
 		}
 	}
 
 	pub fn new(self) -> Box<dyn Game> {
 		match self {
 			Self::TestDemo => Box::new(TestDemo::new()),
+			Self::LogEventsTest => Box::new(LogEventsTest::new()),
 		}
 	}
 }
@@ -78,12 +82,35 @@ fn main() {
 			}
 			Some(game_to_play) => game_to_play.new(),
 		};
-		let mut console_writer = ConsoleWriter::new();
+		let mut console_writer = Console::new();
 		game.first_draw(&mut console_writer);
+		let mut mouse_pos_in_mouse_zone = None;
 		// Enter game loop
 		loop {
 			if let Ok(event) = read() {
 				game.event(&event);
+				match event {
+					Event::Mouse(mouse_event) => {
+						let (game_mouse_zone_top_left, game_mouse_zone_size) = console_writer.get_game_mouse_zone();
+						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
+						if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
+							new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
+						}
+						else {
+							new_mouse_pos_in_mouse_zone = None;
+						}
+						if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
+							if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
+								new_mouse_pos_in_mouse_zone = None;
+							}
+						}
+						if new_mouse_pos_in_mouse_zone != mouse_pos_in_mouse_zone {
+							mouse_pos_in_mouse_zone = new_mouse_pos_in_mouse_zone;
+							game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event);
+						}
+					}
+					_ => {}
+				}
 			}
 			if game.should_close() {
 				break;
