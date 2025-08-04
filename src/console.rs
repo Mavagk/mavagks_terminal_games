@@ -5,6 +5,7 @@ use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapt
 pub struct Console {
 	stdout: Stdout,
 	is_in_alternate_screen: bool,
+	has_mouse_capture: bool,
 	main_screen_size: (u16, u16),
 	main_screen_cursor_pos: (u16, u16),
 	game_mouse_zone_top_left: (u16, u16),
@@ -20,6 +21,7 @@ impl Console {
 			main_screen_size: (0, 0),
 			game_mouse_zone_size: (0, 0),
 			game_mouse_zone_top_left: (0, 0),
+			has_mouse_capture: false,
 		}
 	}
 
@@ -39,10 +41,9 @@ impl Console {
 	}
 
 	pub fn exit_game_screen(&mut self) {
-		execute!(self.stdout, LeaveAlternateScreen).unwrap();
 		if self.is_in_alternate_screen {
+			execute!(self.stdout, LeaveAlternateScreen).unwrap();
 			self.show_cursor();
-			self.disable_mouse_capture();
 			self.set_size(self.main_screen_size);
 			self.move_cursor_to(self.main_screen_cursor_pos);
 		}
@@ -63,10 +64,14 @@ impl Console {
 
 	pub fn enable_mouse_capture(&mut self) {
 		execute!(self.stdout, EnableMouseCapture).unwrap();
+		self.has_mouse_capture = true;
 	}
 
 	pub fn disable_mouse_capture(&mut self) {
-		execute!(self.stdout, DisableMouseCapture).unwrap();
+		if self.has_mouse_capture {
+			execute!(self.stdout, DisableMouseCapture).unwrap();
+		}
+		self.has_mouse_capture = false;
 	}
 
 	pub fn show_cursor(&mut self) {
@@ -98,5 +103,9 @@ impl Console {
 
 	pub fn get_game_mouse_zone(&mut self) -> ((u16, u16), (u16, u16)) {
 		(self.game_mouse_zone_top_left, self.game_mouse_zone_size)
+	}
+
+	pub fn mouse_zone_pos_to_screen_pos(&self, game_mouse_zone_pos: (u16, u16)) -> (u16, u16) {
+		(game_mouse_zone_pos.0 + self.game_mouse_zone_top_left.0, game_mouse_zone_pos.1 + self.game_mouse_zone_top_left.1)
 	}
 }

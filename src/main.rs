@@ -129,5 +129,6 @@ fn main() {
 		}
 		// Switch back to main screen once game has finished
 		console_writer.exit_game_screen();
+		console_writer.disable_mouse_capture();
 	}
 }
