@@ -2,6 +2,7 @@ pub mod game;
 pub mod test_demo;
 pub mod console;
 pub mod log_events_test;
+pub mod minesweeper;
 
 use std::{collections::HashMap, io::{stdin, stdout, Write}};
 
@@ -9,10 +10,11 @@ use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
 use crossterm::event::{read, Event};
 
-use crate::{console::Console, game::Game, log_events_test::LogEventsTest, test_demo::TestDemo};
+use crate::{console::Console, game::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo};
 
 #[derive(Copy, Clone, EnumIter, FromRepr)]
 pub enum GameType {
+	Minesweeper,
 	TestDemo,
 	LogEventsTest,
 }
@@ -20,16 +22,18 @@ pub enum GameType {
 impl GameType {
 	pub fn info(self) -> (&'static str, &'static str, &'static str) {
 		match self {
+			Self::Minesweeper => ("Minesweeper", "The mine game.", "ms"),
 			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td"),
 			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le"),
 		}
 	}
 
-	pub fn new(self) -> Box<dyn Game> {
-		match self {
+	pub fn new(self) -> Option<Box<dyn Game>> {
+		Some(match self {
+			Self::Minesweeper => Box::new(Minesweeper::new()?),
 			Self::TestDemo => Box::new(TestDemo::new()),
 			Self::LogEventsTest => Box::new(LogEventsTest::new()),
-		}
+		})
 	}
 }
 
@@ -75,12 +79,16 @@ fn main() {
 			game_to_play = Some(*game);
 		}
 		// Start the game
-		let mut game = match game_to_play {
+		let game = match game_to_play {
 			None => {
 				println!("Invalid game entered.");
 				continue;
 			}
 			Some(game_to_play) => game_to_play.new(),
+		};
+		let mut game = match game {
+			Some(game) => game,
+			None => continue,
 		};
 		let mut console_writer = Console::new();
 		game.first_draw(&mut console_writer);
