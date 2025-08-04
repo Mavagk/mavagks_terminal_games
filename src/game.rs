@@ -1,4 +1,4 @@
-use crossterm::event::Event;
+use crossterm::event::{Event, MouseButton};
 
 use crate::console::Console;
 
@@ -9,7 +9,7 @@ pub trait Game {
 	fn first_draw(&mut self, _writer: &mut Console) {}
 	fn event(&mut self, _event: &Event) {}
 	fn mouse_moved_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: Option<(u16, u16)>, _event: &Event) {}
-	//fn click(&mut self, _pos: (u16, u16), _button: MouseButton) {}
+	fn mouse_click_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: (u16, u16), _button: MouseButton, _event: &Event) {}
 	/// Called after an event is handled. If this returns true, the game will terminate, otherwise it won't.
 	fn should_close(&self) -> bool {
 		false

@@ -8,7 +8,7 @@ use std::{collections::HashMap, io::{stdin, stdout, Write}};
 
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
-use crossterm::event::{read, Event};
+use crossterm::event::{read, Event, MouseEventKind};
 
 use crate::{console::Console, game::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo};
 
@@ -99,6 +99,7 @@ fn main() {
 				game.event(&event);
 				match event {
 					Event::Mouse(mouse_event) => {
+						// Mouse movement
 						let (game_mouse_zone_top_left, game_mouse_zone_size) = console_writer.get_game_mouse_zone();
 						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
 						if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
@@ -115,6 +116,29 @@ fn main() {
 						if new_mouse_pos_in_mouse_zone != mouse_pos_in_mouse_zone {
 							mouse_pos_in_mouse_zone = new_mouse_pos_in_mouse_zone;
 							game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event);
+						}
+						// Mouse clicks
+						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
+						if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
+							new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
+						}
+						else {
+							new_mouse_pos_in_mouse_zone = None;
+						}
+						if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
+							if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
+								new_mouse_pos_in_mouse_zone = None;
+							}
+						}
+						//println!("A");
+						if let Some(new_mouse_pos_in_mouse_zone) = new_mouse_pos_in_mouse_zone {
+							//if matches!(mouse_event.kind, MouseEventKind::Up(..) | MouseEventKind::Down(..)) {
+							//	game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, mouse_event., &event);
+							//}
+							match mouse_event.kind {
+								MouseEventKind::Up(button) => game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event),
+								_ => {}
+							}
 						}
 					}
 					_ => {}

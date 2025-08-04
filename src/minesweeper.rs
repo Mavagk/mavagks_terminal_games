@@ -1,7 +1,7 @@
 use std::io::{stdin, stdout, Write};
 
 use array2d::Array2D;
-use crossterm::{event::{Event, KeyCode}, style::{Color, ContentStyle}};
+use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
 
 use crate::{console::Console, game::Game};
 
@@ -39,6 +39,8 @@ impl Game for Minesweeper {
 		screen_size.1 += 1;
 		writer.new_game_screen(screen_size);
 		writer.set_game_mouse_zone((1, 1), board_size);
+		writer.enable_mouse_capture();
+		writer.hide_cursor();
 		// Draw
 		self.draw(writer);
 	}
@@ -47,11 +49,37 @@ impl Game for Minesweeper {
 		let board_size = self.board.size();
 		writer.move_cursor_to((1, 1));
 		for y in 0..board_size.1 {
-			writer.move_cursor_to((1, y));
+			writer.move_cursor_to((1, y + 1));
 			for x in 0..board_size.0 {
 				let (chr, style) = self.board.get_tile((x, y)).get_char_and_style();
 				writer.write(chr, style);
 			}
+		}
+		self.should_redraw = false;
+	}
+
+	fn mouse_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: crossterm::event::MouseButton, _event: &Event) {
+		match button {
+			MouseButton::Left => {
+				let tile = self.board.get_tile_mut(pos_in_mouse_zone);
+				match tile {
+					Tile::Uncleared { mined, .. } => match mined {
+						true => *tile = Tile::Exploded,
+						false => *tile = Tile::Cleared(Clue::None),
+					}
+					_ => {}
+				}
+				self.should_redraw = true;
+			}
+			MouseButton::Right => {
+				let tile = self.board.get_tile_mut(pos_in_mouse_zone);
+				match tile {
+					Tile::Uncleared { flagged, .. } => *flagged = !*flagged,
+					_ => {}
+				}
+				self.should_redraw = true;
+			}
+			_ => {}
 		}
 	}
 }
@@ -144,9 +172,9 @@ enum Tile {
 impl Tile {
 	fn get_char_and_style(&self) -> (char, ContentStyle) {
 		match self {
-			Self::Uncleared { mined, flagged } => match flagged {
+			Self::Uncleared { flagged, .. } => match flagged {
 				false => (' ', ContentStyle { background_color: Some(Color::DarkGrey), ..Default::default() }),
-				true => ('F', ContentStyle { background_color: Some(Color::Red), ..Default::default() }),
+				true => ('F', ContentStyle { background_color: Some(Color::DarkGrey), foreground_color: Some(Color::Red), ..Default::default() }),
 			},
 			Self::Cleared(clue) => {
 				let (chr, color) = clue.get_char_and_color();
@@ -171,5 +199,9 @@ impl Board {
 
 	fn get_tile(&self, pos: (u16, u16)) -> &Tile {
 		&self.tiles[(pos.0 as usize, pos.1 as usize)]
+	}
+
+	fn get_tile_mut(&mut self, pos: (u16, u16)) -> &mut Tile {
+		&mut self.tiles[(pos.0 as usize, pos.1 as usize)]
 	}
 }
