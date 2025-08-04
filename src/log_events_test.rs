@@ -7,17 +7,19 @@ pub struct LogEventsTest {
 }
 
 impl Game for LogEventsTest {
-	fn first_draw(&mut self, writer: &mut Console) {
+	fn first_draw(&mut self, writer: &mut Console) -> Result<(), String> {
 		writer.enable_mouse_capture();
+		Ok(())
 	}
 
-	fn event(&mut self, event: &event::Event) {
+	fn event(&mut self, event: &event::Event) -> Result<(), String> {
 		if let Event::Key(key_event) = event {
 			if key_event.code == KeyCode::Esc && key_event.is_release() {
 				self.should_close = true;
 			}
 		}
 		println!("{event:?}");
+		Ok(())
 	}
 
 	fn should_close(&self) -> bool {

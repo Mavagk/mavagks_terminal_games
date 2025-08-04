@@ -9,15 +9,16 @@ pub struct TestDemo {
 }
 
 impl Game for TestDemo {
-	fn first_draw(&mut self, writer: &mut Console) {
+	fn first_draw(&mut self, writer: &mut Console) -> Result<(), String> {
 		writer.new_game_screen((13, 11));
 		writer.set_game_mouse_zone((1, 1), (12, 10));
 		writer.enable_mouse_capture();
 		writer.hide_cursor();
-		self.draw(writer);
+		self.draw(writer)?;
+		Ok(())
 	}
 
-	fn draw(&mut self, writer: &mut Console) {
+	fn draw(&mut self, writer: &mut Console) -> Result<(), String> {
 		let style = ContentStyle {
 			..Default::default()
 		};
@@ -38,9 +39,10 @@ impl Game for TestDemo {
 			writer.write('\n', style);
 		}
 		self.should_redraw = false;
+		Ok(())
 	}
 
-	fn event(&mut self, event: &Event) {
+	fn event(&mut self, event: &Event) -> Result<(), String> {
 		match event {
 			Event::Key(key_event) => {
 				if key_event.is_press() && key_event.code == KeyCode::Esc {
@@ -49,11 +51,13 @@ impl Game for TestDemo {
 			}
 			_ => {}
 		}
+		Ok(())
 	}
 
-	fn mouse_moved_in_game_mouse_zone(&mut self, pos_in_mouse_zone: Option<(u16, u16)>, _event: &Event) {
+	fn mouse_moved_in_game_mouse_zone(&mut self, pos_in_mouse_zone: Option<(u16, u16)>, _event: &Event) -> Result<(), String> {
 		self.mouse_pos_in_mouse_zone = pos_in_mouse_zone;
 		self.should_redraw = true;
+		Ok(())
 	}
 
 	fn should_redraw(&self) -> bool {

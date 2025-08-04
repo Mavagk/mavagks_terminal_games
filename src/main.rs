@@ -91,12 +91,20 @@ fn main() {
 			None => continue,
 		};
 		let mut console_writer = Console::new();
-		game.first_draw(&mut console_writer);
+		if let Err(error) = game.first_draw(&mut console_writer) {
+			console_writer.on_game_close();
+			println!("Error: {error}.");
+			break;
+		}
 		let mut mouse_pos_in_mouse_zone = None;
 		// Enter game loop
 		loop {
 			if let Ok(event) = read() {
-				game.event(&event);
+				if let Err(error) = game.event(&event) {
+					console_writer.on_game_close();
+					println!("Error: {error}.");
+					break;
+				}
 				match event {
 					Event::Mouse(mouse_event) => {
 						// Mouse movement
@@ -115,7 +123,11 @@ fn main() {
 						}
 						if new_mouse_pos_in_mouse_zone != mouse_pos_in_mouse_zone {
 							mouse_pos_in_mouse_zone = new_mouse_pos_in_mouse_zone;
-							game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event);
+							if let Err(error) = game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event) {
+								console_writer.on_game_close();
+								println!("Error: {error}.");
+								break;
+							}
 						}
 						// Mouse clicks
 						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
@@ -136,7 +148,13 @@ fn main() {
 							//	game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, mouse_event., &event);
 							//}
 							match mouse_event.kind {
-								MouseEventKind::Up(button) => game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event),
+								MouseEventKind::Up(button) => {
+									if let Err(error) = game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
+										console_writer.on_game_close();
+										println!("Error: {error}.");
+										break;
+									}
+								}
 								_ => {}
 							}
 						}
@@ -148,11 +166,14 @@ fn main() {
 				break;
 			}
 			if game.should_redraw() {
-				game.draw(&mut console_writer);
+				if let Err(error) = game.draw(&mut console_writer) {
+					console_writer.on_game_close();
+					println!("Error: {error}.");
+					break;
+				}
 			}
 		}
 		// Switch back to main screen once game has finished
-		console_writer.exit_game_screen();
-		console_writer.disable_mouse_capture();
+		console_writer.on_game_close();
 	}
 }

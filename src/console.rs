@@ -50,6 +50,11 @@ impl Console {
 		self.is_in_alternate_screen = false;
 	}
 
+	pub fn on_game_close(&mut self) {
+		self.exit_game_screen();
+		self.disable_mouse_capture();
+	}
+
 	pub fn move_cursor_to(&mut self, to: (u16, u16)) {
 		execute!(self.stdout, MoveTo(to.0, to.1)).unwrap();
 	}
