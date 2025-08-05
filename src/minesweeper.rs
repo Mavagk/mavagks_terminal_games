@@ -51,6 +51,15 @@ impl Game for Minesweeper {
 
 	fn draw(&mut self, writer: &mut Console) -> Result<(), String> {
 		let board_size = self.board.size();
+		// Write game score info
+		writer.move_cursor_to((0, 0));
+		writer.write(format!("Flagged: {}/{}. ",self.board.mines_flagged, self.board.mine_count), ContentStyle { ..Default::default() });
+		match self.game_state {
+			GameState::GameOver => writer.write(format!("Game over!"), ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }),
+			GameState::GameWon => writer.write(format!("Game won!"), ContentStyle { foreground_color: Some(Color::Green), ..Default::default() }),
+			_ => {}
+		}
+		// Draw board
 		writer.move_cursor_to((1, 1));
 		for y in 0..board_size.1 {
 			writer.move_cursor_to((1, y + 1));
@@ -64,22 +73,29 @@ impl Game for Minesweeper {
 	}
 
 	fn mouse_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
-		if self.game_state == GameState::Normal {
-			match button {
-				MouseButton::Left => {
-					if !self.board.is_generated {
-						if !self.board.generate(pos_in_mouse_zone) {
-							self.should_close = true;
-							return Err("Unable to generate board".into());
-						}
+		// Don't allow the board to be clicked on if we have won or lost
+		if self.game_state != GameState::Normal {
+			return Ok(());
+		}
+		match button {
+			// Left click to clear a tile
+			MouseButton::Left => {
+				// Generate the board if it has not yet been generated
+				if !self.board.is_generated {
+					if !self.board.generate(pos_in_mouse_zone) {
+						self.should_close = true;
+						return Err("Unable to generate board".into());
 					}
-					let result = self.board.clear_tile(pos_in_mouse_zone);
-					self.should_redraw |= result.0;
-					self.game_state = result.1;
 				}
-				MouseButton::Right => self.should_redraw |= self.board.flag_unflag_tile(pos_in_mouse_zone),
-				_ => {}
+				// Clear tile
+				let result = self.board.clear_tile(pos_in_mouse_zone);
+				self.should_redraw |= result.0;
+				self.game_state = result.1;
 			}
+			// Right click to flag/unflag a tile
+			MouseButton::Right => self.should_redraw |= self.board.flag_unflag_tile(pos_in_mouse_zone),
+			// Middle click does nothing
+			_ => {}
 		}
 		Ok(())
 	}
@@ -89,22 +105,21 @@ impl Minesweeper {
 	pub fn new() -> Result<Self, String> {
 		// Get width
 		print!("Width (blank for 20): ");
-		stdout().flush().unwrap();
 		let width = get_input_value_or_default(20).ok_or("Error: invalid width.")?;
 		// Get height
 		print!("Height (blank for a square board): ");
-		stdout().flush().unwrap();
 		let height = get_input_value_or_default(width).ok_or("Error: invalid height.")?;
 		// Get mine count
 		print!("Mine count (blank for 75): ");
-		stdout().flush().unwrap();
 		let mine_count = get_input_value_or_default(75).ok_or("Error: invalid mine count.")?;
 		// Create game
 		Ok(Self {
 			board: Board {
 				tiles: Array2D::filled_with(Tile::Uncleared { mined: false, flagged: false }, height, width),
 				mine_count,
-				is_generated: false
+				is_generated: false,
+				mines_flagged: 0,
+				tiles_cleared: 0,
 			},
 			should_close: false,
 			should_redraw: false,
@@ -127,12 +142,13 @@ impl Clue {
 		}
 	}
 
-	fn calculate(neighbors: &[[bool; 3]; 3]) -> Self {
-		let mines_in_neighbors = neighbors.iter().map(|row| row.iter().map(|is_mine| (*is_mine) as u8).sum::<u8>()).sum();
-		if mines_in_neighbors == 0 {
+	/// Given a 3x3 grid centered on a clicked tile, gives the clue that the cleared tile should display.
+	fn calculate(neighbors_with_mines: &[[bool; 3]; 3]) -> Self {
+		let mine_count = neighbors_with_mines.iter().map(|row| row.iter().map(|is_mine| (*is_mine) as u8).sum::<u8>()).sum();
+		if mine_count == 0 {
 			return Self::None;
 		}
-		return Self::Number(mines_in_neighbors);
+		return Self::Number(mine_count);
 	}
 }
 
@@ -144,17 +160,18 @@ enum Tile {
 }
 
 impl Tile {
+	/// Gives the char and style that should be displayed in the terminal cell that this tile is in.
 	fn get_char_and_style(&self) -> (char, ContentStyle) {
 		match self {
 			Self::Uncleared { flagged, .. } => match flagged {
 				false => (' ', ContentStyle { background_color: Some(Color::DarkGrey), ..Default::default() }),
-				true => ('F', ContentStyle { background_color: Some(Color::DarkGrey), foreground_color: Some(Color::Red), ..Default::default() }),
+				true => ('⚑', ContentStyle { background_color: Some(Color::DarkGrey), foreground_color: Some(Color::Red), ..Default::default() }),
 			},
 			Self::Cleared(clue) => {
 				let (chr, color) = clue.get_char_and_color();
 				(chr, ContentStyle { foreground_color: Some(color), background_color: Some(Color::Black), ..Default::default() })
 			}
-			Self::Exploded => ('B', ContentStyle { foreground_color: Some(Color::White), background_color: Some(Color::Red), ..Default::default() }),
+			Self::Exploded => ('●', ContentStyle { foreground_color: Some(Color::White), background_color: Some(Color::Red), ..Default::default() }),
 		}
 	}
 }
@@ -162,27 +179,38 @@ impl Tile {
 #[derive(Clone)]
 struct Board {
 	tiles: Array2D<Tile>,
-	mine_count: usize,
+	mine_count: u32,
+	mines_flagged: u32,
+	tiles_cleared: u32,
 	is_generated: bool,
 }
 
 impl Board {
+	/// Gives the width and height of the board.
 	fn size(&self) -> (u16, u16) {
 		(self.tiles.num_columns() as u16, self.tiles.num_rows() as u16)
 	}
 
+	/// Gives the width and height of the board.
+	fn tile_count(&self) -> u32 {
+		self.tiles.num_columns() as u32 * self.tiles.num_rows() as u32
+	}
+
+	/// Get a immutable reference to a tile on the board.
 	fn get_tile(&self, pos: (u16, u16)) -> &Tile {
 		&self.tiles[(pos.0 as usize, pos.1 as usize)]
 	}
 
+	/// Get a mutable reference to a tile on the board.
 	fn get_tile_mut(&mut self, pos: (u16, u16)) -> &mut Tile {
 		&mut self.tiles[(pos.0 as usize, pos.1 as usize)]
 	}
 
+	/// Clears a tile on the board.
 	/// Returns `(should_redraw, new_game_state)`.
 	fn clear_tile(&mut self, pos: (u16, u16)) -> (bool, GameState) {
 		// Get neighboring tiles have bombs
-		let mut neighbors_that_have_bombs = [[false; 3]; 3];
+		let mut neighbors_that_have_mines = [[false; 3]; 3];
 		let mut do_cascade = false;
 		for y_offset in 0..=2 {
 			let y = match (pos.1 + y_offset).checked_sub(1) {
@@ -200,7 +228,7 @@ impl Board {
 				if x >= self.size().0 {
 					continue;
 				}
-				neighbors_that_have_bombs[y_offset as usize][x_offset as usize] = self.is_mine_in_tile((x, y));
+				neighbors_that_have_mines[y_offset as usize][x_offset as usize] = self.is_mine_in_tile((x, y));
 			}
 		}
 		// Change tile
@@ -208,21 +236,27 @@ impl Board {
 		let mut should_redraw = false;
 		let mut new_game_state = GameState::Normal;
 		match tile {
-			Tile::Uncleared { mined, .. } => {
-				match mined {
-					true => {
-						*tile = Tile::Exploded;
-						new_game_state = GameState::GameOver;
-					}
-					false => {
-						let clue = Clue::calculate(&neighbors_that_have_bombs);
-						*tile = Tile::Cleared(clue);
-						if matches!(clue, Clue::None) {
-							do_cascade = true;
+			Tile::Uncleared { mined, flagged } => {
+				// Don't clear a flagged tile
+				if !*flagged {
+					match mined {
+						// If the tile has a mine, game over
+						true => {
+							*tile = Tile::Exploded;
+							new_game_state = GameState::GameOver;
+						}
+						// Else clear the tile and calculate the clue that should appear in the tile
+						false => {
+							let clue = Clue::calculate(&neighbors_that_have_mines);
+							*tile = Tile::Cleared(clue);
+							if matches!(clue, Clue::None) {
+								do_cascade = true;
+							}
+							self.tiles_cleared += 1;
 						}
 					}
+					should_redraw = true;
 				}
-				should_redraw = true;
 			}
 			_ => {}
 		}
@@ -234,11 +268,15 @@ impl Board {
 				}
 			}
 		}
+		// Check if game won
+		if self.is_game_won() {
+			new_game_state = GameState::GameWon
+		}
 		// Return
 		(should_redraw, new_game_state)
 	}
 
-	/// Returns if the board should be redrawn
+	/// Flags or unflags a tile, returns if the board should be redrawn.
 	fn flag_unflag_tile(&mut self, pos: (u16, u16)) -> bool {
 		let tile = self.get_tile_mut(pos);
 		let mut should_redraw = false;
@@ -246,10 +284,18 @@ impl Board {
 			Tile::Uncleared { flagged, .. } => {
 				*flagged = !*flagged;
 				should_redraw = true;
+				match *flagged {
+					true => self.mines_flagged += 1,
+					false => self.mines_flagged -= 1,
+				}
 			}
 			_ => {}
 		}
 		should_redraw
+	}
+
+	fn is_game_won(&self) -> bool {
+		self.tiles_cleared == self.tile_count() - self.mine_count
 	}
 
 	fn is_mine_in_tile(&self, pos: (u16, u16)) -> bool {

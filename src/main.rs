@@ -37,20 +37,18 @@ impl GameType {
 	}
 }
 
+/// Will flush the stdin buffer, request a string and block until it receives it and then return it with the trailing whitespaces trimmed off.
 fn get_input() -> Box<str> {
+	stdout().flush().unwrap();
 	let mut text_entered = String::new();
 	stdin().read_line(&mut text_entered).unwrap();
 	text_entered.trim_end().into()
 }
 
-//fn get_input_value<T: FromStr>() -> Option<T> {
-//	let mut text_entered = String::new();
-//	stdin().read_line(&mut text_entered).unwrap();
-//	let text_entered = text_entered.trim_end();
-//	text_entered.parse().ok()
-//}
-
+/// Will flush the stdin buffer, request a string and block until it receives, trim off the trailing whitespaces then try to parse it into a value of type `T`.
+/// Entering nothing will result in the default value being returned.
 fn get_input_value_or_default<T: FromStr>(default: T) -> Option<T> {
+	stdout().flush().unwrap();
 	let mut text_entered = String::new();
 	stdin().read_line(&mut text_entered).unwrap();
 	let text_entered = text_entered.trim_end();
@@ -73,7 +71,6 @@ fn main() {
 	loop {
 		// Get user input
 		print!("Enter game to play: ");
-		stdout().flush().unwrap();
 		let text_entered = get_input();
 		// Decide the game to play from the entered text
 		if text_entered.is_empty() {

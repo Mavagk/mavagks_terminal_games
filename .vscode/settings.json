@@ -3,6 +3,7 @@
 		"crossterm",
 		"mavagks",
 		"termion",
+		"unflags",
 		"Ungenerated"
 	],
 	"terminal.explorerKind": "external",
