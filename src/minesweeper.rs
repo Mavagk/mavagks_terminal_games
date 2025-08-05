@@ -103,13 +103,28 @@ impl Minesweeper {
 	pub fn new() -> Result<Self, String> {
 		// Get width
 		print!("Width (blank for 20): ");
-		let width = get_input_value_or_default(20).ok_or("Error: invalid width.")?;
+		let width = get_input_value_or_default(20).ok_or("Invalid width.")?;
+		if width < 4 {
+			return Err("Width too small".into());
+		}
+		if width > 10000 {
+			return Err("Width too large".into());
+		}
 		// Get height
 		print!("Height (blank for a square board): ");
-		let height = get_input_value_or_default(width).ok_or("Error: invalid height.")?;
+		let height = get_input_value_or_default(width).ok_or("Invalid height.")?;
+		if height < 4 {
+			return Err("height too small".into());
+		}
+		if height > 10000 {
+			return Err("Height too large".into());
+		}
 		// Get mine count
 		print!("Mine count (blank for 75): ");
-		let mine_count = get_input_value_or_default(75).ok_or("Error: invalid mine count.")?;
+		let mine_count = get_input_value_or_default(75).ok_or("Invalid mine count.")?;
+		if mine_count > width as u32 * height as u32 - 9 {
+			return Err("Too many mines".into());
+		}
 		// Create game
 		Ok(Self {
 			board: Board {
@@ -317,6 +332,9 @@ impl Board {
 	/// Generates the board, returns `false` if generation failed.
 	fn generate(&mut self, safe_tile: (u16, u16)) -> bool {
 		self.is_generated = true;
+		if self.mine_count == 0 {
+			return true;
+		}
 		let board_size = self.size();
 		let mut was_successful = false;
 		let mut mines_placed = 0;
