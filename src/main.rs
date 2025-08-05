@@ -4,7 +4,7 @@ pub mod console;
 pub mod log_events_test;
 pub mod minesweeper;
 
-use std::{collections::HashMap, io::{stdin, stdout, Write}};
+use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr};
 
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
@@ -28,13 +28,36 @@ impl GameType {
 		}
 	}
 
-	pub fn new(self) -> Option<Box<dyn Game>> {
-		Some(match self {
+	pub fn new(self) -> Result<Box<dyn Game>, String> {
+		Ok(match self {
 			Self::Minesweeper => Box::new(Minesweeper::new()?),
 			Self::TestDemo => Box::new(TestDemo::new()),
 			Self::LogEventsTest => Box::new(LogEventsTest::new()),
 		})
 	}
+}
+
+fn get_input() -> Box<str> {
+	let mut text_entered = String::new();
+	stdin().read_line(&mut text_entered).unwrap();
+	text_entered.trim_end().into()
+}
+
+//fn get_input_value<T: FromStr>() -> Option<T> {
+//	let mut text_entered = String::new();
+//	stdin().read_line(&mut text_entered).unwrap();
+//	let text_entered = text_entered.trim_end();
+//	text_entered.parse().ok()
+//}
+
+fn get_input_value_or_default<T: FromStr>(default: T) -> Option<T> {
+	let mut text_entered = String::new();
+	stdin().read_line(&mut text_entered).unwrap();
+	let text_entered = text_entered.trim_end();
+	if text_entered.is_empty() {
+		return Some(default);
+	}
+	text_entered.parse().ok()
 }
 
 fn main() {
@@ -46,14 +69,12 @@ fn main() {
 		short_name_to_game.insert(game_short_name, game);
 		println!("{}, {game_short_name}: {game_name}, {game_info}", game as usize);
 	}
-
+	//
 	loop {
 		// Get user input
 		print!("Enter game to play: ");
 		stdout().flush().unwrap();
-		let mut text_entered = String::new();
-		stdin().read_line(&mut text_entered).unwrap();
-		let text_entered = text_entered.trim_end();
+		let text_entered = get_input();
 		// Decide the game to play from the entered text
 		if text_entered.is_empty() {
 			break;
@@ -75,7 +96,7 @@ fn main() {
 				}
 			}
 		}
-		if let Some(game) = short_name_to_game.get(text_entered) {
+		if let Some(game) = short_name_to_game.get(&*text_entered) {
 			game_to_play = Some(*game);
 		}
 		// Start the game
@@ -87,14 +108,17 @@ fn main() {
 			Some(game_to_play) => game_to_play.new(),
 		};
 		let mut game = match game {
-			Some(game) => game,
-			None => continue,
+			Ok(game) => game,
+			Err(error) => {
+				println!("Error: {error}.");
+				continue;
+			}
 		};
 		let mut console_writer = Console::new();
 		if let Err(error) = game.first_draw(&mut console_writer) {
 			console_writer.on_game_close();
 			println!("Error: {error}.");
-			break;
+			continue;
 		}
 		let mut mouse_pos_in_mouse_zone = None;
 		// Enter game loop
@@ -142,11 +166,7 @@ fn main() {
 								new_mouse_pos_in_mouse_zone = None;
 							}
 						}
-						//println!("A");
 						if let Some(new_mouse_pos_in_mouse_zone) = new_mouse_pos_in_mouse_zone {
-							//if matches!(mouse_event.kind, MouseEventKind::Up(..) | MouseEventKind::Down(..)) {
-							//	game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, mouse_event., &event);
-							//}
 							match mouse_event.kind {
 								MouseEventKind::Up(button) => {
 									if let Err(error) = game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {

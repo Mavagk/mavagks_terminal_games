@@ -1,10 +1,10 @@
-use std::io::{stdin, stdout, Write};
+use std::io::{stdout, Write};
 
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
 use rand::random_range;
 
-use crate::{console::Console, game::Game};
+use crate::{console::Console, game::Game, get_input_value_or_default};
 
 pub struct Minesweeper {
 	board: Board,
@@ -86,57 +86,21 @@ impl Game for Minesweeper {
 }
 
 impl Minesweeper {
-	pub fn new() -> Option<Self> {
+	pub fn new() -> Result<Self, String> {
 		// Get width
 		print!("Width (blank for 20): ");
 		stdout().flush().unwrap();
-		let mut text_entered = String::new();
-		stdin().read_line(&mut text_entered).unwrap();
-		let text_entered = text_entered.trim_end();
-		let width = match text_entered {
-			"" => 20,
-			_ => match text_entered.parse() {
-				Ok(width) => width,
-				Err(_) => {
-					println!("Error: invalid number.");
-					return None;
-				}
-			}
-		};
+		let width = get_input_value_or_default(20).ok_or("Error: invalid width.")?;
 		// Get height
 		print!("Height (blank for a square board): ");
 		stdout().flush().unwrap();
-		let mut text_entered = String::new();
-		stdin().read_line(&mut text_entered).unwrap();
-		let text_entered = text_entered.trim_end();
-		let height = match text_entered {
-			"" => width,
-			_ => match text_entered.parse() {
-				Ok(height) => height,
-				Err(_) => {
-					println!("Error: invalid number.");
-					return None;
-				}
-			}
-		};
+		let height = get_input_value_or_default(width).ok_or("Error: invalid height.")?;
 		// Get mine count
 		print!("Mine count (blank for 75): ");
 		stdout().flush().unwrap();
-		let mut text_entered = String::new();
-		stdin().read_line(&mut text_entered).unwrap();
-		let text_entered = text_entered.trim_end();
-		let mine_count = match text_entered {
-			"" => 75,
-			_ => match text_entered.parse() {
-				Ok(mine_count) => mine_count,
-				Err(_) => {
-					println!("Error: invalid number.");
-					return None;
-				}
-			}
-		};
+		let mine_count = get_input_value_or_default(75).ok_or("Error: invalid mine count.")?;
 		// Create game
-		Some(Self {
+		Ok(Self {
 			board: Board {
 				tiles: Array2D::filled_with(Tile::Uncleared { mined: false, flagged: false }, height, width),
 				mine_count,
