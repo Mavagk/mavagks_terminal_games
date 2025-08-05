@@ -1,3 +1,5 @@
+use std::iter::once;
+
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
 use rand::random_range;
@@ -23,8 +25,23 @@ impl Game for Minesweeper {
 	fn event(&mut self, event: &Event) -> Result<(), String> {
 		match event {
 			Event::Key(key_event) => {
-				if key_event.is_press() && key_event.code == KeyCode::Esc {
-					self.should_close = true;
+				if key_event.is_press() {
+					match key_event.code {
+						KeyCode::Esc => self.should_close = true,
+						KeyCode::Char('r') => *self = Self {
+							board: Board {
+								tiles: Array2D::filled_with(Tile::Uncleared { mined: false, flagged: false }, self.board.tiles.num_rows(), self.board.tiles.num_columns()),
+								mine_count: self.board.mine_count,
+								is_generated: false,
+								mines_flagged: 0,
+								tiles_cleared: 0,
+							},
+							should_close: false,
+							should_redraw: true,
+							game_state: GameState::Normal,
+						},
+						_ => {}
+					}
 				}
 			}
 			_ => {}
@@ -55,7 +72,7 @@ impl Game for Minesweeper {
 		match self.game_state {
 			GameState::GameOver => writer.write(format!("Game over!"), ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }),
 			GameState::GameWon => writer.write(format!("Game won!"), ContentStyle { foreground_color: Some(Color::Green), ..Default::default() }),
-			_ => {}
+			_ => writer.write(format!("                    "), ContentStyle { ..Default::default() }),
 		}
 		// Draw board
 		writer.move_cursor_to((1, 1));
@@ -86,9 +103,15 @@ impl Game for Minesweeper {
 					}
 				}
 				// Clear tile
-				let result = self.board.clear_tile(pos_in_mouse_zone);
+				let result = self.board.clear_tile_and_cascade(pos_in_mouse_zone);
 				self.should_redraw |= result.0;
 				self.game_state = result.1;
+				if self.game_state == GameState::GameWon {
+					self.board.flag_all_uncleared();
+				}
+				if self.game_state == GameState::GameOver {
+					self.board.explode_all_mines();
+				}
 			}
 			// Right click to flag/unflag a tile
 			MouseButton::Right => self.should_redraw |= self.board.flag_unflag_tile(pos_in_mouse_zone),
@@ -102,8 +125,8 @@ impl Game for Minesweeper {
 impl Minesweeper {
 	pub fn new() -> Result<Self, String> {
 		// Get width
-		print!("Width (blank for 20): ");
-		let width = get_input_value_or_default(20).ok_or("Invalid width.")?;
+		print!("Width (blank for 40): ");
+		let width = get_input_value_or_default(40).ok_or("Invalid width.")?;
 		if width < 4 {
 			return Err("Width too small".into());
 		}
@@ -111,8 +134,8 @@ impl Minesweeper {
 			return Err("Width too large".into());
 		}
 		// Get height
-		print!("Height (blank for a square board): ");
-		let height = get_input_value_or_default(width).ok_or("Invalid height.")?;
+		print!("Height (blank for half width): ");
+		let height = get_input_value_or_default((width / 2).max(4)).ok_or("Invalid height.")?;
 		if height < 4 {
 			return Err("height too small".into());
 		}
@@ -187,7 +210,7 @@ impl Tile {
 	fn get_char_and_style(&self) -> (char, ContentStyle) {
 		match self {
 			Self::Uncleared { flagged, .. } => match flagged {
-				false => (' ', ContentStyle { background_color: Some(Color::DarkGrey), ..Default::default() }),
+				false => ('•', ContentStyle { background_color: Some(Color::DarkGrey), foreground_color: Some(Color::Black), ..Default::default() }),
 				true => ('⚑', ContentStyle { background_color: Some(Color::DarkGrey), foreground_color: Some(Color::Red), ..Default::default() }),
 			},
 			Self::Cleared(clue) => {
@@ -221,17 +244,35 @@ impl Board {
 
 	/// Get a immutable reference to a tile on the board.
 	fn get_tile(&self, pos: (u16, u16)) -> &Tile {
-		&self.tiles[(pos.0 as usize, pos.1 as usize)]
+		&self.tiles[(pos.1 as usize, pos.0 as usize)]
 	}
 
 	/// Get a mutable reference to a tile on the board.
 	fn get_tile_mut(&mut self, pos: (u16, u16)) -> &mut Tile {
-		&mut self.tiles[(pos.0 as usize, pos.1 as usize)]
+		&mut self.tiles[(pos.1 as usize, pos.0 as usize)]
 	}
 
 	/// Clears a tile on the board.
 	/// Returns `(should_redraw, new_game_state)`.
-	fn clear_tile(&mut self, pos: (u16, u16)) -> (bool, GameState) {
+	fn clear_tile_and_cascade(&mut self, pos: (u16, u16)) -> (bool, GameState) {
+		let mut to_clear: Vec<(u16, u16)> = once(pos).collect();
+		let mut out = None;
+		while !to_clear.is_empty() {
+			let element_to_clear_pos = to_clear.pop().unwrap();
+			let result = self.clear_tile(element_to_clear_pos, &mut to_clear);
+			if out.is_none() {
+				out = Some(result)
+			}
+			if result.1 == GameState::GameWon {
+				out = Some((true, GameState::GameWon));
+			}
+		}
+		out.unwrap()
+	}
+
+	/// Clears a tile on the board.
+	/// Returns `(should_redraw, new_game_state)`.
+	fn clear_tile(&mut self, pos: (u16, u16), cascade_to: &mut Vec<(u16, u16)>) -> (bool, GameState) {
 		// Get neighboring tiles have bombs
 		let mut neighbors_that_have_mines = [[false; 3]; 3];
 		let mut do_cascade = false;
@@ -287,7 +328,9 @@ impl Board {
 		if do_cascade {
 			for y in pos.1.saturating_sub(1)..(pos.1 + 2).min(self.size().1) {
 				for x in pos.0.saturating_sub(1)..(pos.0 + 2).min(self.size().0) {
-					self.clear_tile((x, y));
+					if (x, y) != pos {
+						cascade_to.push((x, y));
+					}
 				}
 			}
 		}
@@ -355,9 +398,39 @@ impl Board {
 		}
 		was_successful
 	}
+
+	fn flag_all_uncleared(&mut self) {
+		for y in 0..self.tiles.column_len() {
+			for x in 0..self.tiles.row_len() {
+				let tile = self.get_tile_mut((x as u16, y as u16));
+				if let Tile::Uncleared { flagged, .. } = tile {
+					*flagged = true;
+				}
+			}
+		}
+		self.mines_flagged = self.mine_count;
+	}
+
+	fn explode_all_mines(&mut self) {
+		for y in 0..self.tiles.column_len() {
+			for x in 0..self.tiles.row_len() {
+				let tile = self.get_tile_mut((x as u16, y as u16));
+				let mut was_unflagged = false;
+				if let Tile::Uncleared { mined: true, flagged } = tile {
+					if *flagged {
+						was_unflagged = true;
+					}
+					*tile = Tile::Exploded;
+				}
+				if was_unflagged {
+					self.mines_flagged -= 1;
+				}
+			}
+		}
+	}
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 enum GameState {
 	Normal,
 	GameOver,
