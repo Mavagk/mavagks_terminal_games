@@ -59,6 +59,7 @@ fn get_input_value_or_default<T: FromStr>(default: T) -> Option<T> {
 }
 
 fn main() {
+	println!("Mavagk's Terminal Games. Version {}", env!("CARGO_PKG_VERSION"));
 	// Print out game list
 	println!("Games:");
 	let mut short_name_to_game = HashMap::new();
