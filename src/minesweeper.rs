@@ -1,5 +1,3 @@
-use std::io::{stdout, Write};
-
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
 use rand::random_range;
@@ -138,7 +136,17 @@ impl Clue {
 	fn get_char_and_color(self) -> (char, Color) {
 		match self {
 			Self::None => (' ', Color::Black),
-			Self::Number(number) => (('0' as u8 + number) as char, Color::Grey),
+			Self::Number(number) => (('0' as u8 + number) as char, match number {
+				1 => Color::Blue,
+				2 => Color::Green,
+				3 => Color::Red,
+				4 => Color::DarkBlue,
+				5 => Color::DarkRed,
+				6 => Color::DarkCyan,
+				7 => Color::DarkGrey,
+				8 => Color::Grey,
+				_ => unreachable!()
+			}),
 		}
 	}
 
@@ -306,7 +314,7 @@ impl Board {
 		}
 	}
 
-	/// Returns `false` if generation failed.
+	/// Generates the board, returns `false` if generation failed.
 	fn generate(&mut self, safe_tile: (u16, u16)) -> bool {
 		self.is_generated = true;
 		let board_size = self.size();
