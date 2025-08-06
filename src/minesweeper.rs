@@ -6,7 +6,7 @@ use rand::random_range;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{console::Console, game::Game, get_input_value_or_default};
+use crate::{console::Console, game::Game, get_input, get_input_value_or_default};
 
 pub struct Minesweeper {
 	board: Board,
@@ -34,6 +34,7 @@ impl Game for Minesweeper {
 							board: Board {
 								tiles: Array2D::filled_with(Tile::Uncleared { mined: false, flagged: false }, self.board.tiles.num_rows(), self.board.tiles.num_columns()),
 								mine_count: self.board.mine_count,
+								ensured_solvable_difficulty: self.board.ensured_solvable_difficulty,
 								is_generated: false,
 								mines_flagged: 0,
 								tiles_cleared: 0,
@@ -42,6 +43,9 @@ impl Game for Minesweeper {
 							should_redraw: true,
 							game_state: GameState::Normal,
 						},
+						KeyCode::Char('e' | 's') => {
+							self.single_solve_step(Difficulty::Easy);
+						}
 						_ => {}
 					}
 				}
@@ -97,22 +101,43 @@ impl Game for Minesweeper {
 		match button {
 			// Left click to clear a tile
 			MouseButton::Left => {
-				// Generate the board if it has not yet been generated
 				if !self.board.is_generated {
-					if !self.board.generate(pos_in_mouse_zone) {
-						self.should_close = true;
+					// Generate board
+					let mut was_successful = false;
+					for _ in 0..100 {
+						if !self.board.generate(pos_in_mouse_zone) {
+							return Err("Unable to generate board".into());
+						}
+						// Clear tile
+						self.board.clear_tile_and_cascade(pos_in_mouse_zone);
+						if self.board.is_solvable() {
+							was_successful = true;
+							break;
+						}
+						self.board.reset();
+					}
+					if !was_successful {
 						return Err("Unable to generate board".into());
 					}
+					self.should_redraw = true;
+					if self.board.is_game_won() {
+						self.game_state = GameState::GameWon;
+					}
+					if self.game_state == GameState::GameWon {
+						self.board.flag_all_uncleared();
+					}
 				}
-				// Clear tile
-				let result = self.board.clear_tile_and_cascade(pos_in_mouse_zone);
-				self.should_redraw |= result.0;
-				self.game_state = result.1;
-				if self.game_state == GameState::GameWon {
-					self.board.flag_all_uncleared();
-				}
-				if self.game_state == GameState::GameOver {
-					self.board.explode_all_mines();
+				else {
+					// Clear tile
+					let result = self.board.clear_tile_and_cascade(pos_in_mouse_zone);
+					self.should_redraw |= result.0;
+					self.game_state = result.1;
+					if self.game_state == GameState::GameWon {
+						self.board.flag_all_uncleared();
+					}
+					if self.game_state == GameState::GameOver {
+						self.board.explode_all_mines();
+					}
 				}
 			}
 			// Right click to flag/unflag a tile
@@ -150,6 +175,14 @@ impl Minesweeper {
 		if mine_count > width as u32 * height as u32 - 9 {
 			return Err("Too many mines".into());
 		}
+		// Difficulty
+		print!("Ensure solvable using techniques: (easy, unchecked, e, u) (blank for easy)");
+		let ensured_solvable_difficulty_text = get_input();
+		let ensured_solvable_difficulty = match &*ensured_solvable_difficulty_text {
+			"" | "e" | "easy" => Some(Difficulty::Easy),
+			"u" | "unchecked" => None,
+			_ => return Err("Invalid input".into()),
+		};
 		// Create game
 		Ok(Self {
 			board: Board {
@@ -158,11 +191,23 @@ impl Minesweeper {
 				is_generated: false,
 				mines_flagged: 0,
 				tiles_cleared: 0,
+				ensured_solvable_difficulty,
 			},
 			should_close: false,
 			should_redraw: false,
 			game_state: GameState::Normal,
 		})
+	}
+
+	fn single_solve_step(&mut self, difficulty: Difficulty) {
+		let was_tile_solved = self.board.single_solve_step(difficulty);
+		if was_tile_solved {
+			self.should_redraw = true;
+			if self.board.is_game_won() {
+				self.game_state = GameState::GameWon;
+				self.board.flag_all_uncleared();
+			}
+		}
 	}
 }
 
@@ -235,6 +280,7 @@ struct Board {
 	mines_flagged: u32,
 	tiles_cleared: u32,
 	is_generated: bool,
+	ensured_solvable_difficulty: Option<Difficulty>,
 }
 
 impl Board {
@@ -386,6 +432,29 @@ impl Board {
 		was_successful
 	}
 
+	fn reset(&mut self) {
+		self.is_generated = false;
+		self.mines_flagged = 0;
+		self.tiles_cleared = 0;
+		for index in self.tiles.indices_column_major() {
+			self.tiles[index] = Tile::Uncleared { mined: false, flagged: false };
+		}
+	}
+
+	fn is_solvable(&self) -> bool {
+		let ensured_solvable_difficulty = match self.ensured_solvable_difficulty {
+			Some(ensured_solvable_difficulty) => ensured_solvable_difficulty,
+			None => return true,
+		};
+		let mut test_board = self.clone();
+		loop {
+			let tile_solved = test_board.single_solve_step(ensured_solvable_difficulty);
+			if !tile_solved {
+				return test_board.is_game_won();
+			}
+		}
+	}
+
 	fn flag_all_uncleared(&mut self) {
 		for y in 0..self.tiles.column_len() {
 			for x in 0..self.tiles.row_len() {
@@ -416,10 +485,11 @@ impl Board {
 		}
 	}
 
-	fn single_solve_step(&mut self) -> bool {
-		for (y, row) in self.tiles.rows_iter().enumerate() {
-			for (x, tile) in row.enumerate() {
+	fn single_solve_step(&mut self, _difficulty: Difficulty) -> bool {
+		for y in 0..self.tiles.column_len() {
+			for x in 0..self.tiles.row_len() {
 				let pos = (x as u16, y as u16);
+				let tile = self.get_tile(pos);
 				// Skip tiles that are not cleared
 				let clue = match tile {
 					Tile::Cleared(clue) => *clue,
@@ -427,13 +497,17 @@ impl Board {
 				};
 				// Count neighboring flags and cleared tiles
 				let mut neighboring_flags = 0;
-				let mut neighboring_unflagged_cleared_tiles = 0;
+				let mut neighboring_uncleared_tiles = 0;
 				for neighbor_tile in OffsetDirection::iter()
 					.map(|offset| self.get_offset_tile(pos, offset))
 					.filter_map(|tile| tile) {
 					match neighbor_tile {
-						Tile::Uncleared { flagged: true, .. } => neighboring_flags += 1,
-						Tile::Uncleared { flagged: false, .. } => neighboring_unflagged_cleared_tiles += 1,
+						Tile::Uncleared { flagged, .. } => {
+							if *flagged {
+								neighboring_flags += 1;
+							}
+							neighboring_uncleared_tiles += 1;
+						}
 						_ => {},
 					}
 				}
@@ -442,7 +516,8 @@ impl Board {
 					Clue::None => {}
 					Clue::Number(neighboring_mines) => {
 						// If all mines are flagged, clear non-flagged
-						if neighboring_mines == neighboring_flags {
+						if neighboring_mines == neighboring_flags && neighboring_flags != 0 {
+							let mut was_change = false;
 							for neighbor_tile_direction in OffsetDirection::iter() {
 								let neighbor_tile = match self.get_offset_tile_mut(pos, neighbor_tile_direction) {
 									Some(neighbor_tile) => neighbor_tile,
@@ -450,7 +525,28 @@ impl Board {
 								};
 								if let Tile::Uncleared { flagged: false, .. } = neighbor_tile {
 									self.clear_tile_and_cascade(neighbor_tile_direction.adjust_to_offset(pos).unwrap());
+									was_change = true;
 								}
+							}
+							if was_change {
+								return true;
+							}
+						}
+						// If the mine count is equal to the uncleared tile count, flag all uncleared
+						if neighboring_mines == neighboring_uncleared_tiles && neighboring_flags != neighboring_mines {
+							let mut was_change = false;
+							for neighbor_tile_direction in OffsetDirection::iter() {
+								let neighbor_tile = match self.get_offset_tile_mut(pos, neighbor_tile_direction) {
+									Some(neighbor_tile) => neighbor_tile,
+									None => continue,
+								};
+								if let Tile::Uncleared { flagged: false, .. } = neighbor_tile {
+									self.flag_unflag_tile(neighbor_tile_direction.adjust_to_offset(pos).unwrap());
+									was_change = true;
+								}
+							}
+							if was_change {
+								return true;
 							}
 						}
 					}
@@ -510,6 +606,7 @@ impl OffsetDirection {
 	}
 }
 
+#[derive(Clone, Copy)]
 enum Difficulty {
 	Easy,
 }
