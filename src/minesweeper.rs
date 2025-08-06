@@ -176,7 +176,7 @@ impl Minesweeper {
 			return Err("Too many mines".into());
 		}
 		// Difficulty
-		print!("Ensure solvable using techniques: (easy, unchecked, e, u) (blank for easy)");
+		print!("Ensure solvable using techniques (easy, unchecked, e, u) (blank for easy): ");
 		let ensured_solvable_difficulty_text = get_input();
 		let ensured_solvable_difficulty = match &*ensured_solvable_difficulty_text {
 			"" | "e" | "easy" => Some(Difficulty::Easy),
