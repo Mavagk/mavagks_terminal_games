@@ -3,6 +3,8 @@ use std::iter::once;
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
 use rand::random_range;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 use crate::{console::Console, game::Game, get_input_value_or_default};
 
@@ -188,9 +190,13 @@ impl Clue {
 		}
 	}
 
-	/// Given a 3x3 grid centered on a clicked tile, gives the clue that the cleared tile should display.
-	fn calculate(neighbors_with_mines: &[[bool; 3]; 3]) -> Self {
-		let mine_count = neighbors_with_mines.iter().map(|row| row.iter().map(|is_mine| (*is_mine) as u8).sum::<u8>()).sum();
+	/// Given a board and pos, gives the clue that the cleared tile should display.
+	fn calculate(board: &Board, pos: (u16, u16)) -> Self {
+		let mine_count = OffsetDirection::iter()
+			.map(|offset| board.get_offset_tile(pos, offset))
+			.filter_map(|tile| tile)
+			.map(|tile| matches!(tile, Tile::Uncleared { mined: true, .. }) as u8)
+			.sum();
 		if mine_count == 0 {
 			return Self::None;
 		}
@@ -247,6 +253,16 @@ impl Board {
 		&self.tiles[(pos.1 as usize, pos.0 as usize)]
 	}
 
+	fn get_offset_tile(&self, pos: (u16, u16), offset: OffsetDirection) -> Option<&Tile> {
+		let adjusted_pos = offset.adjust_to_offset(pos)?;
+		self.tiles.get(adjusted_pos.1 as usize, adjusted_pos.0 as usize)
+	}
+
+	fn get_offset_tile_mut(&mut self, pos: (u16, u16), offset: OffsetDirection) -> Option<&mut Tile> {
+		let adjusted_pos = offset.adjust_to_offset(pos)?;
+		self.tiles.get_mut(adjusted_pos.1 as usize, adjusted_pos.0 as usize)
+	}
+
 	/// Get a mutable reference to a tile on the board.
 	fn get_tile_mut(&mut self, pos: (u16, u16)) -> &mut Tile {
 		&mut self.tiles[(pos.1 as usize, pos.0 as usize)]
@@ -274,65 +290,36 @@ impl Board {
 	/// Returns `(should_redraw, new_game_state)`.
 	fn clear_tile(&mut self, pos: (u16, u16), cascade_to: &mut Vec<(u16, u16)>) -> (bool, GameState) {
 		// Get neighboring tiles have bombs
-		let mut neighbors_that_have_mines = [[false; 3]; 3];
 		let mut do_cascade = false;
-		for y_offset in 0..=2 {
-			let y = match (pos.1 + y_offset).checked_sub(1) {
-				Some(y) => y,
-				None => continue,
-			};
-			if y >= self.size().1 {
-				continue;
-			}
-			for x_offset in 0..=2 {
-				let x = match (pos.0 + x_offset).checked_sub(1) {
-					Some(x) => x,
-					None => continue,
-				};
-				if x >= self.size().0 {
-					continue;
-				}
-				neighbors_that_have_mines[y_offset as usize][x_offset as usize] = self.is_mine_in_tile((x, y));
-			}
-		}
 		// Change tile
 		let tile = self.get_tile_mut(pos);
 		let mut should_redraw = false;
 		let mut new_game_state = GameState::Normal;
 		match tile {
-			Tile::Uncleared { mined, flagged } => {
-				// Don't clear a flagged tile
-				if !*flagged {
-					match mined {
-						// If the tile has a mine, game over
-						true => {
-							*tile = Tile::Exploded;
-							new_game_state = GameState::GameOver;
-						}
-						// Else clear the tile and calculate the clue that should appear in the tile
-						false => {
-							let clue = Clue::calculate(&neighbors_that_have_mines);
-							*tile = Tile::Cleared(clue);
-							if matches!(clue, Clue::None) {
-								do_cascade = true;
-							}
-							self.tiles_cleared += 1;
-						}
+			Tile::Uncleared { mined, flagged: false } => {
+				match mined {
+					// If the tile has a mine, game over
+					true => {
+						*tile = Tile::Exploded;
+						new_game_state = GameState::GameOver;
 					}
-					should_redraw = true;
+					// Else clear the tile and calculate the clue that should appear in the tile
+					false => {
+						let clue = Clue::calculate(self, pos);
+						*self.get_tile_mut(pos) = Tile::Cleared(clue);
+						if matches!(clue, Clue::None) {
+							do_cascade = true;
+						}
+						self.tiles_cleared += 1;
+					}
 				}
+				should_redraw = true;
 			}
 			_ => {}
 		}
 		// Cascade
 		if do_cascade {
-			for y in pos.1.saturating_sub(1)..(pos.1 + 2).min(self.size().1) {
-				for x in pos.0.saturating_sub(1)..(pos.0 + 2).min(self.size().0) {
-					if (x, y) != pos {
-						cascade_to.push((x, y));
-					}
-				}
-			}
+			cascade_to.extend(OffsetDirection::iter().map(|direction| direction.adjust_to_offset_in_board(pos, self)).filter_map(|pos| pos));
 		}
 		// Check if game won
 		if self.is_game_won() {
@@ -428,6 +415,50 @@ impl Board {
 			}
 		}
 	}
+
+	fn single_solve_step(&mut self) -> bool {
+		for (y, row) in self.tiles.rows_iter().enumerate() {
+			for (x, tile) in row.enumerate() {
+				let pos = (x as u16, y as u16);
+				// Skip tiles that are not cleared
+				let clue = match tile {
+					Tile::Cleared(clue) => *clue,
+					_ => continue,
+				};
+				// Count neighboring flags and cleared tiles
+				let mut neighboring_flags = 0;
+				let mut neighboring_unflagged_cleared_tiles = 0;
+				for neighbor_tile in OffsetDirection::iter()
+					.map(|offset| self.get_offset_tile(pos, offset))
+					.filter_map(|tile| tile) {
+					match neighbor_tile {
+						Tile::Uncleared { flagged: true, .. } => neighboring_flags += 1,
+						Tile::Uncleared { flagged: false, .. } => neighboring_unflagged_cleared_tiles += 1,
+						_ => {},
+					}
+				}
+				// Try solve
+				match clue {
+					Clue::None => {}
+					Clue::Number(neighboring_mines) => {
+						// If all mines are flagged, clear non-flagged
+						if neighboring_mines == neighboring_flags {
+							for neighbor_tile_direction in OffsetDirection::iter() {
+								let neighbor_tile = match self.get_offset_tile_mut(pos, neighbor_tile_direction) {
+									Some(neighbor_tile) => neighbor_tile,
+									None => continue,
+								};
+								if let Tile::Uncleared { flagged: false, .. } = neighbor_tile {
+									self.clear_tile_and_cascade(neighbor_tile_direction.adjust_to_offset(pos).unwrap());
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		false
+	}
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -435,4 +466,50 @@ enum GameState {
 	Normal,
 	GameOver,
 	GameWon,
+}
+
+#[derive(EnumIter, Clone, Copy)]
+enum OffsetDirection {
+	TopLeft,
+	Top,
+	TopRight,
+	Left,
+	Right,
+	BottomLeft,
+	Bottom,
+	BottomRight,
+}
+
+impl OffsetDirection {
+	fn get_offset(self) -> (i8, i8) {
+		match self {
+			Self::TopLeft => (-1, -1),
+			Self::Top => (0, -1),
+			Self::TopRight => (1, -1),
+			Self::Left => (-1, 0),
+			Self::Right => (1, 0),
+			Self::BottomLeft => (-1, 1),
+			Self::Bottom => (0, 1),
+			Self::BottomRight => (1, 1),
+		}
+	}
+
+	fn adjust_to_offset(self, unadjusted: (u16, u16)) -> Option<(u16, u16)> {
+		let offset = self.get_offset();
+		Some((unadjusted.0.checked_add_signed(offset.0 as i16)?, unadjusted.1.checked_add_signed(offset.1 as i16)?))
+	}
+
+	fn adjust_to_offset_in_board(self, unadjusted: (u16, u16), board: &Board) -> Option<(u16, u16)> {
+		let offset = self.get_offset();
+		let board_size = board.size();
+		let out = (unadjusted.0.checked_add_signed(offset.0 as i16)?, unadjusted.1.checked_add_signed(offset.1 as i16)?);
+		match out.0 >= board_size.0 || out.1 >= board_size.1 {
+			true => None,
+			false => Some(out),
+		}
+	}
+}
+
+enum Difficulty {
+	Easy,
 }
