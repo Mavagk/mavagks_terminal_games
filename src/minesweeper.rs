@@ -198,6 +198,11 @@ enum Clue {
 	None,
 	Number(u8),
 	Question,
+	Even,
+	Odd,
+	Small,
+	Medium,
+	Large,
 }
 
 impl Clue {
@@ -215,7 +220,12 @@ impl Clue {
 				8 => Color::Grey,
 				_ => unreachable!()
 			}),
-			Self::Question => ('?', Color::Magenta),
+			Self::Question => ('?', Color::DarkGrey),
+			Self::Even => ('E', Color::Yellow),
+			Self::Odd => ('O', Color::Cyan),
+			Self::Small => ('S', Color::Magenta),
+			Self::Medium => ('M', Color::DarkGreen),
+			Self::Large => ('L', Color::DarkYellow),
 		}
 	}
 
@@ -232,9 +242,23 @@ impl Clue {
 		if board.clue_type == ClueType::Orthodox {
 			return Self::Number(mine_count);
 		}
-		let mut rng = SmallRng::seed_from_u64(board.seed ^ pos.0 as u64 ^ ((pos.1 as u64) << 16));
+		let mut rng = SmallRng::seed_from_u64(board.seed ^ ((pos.0 as u64) << 16) ^ ((pos.1 as u64) << 32));
 		if rng.random_bool(0.2) {
 			return Clue::Question;
+		}
+		if rng.random_bool(0.2) {
+			match mine_count {
+				..=2 => return Clue::Small,
+				3..=4 => return Clue::Medium,
+				5.. => return Clue::Large,
+			}
+		}
+		if rng.random_bool(0.2) {
+			match mine_count % 2 {
+				0 => return Clue::Even,
+				1 => return Clue::Odd,
+				_ => unreachable!(),
+			}
 		}
 		return Self::Number(mine_count);
 	}
@@ -550,6 +574,7 @@ impl Board {
 				// Try solve
 				match clue {
 					Clue::None | Clue::Question => {}
+					Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {} // TODO
 					Clue::Number(neighboring_mines) => {
 						// If all mines are flagged, clear non-flagged
 						if neighboring_mines == neighboring_flags && neighboring_flags != 0 {
