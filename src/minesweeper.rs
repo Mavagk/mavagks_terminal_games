@@ -316,12 +316,12 @@ impl Board {
 			should_redraw |= self.clear_tile(element_to_clear_pos, &mut to_clear);
 		}
 		// Check if the game was won or lost
-		if self.is_game_won() {
-			self.game_state = GameState::GameWon;
-			self.flag_all_uncleared();
-		}
-		if self.game_state == GameState::GameOver {
-			self.explode_all_mines();
+		self.check_that_game_is_won();
+		// Clear / explode all if the game is won or lost
+		match self.game_state {
+			GameState::GameWon => self.flag_all_uncleared(),
+			GameState::GameOver => self.explode_all_mines(),
+			GameState::Normal => {}
 		}
 		// Return
 		should_redraw
@@ -388,10 +388,13 @@ impl Board {
 		should_redraw
 	}
 
-	fn is_game_won(&self) -> bool {
-		self.tiles_cleared == self.tile_count() - self.mine_count
+	fn check_that_game_is_won(&mut self) {
+		if self.tiles_cleared == self.tile_count() - self.mine_count {
+			self.game_state = GameState::GameWon;
+		}
 	}
 
+	/// Returns if a tile contains a mine, exploded or unexploded.
 	fn is_mine_in_tile(&self, pos: (u16, u16)) -> bool {
 		match self.get_tile(pos) {
 			Tile::Cleared(..) => false,
@@ -403,30 +406,36 @@ impl Board {
 	/// Generates the board, returns `false` if generation failed.
 	fn generate(&mut self, safe_tile: (u16, u16)) -> bool {
 		self.is_generated = true;
+		// Do nothing if the board has 0 mines
 		if self.mine_count == 0 {
 			return true;
 		}
+		// Place all the mines
 		let board_size = self.size();
-		let mut was_successful = false;
 		let mut mines_placed = 0;
 		for _ in 0..self.mine_count.saturating_mul(1000) {
+			// Get the pos for the mine to place
 			let pos = (random_range(0..board_size.0), random_range(0..board_size.1));
+			// Do not place the mine inside a 3x3 box centered on the safe tile or in a tile that already has a mine
 			if (pos.0.abs_diff(safe_tile.0) < 2 && pos.1.abs_diff(safe_tile.1) < 2) || self.is_mine_in_tile(pos) {
 				continue;
 			}
+			// Place mine
 			match self.get_tile_mut(pos) {
 				Tile::Uncleared { mined, .. } => *mined = true,
 				_ => unreachable!(),
 			}
 			mines_placed += 1;
+			// Return if we have placed all mines
 			if mines_placed == self.mine_count {
-				was_successful = true;
-				break;
+				return true;
 			}
 		}
-		was_successful
+		// If we failed to place all the mines
+		false
 	}
 
+	/// Clears the board back to the starting ungenerated state.
 	fn reset(&mut self) {
 		self.is_generated = false;
 		self.tiles_flagged = 0;
@@ -437,25 +446,30 @@ impl Board {
 		}
 	}
 
+	/// Returns true if the board can be solved using techniques of the games difficulty.
 	fn is_solvable(&self) -> bool {
+		// Return that we can solve the board if the difficulty is set to unchecked
 		let ensured_solvable_difficulty = match self.ensured_solvable_difficulty {
 			Some(ensured_solvable_difficulty) => ensured_solvable_difficulty,
 			None => return true,
 		};
+		// Clone the board and try to solve it
 		let mut test_board = self.clone();
 		loop {
-			let tile_solved = test_board.single_solve_step(ensured_solvable_difficulty);
-			if !tile_solved {
-				return test_board.is_game_won();
+			test_board.single_solve_step(ensured_solvable_difficulty);
+			match test_board.game_state {
+				GameState::GameWon => return true,
+				GameState::GameOver => panic!("Something is wrong with the solver, it lost the game"),
+				GameState::Normal => {}
 			}
 		}
 	}
 
+	/// Flags all tiles that are uncleared
 	fn flag_all_uncleared(&mut self) {
-		for y in 0..self.tiles.column_len() {
-			for x in 0..self.tiles.row_len() {
-				let tile = self.get_tile_mut((x as u16, y as u16));
-				if let Tile::Uncleared { flagged, .. } = tile {
+		for y in 0..self.height() {
+			for x in 0..self.width() {
+				if let Tile::Uncleared { flagged, .. } = self.get_tile_mut((x, y)) {
 					*flagged = true;
 				}
 			}
@@ -463,10 +477,11 @@ impl Board {
 		self.tiles_flagged = self.mine_count;
 	}
 
+	/// Explode all the mines on the board.
 	fn explode_all_mines(&mut self) {
-		for y in 0..self.tiles.column_len() {
-			for x in 0..self.tiles.row_len() {
-				let tile = self.get_tile_mut((x as u16, y as u16));
+		for y in 0..self.height() {
+			for x in 0..self.width() {
+				let tile = self.get_tile_mut((x, y));
 				let mut was_unflagged = false;
 				if let Tile::Uncleared { mined: true, flagged } = tile {
 					if *flagged {
@@ -573,6 +588,7 @@ enum OffsetDirection {
 }
 
 impl OffsetDirection {
+	/// The offset of the direction.
 	fn get_offset(self) -> (i8, i8) {
 		match self {
 			Self::TopLeft => (-1, -1),
@@ -586,11 +602,13 @@ impl OffsetDirection {
 		}
 	}
 
+	/// Adjusts a pos by moving it in a direction. Returns `None` if the pos x or y underflows.
 	fn adjust_to_offset(self, unadjusted: (u16, u16)) -> Option<(u16, u16)> {
 		let offset = self.get_offset();
 		Some((unadjusted.0.checked_add_signed(offset.0 as i16)?, unadjusted.1.checked_add_signed(offset.1 as i16)?))
 	}
 
+	/// Adjusts a pos by moving it in a direction. Returns `None` if the pos is outside the given board.
 	fn adjust_to_offset_in_board(self, unadjusted: (u16, u16), board: &Board) -> Option<(u16, u16)> {
 		let offset = self.get_offset();
 		let board_size = board.size();
