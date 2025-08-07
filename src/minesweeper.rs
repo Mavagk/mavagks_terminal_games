@@ -571,13 +571,26 @@ impl Board {
 						_ => {},
 					}
 				}
+				let neighboring_unflagged_uncleared_tiles = neighboring_uncleared_tiles - neighboring_flags;
 				// Try solve
 				match clue {
 					Clue::None | Clue::Question => {}
-					Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {} // TODO
-					Clue::Number(neighboring_mines) => {
+					//Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {} // TODO
+					Clue::Number(..) | Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {
+						let (min_neighboring_mines, max_neighboring_mines) = match clue {
+							Clue::Number(neighboring_mines) => (neighboring_mines, neighboring_mines),
+							Clue::Small => (1, 2),
+							Clue::Medium => (3, 4),
+							Clue::Large => (4, 8),
+							Clue::Even => (2, 8),
+							Clue::Odd => (1, 7),
+							Clue::None | Clue::Question => unreachable!(),
+						};
 						// If all mines are flagged, clear non-flagged
-						if neighboring_mines == neighboring_flags && neighboring_flags != 0 {
+						if
+							(max_neighboring_mines == neighboring_flags && neighboring_flags != 0) ||
+							(matches!(clue, Clue::Odd) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1)
+						{
 							let mut was_change = false;
 							for neighbor_tile_direction in OffsetDirection::iter() {
 								let neighbor_tile = match self.get_offset_tile_mut(pos, neighbor_tile_direction) {
@@ -594,7 +607,12 @@ impl Board {
 							}
 						}
 						// If the mine count is equal to the uncleared tile count, flag all uncleared
-						if neighboring_mines == neighboring_uncleared_tiles && neighboring_flags != neighboring_mines {
+						if
+							(min_neighboring_mines == neighboring_uncleared_tiles) ||
+							neighboring_uncleared_tiles == 1 ||
+							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles == 2) ||
+							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1)
+						{
 							let mut was_change = false;
 							for neighbor_tile_direction in OffsetDirection::iter() {
 								let neighbor_tile = match self.get_offset_tile_mut(pos, neighbor_tile_direction) {
