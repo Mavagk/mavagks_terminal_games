@@ -456,11 +456,12 @@ impl Board {
 		// Clone the board and try to solve it
 		let mut test_board = self.clone();
 		loop {
-			test_board.single_solve_step(ensured_solvable_difficulty);
-			match test_board.game_state {
-				GameState::GameWon => return true,
-				GameState::GameOver => panic!("Something is wrong with the solver, it lost the game"),
-				GameState::Normal => {}
+			let was_tile_solved = test_board.single_solve_step(ensured_solvable_difficulty);
+			match (test_board.game_state, was_tile_solved) {
+				(GameState::GameWon, _) => return true,
+				(GameState::GameOver, _) => panic!("Something is wrong with the solver, it lost the game"),
+				(GameState::Normal, false) => return false,
+				(GameState::Normal, true) => {}
 			}
 		}
 	}
