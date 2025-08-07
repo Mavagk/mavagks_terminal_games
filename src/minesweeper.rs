@@ -8,6 +8,11 @@ use strum_macros::EnumIter;
 
 use crate::{console::Console, game::Game, get_input, get_input_value_or_default};
 
+#[cfg(debug_assertions)]
+const MAX_BOARD_GENERATION_ATTEMPTS: u32 = 100;
+#[cfg(not(debug_assertions))]
+const MAX_BOARD_GENERATION_ATTEMPTS: u32 = 1000;
+
 pub struct Minesweeper {
 	board: Board,
 	should_redraw: bool,
@@ -159,7 +164,7 @@ impl Minesweeper {
 		// If the board is not yet generated
 		if !self.board.is_generated {
 			let mut was_successful = false;
-			for _ in 0..100 {
+			for _ in 0..MAX_BOARD_GENERATION_ATTEMPTS {
 				// Generate
 				if !self.board.generate(pos) {
 					return Err("Unable to generate board".into());
@@ -575,7 +580,6 @@ impl Board {
 				// Try solve
 				match clue {
 					Clue::None | Clue::Question => {}
-					//Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {} // TODO
 					Clue::Number(..) | Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {
 						let (min_neighboring_mines, max_neighboring_mines) = match clue {
 							Clue::Number(neighboring_mines) => (neighboring_mines, neighboring_mines),
