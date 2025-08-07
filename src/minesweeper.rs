@@ -2,7 +2,7 @@ use std::iter::once;
 
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
-use rand::random_range;
+use rand::{random, random_range, rngs::SmallRng, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -128,6 +128,14 @@ impl Minesweeper {
 			"u" | "unchecked" => None,
 			_ => return Err("Invalid input".into()),
 		};
+		// Clue type
+		print!("Clue type (orthodox, extended, o, e) (blank for orthodox): ");
+		let clue_type_text = get_input();
+		let clue_type = match &*clue_type_text {
+			"" | "o" | "orthodox" => ClueType::Orthodox,
+			"e" | "extended" => ClueType::Extended,
+			_ => return Err("Invalid input".into()),
+		};
 		// Create game
 		Ok(Self {
 			board: Board {
@@ -138,6 +146,8 @@ impl Minesweeper {
 				tiles_cleared: 0,
 				ensured_solvable_difficulty,
 				game_state: GameState::Normal,
+				clue_type,
+				seed: random(),
 			},
 			should_close: false,
 			should_redraw: false,
@@ -187,6 +197,7 @@ impl Minesweeper {
 enum Clue {
 	None,
 	Number(u8),
+	Question,
 }
 
 impl Clue {
@@ -204,6 +215,7 @@ impl Clue {
 				8 => Color::Grey,
 				_ => unreachable!()
 			}),
+			Self::Question => ('?', Color::Magenta),
 		}
 	}
 
@@ -254,6 +266,8 @@ struct Board {
 	is_generated: bool,
 	ensured_solvable_difficulty: Option<Difficulty>,
 	game_state: GameState,
+	clue_type: ClueType,
+	seed: u64,
 }
 
 impl Board {
@@ -411,11 +425,12 @@ impl Board {
 			return true;
 		}
 		// Place all the mines
+		let mut rng = SmallRng::seed_from_u64(self.seed);
 		let board_size = self.size();
 		let mut mines_placed = 0;
 		for _ in 0..self.mine_count.saturating_mul(1000) {
 			// Get the pos for the mine to place
-			let pos = (random_range(0..board_size.0), random_range(0..board_size.1));
+			let pos = (rng.random_range(0..board_size.0), rng.random_range(0..board_size.1));
 			// Do not place the mine inside a 3x3 box centered on the safe tile or in a tile that already has a mine
 			if (pos.0.abs_diff(safe_tile.0) < 2 && pos.1.abs_diff(safe_tile.1) < 2) || self.is_mine_in_tile(pos) {
 				continue;
@@ -444,6 +459,7 @@ impl Board {
 		for index in self.tiles.indices_column_major() {
 			self.tiles[index] = Tile::Uncleared { mined: false, flagged: false };
 		}
+		self.seed = random();
 	}
 
 	/// Returns true if the board can be solved using techniques of the games difficulty.
@@ -526,7 +542,7 @@ impl Board {
 				}
 				// Try solve
 				match clue {
-					Clue::None => {}
+					Clue::None | Clue::Question => {}
 					Clue::Number(neighboring_mines) => {
 						// If all mines are flagged, clear non-flagged
 						if neighboring_mines == neighboring_flags && neighboring_flags != 0 {
@@ -624,4 +640,10 @@ impl OffsetDirection {
 #[derive(Clone, Copy)]
 enum Difficulty {
 	Easy,
+}
+
+#[derive(Clone, Copy)]
+enum ClueType {
+	Orthodox,
+	Extended,
 }
