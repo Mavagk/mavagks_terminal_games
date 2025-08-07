@@ -2,7 +2,7 @@ use std::iter::once;
 
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
-use rand::{random, random_range, rngs::SmallRng, Rng, SeedableRng};
+use rand::{random, rngs::SmallRng, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -228,6 +228,13 @@ impl Clue {
 			.sum();
 		if mine_count == 0 {
 			return Self::None;
+		}
+		if board.clue_type == ClueType::Orthodox {
+			return Self::Number(mine_count);
+		}
+		let mut rng = SmallRng::seed_from_u64(board.seed ^ pos.0 as u64 ^ ((pos.1 as u64) << 16));
+		if rng.random_bool(0.2) {
+			return Clue::Question;
 		}
 		return Self::Number(mine_count);
 	}
@@ -642,7 +649,7 @@ enum Difficulty {
 	Easy,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum ClueType {
 	Orthodox,
 	Extended,
