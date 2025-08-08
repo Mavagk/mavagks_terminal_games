@@ -579,8 +579,8 @@ impl Board {
 				let neighboring_unflagged_uncleared_tiles = neighboring_uncleared_tiles - neighboring_flags;
 				// Try solve
 				match clue {
-					Clue::None | Clue::Question => {}
-					Clue::Number(..) | Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large => {
+					Clue::None => {}
+					Clue::Number(..) | Clue::Even | Clue::Odd | Clue::Small | Clue::Medium | Clue::Large | Clue::Question => {
 						let (min_neighboring_mines, max_neighboring_mines) = match clue {
 							Clue::Number(neighboring_mines) => (neighboring_mines, neighboring_mines),
 							Clue::Small => (1, 2),
@@ -588,12 +588,14 @@ impl Board {
 							Clue::Large => (4, 8),
 							Clue::Even => (2, 8),
 							Clue::Odd => (1, 7),
-							Clue::None | Clue::Question => unreachable!(),
+							Clue::Question => (1, 8),
+							Clue::None => unreachable!(),
 						};
-						// If all mines are flagged, clear non-flagged
+						// Clear non-flagged if
 						if
-							(max_neighboring_mines == neighboring_flags && neighboring_flags != 0) ||
-							(matches!(clue, Clue::Odd) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1)
+							(max_neighboring_mines == neighboring_flags && neighboring_flags != 0) || // If we have as many flags as max neighboring mines
+							(matches!(clue, Clue::Odd) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1) || // Odd clue, even neighboring mines, one unflagged uncleared neighbor
+							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles % 2 == 1 && neighboring_unflagged_uncleared_tiles == 1) // Even clue, odd neighboring mines, one unflagged uncleared neighbor
 						{
 							let mut was_change = false;
 							for neighbor_tile_direction in OffsetDirection::iter() {
@@ -610,12 +612,13 @@ impl Board {
 								return true;
 							}
 						}
-						// If the mine count is equal to the uncleared tile count, flag all uncleared
+						// Flag all uncleared if
 						if
-							(min_neighboring_mines == neighboring_uncleared_tiles) ||
-							neighboring_uncleared_tiles == 1 ||
-							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles == 2) ||
-							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1)
+							(min_neighboring_mines == neighboring_uncleared_tiles) || // We have as many uncleared neighbors as the minimum neighboring mines, they must all be mines
+							neighboring_uncleared_tiles == 1 || // We only have one uncleared neighbor, we must have one neighboring mine or else we would have no/blank clue
+							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles == 2) || // We have an even clue and two uncleared neighbors
+							(matches!(clue, Clue::Even) && neighboring_uncleared_tiles % 2 == 0 && neighboring_unflagged_uncleared_tiles == 1) || // Even clue count and uncleared neighbors and one is not flagged
+							(matches!(clue, Clue::Odd) && neighboring_uncleared_tiles % 2 == 1 && neighboring_unflagged_uncleared_tiles == 1) // Odd clue count and uncleared neighbors and one is not flagged
 						{
 							let mut was_change = false;
 							for neighbor_tile_direction in OffsetDirection::iter() {
