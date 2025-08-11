@@ -6,7 +6,7 @@ use rand::{random, rngs::SmallRng, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{console::Console, game::Game, get_input, get_input_value_or_default};
+use crate::{console::Console, Game, get_input, get_input_value_or_default};
 
 #[cfg(debug_assertions)]
 const MAX_BOARD_GENERATION_ATTEMPTS: u32 = 100;

@@ -1,6 +1,6 @@
 use crossterm::{event::{Event, KeyCode}, style::ContentStyle};
 
-use crate::{console::Console, game::Game};
+use crate::{console::Console, Game};
 
 pub struct TestDemo {
 	mouse_pos_in_mouse_zone: Option<(u16, u16)>,

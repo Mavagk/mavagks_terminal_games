@@ -1,6 +1,6 @@
 use crossterm::event::{self, Event, KeyCode};
 
-use crate::{console::Console, game::Game};
+use crate::{console::Console, Game};
 
 pub struct LogEventsTest {
 	should_close: bool,

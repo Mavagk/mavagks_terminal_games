@@ -1,8 +1,5 @@
 pub mod game;
-pub mod test_demo;
 pub mod console;
-pub mod log_events_test;
-pub mod minesweeper;
 
 use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr};
 
@@ -10,21 +7,28 @@ use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
 use crossterm::event::{read, Event, MouseEventKind};
 
-use crate::{console::Console, game::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo};
+use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo}};
 
 #[derive(Copy, Clone, EnumIter, FromRepr)]
-pub enum GameType {
+pub enum GameVariant {
 	Minesweeper,
 	TestDemo,
 	LogEventsTest,
 }
 
-impl GameType {
-	pub fn info(self) -> (&'static str, &'static str, &'static str) {
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum GameClass {
+	Game,
+	NonGame,
+	Debug,
+}
+
+impl GameVariant {
+	pub fn info(self) -> (&'static str, &'static str, &'static str, GameClass) {
 		match self {
-			Self::Minesweeper => ("Minesweeper", "The mine game.", "ms"),
-			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td"),
-			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le"),
+			Self::Minesweeper => ("Minesweeper", "The mine game.", "ms", GameClass::Game),
+			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td", GameClass::Debug),
+			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le", GameClass::Debug),
 		}
 	}
 
@@ -61,17 +65,36 @@ fn get_input_value_or_default<T: FromStr>(default: T) -> Option<T> {
 fn main() {
 	println!("Mavagk's Terminal Games. Version {}", env!("CARGO_PKG_VERSION"));
 	// Print out game list
-	println!("Games:");
+	println!("--- Games ---");
 	let mut short_name_to_game = HashMap::new();
-	for game in GameType::iter() {
-		let (game_name, game_info, game_short_name) = game.info();
+	for game in GameVariant::iter() {
+		let (game_name, game_info, game_short_name, game_class) = game.info();
 		short_name_to_game.insert(game_short_name, game);
+		if game_class != GameClass::Game {
+			continue;
+		}
+		println!("{}, {game_short_name}: {game_name}, {game_info}", game as usize);
+	}
+	println!("--- Non-Games ---");
+	for game in GameVariant::iter() {
+		let (game_name, game_info, game_short_name, game_class) = game.info();
+		if game_class != GameClass::NonGame {
+			continue;
+		}
+		println!("{}, {game_short_name}: {game_name}, {game_info}", game as usize);
+	}
+	println!("--- Debug ---");
+	for game in GameVariant::iter() {
+		let (game_name, game_info, game_short_name, game_class) = game.info();
+		if game_class != GameClass::Debug {
+			continue;
+		}
 		println!("{}, {game_short_name}: {game_name}, {game_info}", game as usize);
 	}
 	//
 	loop {
 		// Get user input
-		print!("Enter game to play: ");
+		print!("Enter option to run: ");
 		let text_entered = get_input();
 		// Decide the game to play from the entered text
 		if text_entered.is_empty() {
@@ -86,7 +109,7 @@ fn main() {
 					continue;
 				}
 			};
-			match GameType::from_repr(game_id) {
+			match GameVariant::from_repr(game_id) {
 				Some(game) => game_to_play = Some(game),
 				None => {
 					println!("Invalid game id.");
