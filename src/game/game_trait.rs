@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use crossterm::event::{Event, KeyCode, MouseButton};
 
 use crate::console::Console;
@@ -19,4 +21,6 @@ pub trait Game {
 	fn should_redraw(&self) -> bool {
 		false
 	}
+	fn tick_frequency(&self) -> Option<Duration> { None }
+	fn tick(&mut self, _since_last_tick: Option<Duration>) -> Result<(), String> { Ok(()) }
 }

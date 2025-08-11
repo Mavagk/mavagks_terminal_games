@@ -1,11 +1,11 @@
 pub mod game;
 pub mod console;
 
-use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr};
+use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr, thread::yield_now, time::{Duration, Instant}};
 
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
-use crossterm::event::{read, Event, MouseEventKind};
+use crossterm::event::{poll, read, Event, MouseEventKind};
 
 use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo}};
 
@@ -142,74 +142,78 @@ fn main() {
 			continue;
 		}
 		let mut mouse_pos_in_mouse_zone = None;
+		let mut last_tick_time = None;
+		let mut time_overflow = Duration::from_micros(0);
 		// Enter game loop
 		loop {
-			if let Ok(event) = read() {
-				if let Err(error) = game.event(&event) {
-					console_writer.on_game_close();
-					println!("Error: {error}.");
-					break;
-				}
-				match event {
-					Event::Mouse(mouse_event) => {
-						// Mouse movement
-						let (game_mouse_zone_top_left, game_mouse_zone_size) = console_writer.get_game_mouse_zone();
-						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
-						if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
-							new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
-						}
-						else {
-							new_mouse_pos_in_mouse_zone = None;
-						}
-						if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
-							if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
+			while matches!(poll(Duration::from_secs(0)), Ok(true)) {
+				if let Ok(event) = read() {
+					if let Err(error) = game.event(&event) {
+						console_writer.on_game_close();
+						println!("Error: {error}.");
+						break;
+					}
+					match event {
+						Event::Mouse(mouse_event) => {
+							// Mouse movement
+							let (game_mouse_zone_top_left, game_mouse_zone_size) = console_writer.get_game_mouse_zone();
+							let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
+							if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
+								new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
+							}
+							else {
 								new_mouse_pos_in_mouse_zone = None;
 							}
-						}
-						if new_mouse_pos_in_mouse_zone != mouse_pos_in_mouse_zone {
-							mouse_pos_in_mouse_zone = new_mouse_pos_in_mouse_zone;
-							if let Err(error) = game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event) {
-								console_writer.on_game_close();
-								println!("Error: {error}.");
-								break;
-							}
-						}
-						// Mouse clicks
-						let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
-						if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
-							new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
-						}
-						else {
-							new_mouse_pos_in_mouse_zone = None;
-						}
-						if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
-							if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
-								new_mouse_pos_in_mouse_zone = None;
-							}
-						}
-						if let Some(new_mouse_pos_in_mouse_zone) = new_mouse_pos_in_mouse_zone {
-							match mouse_event.kind {
-								MouseEventKind::Up(button) => {
-									if let Err(error) = game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
-										console_writer.on_game_close();
-										println!("Error: {error}.");
-										break;
-									}
+							if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
+								if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
+									new_mouse_pos_in_mouse_zone = None;
 								}
-								_ => {}
+							}
+							if new_mouse_pos_in_mouse_zone != mouse_pos_in_mouse_zone {
+								mouse_pos_in_mouse_zone = new_mouse_pos_in_mouse_zone;
+								if let Err(error) = game.mouse_moved_in_game_mouse_zone(mouse_pos_in_mouse_zone, &event) {
+									console_writer.on_game_close();
+									println!("Error: {error}.");
+									break;
+								}
+							}
+							// Mouse clicks
+							let mut new_mouse_pos_in_mouse_zone = Some((mouse_event.column, mouse_event.row));
+							if new_mouse_pos_in_mouse_zone.unwrap().0 >= game_mouse_zone_top_left.0 && new_mouse_pos_in_mouse_zone.unwrap().1 >= game_mouse_zone_top_left.1 {
+								new_mouse_pos_in_mouse_zone = Some((new_mouse_pos_in_mouse_zone.unwrap().0 - game_mouse_zone_top_left.0, new_mouse_pos_in_mouse_zone.unwrap().1 - game_mouse_zone_top_left.1));
+							}
+							else {
+								new_mouse_pos_in_mouse_zone = None;
+							}
+							if let Some(new_mouse_pos_in_mouse_zone_some) = new_mouse_pos_in_mouse_zone {
+								if new_mouse_pos_in_mouse_zone_some.0 >= game_mouse_zone_size.0 || new_mouse_pos_in_mouse_zone_some.1 >= game_mouse_zone_size.1 {
+									new_mouse_pos_in_mouse_zone = None;
+								}
+							}
+							if let Some(new_mouse_pos_in_mouse_zone) = new_mouse_pos_in_mouse_zone {
+								match mouse_event.kind {
+									MouseEventKind::Up(button) => {
+										if let Err(error) = game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
+											console_writer.on_game_close();
+											println!("Error: {error}.");
+											break;
+										}
+									}
+									_ => {}
+								}
 							}
 						}
-					}
-					Event::Key(key_event) => {
-						if key_event.is_press() {
-							if let Err(error) = game.keypress(key_event.code, &event) {
-								console_writer.on_game_close();
-								println!("Error: {error}.");
-								break;
+						Event::Key(key_event) => {
+							if key_event.is_press() {
+								if let Err(error) = game.keypress(key_event.code, &event) {
+									console_writer.on_game_close();
+									println!("Error: {error}.");
+									break;
+								}
 							}
 						}
+						_ => {}
 					}
-					_ => {}
 				}
 			}
 			if game.should_close() {
@@ -222,6 +226,31 @@ fn main() {
 					break;
 				}
 			}
+			if let Some(tick_frequency) = game.tick_frequency() {
+				let now = Instant::now();
+				let (should_tick, next_tick_time) = match last_tick_time {
+					None => (true, None),
+					Some(last_tick_time) => {
+						let next_tick_time: Instant = last_tick_time + tick_frequency;
+						let next_tick_time = next_tick_time.checked_sub(time_overflow).unwrap_or(next_tick_time);
+						(now >= next_tick_time, Some(next_tick_time))
+					}
+				};
+				if should_tick {
+					let time_since_last_tick = last_tick_time.map(|last_tick_time|now - last_tick_time);
+					if let Err(error) = game.tick(time_since_last_tick) {
+						console_writer.on_game_close();
+						println!("Error: {error}.");
+						break;
+					}
+					last_tick_time = Some(now);
+					time_overflow = match next_tick_time {
+						None => Duration::from_nanos(0),
+						Some(next_tick_time) => now.saturating_duration_since(next_tick_time),
+					};
+				}
+			}
+			yield_now();
 		}
 		// Switch back to main screen once game has finished
 		console_writer.on_game_close();
