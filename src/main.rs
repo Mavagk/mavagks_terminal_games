@@ -200,6 +200,15 @@ fn main() {
 							}
 						}
 					}
+					Event::Key(key_event) => {
+						if key_event.is_press() {
+							if let Err(error) = game.keypress(key_event.code, &event) {
+								console_writer.on_game_close();
+								println!("Error: {error}.");
+								break;
+							}
+						}
+					}
 					_ => {}
 				}
 			}

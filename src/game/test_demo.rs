@@ -41,15 +41,10 @@ impl Game for TestDemo {
 		self.should_redraw = false;
 		Ok(())
 	}
-
-	fn event(&mut self, event: &Event) -> Result<(), String> {
-		match event {
-			Event::Key(key_event) => {
-				if key_event.is_press() && key_event.code == KeyCode::Esc {
-					self.should_close = true;
-				}
-			}
-			_ => {}
+	
+	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+		if key == KeyCode::Esc {
+			self.should_close = true;
 		}
 		Ok(())
 	}

@@ -12,12 +12,14 @@ impl Game for LogEventsTest {
 		Ok(())
 	}
 
-	fn event(&mut self, event: &event::Event) -> Result<(), String> {
-		if let Event::Key(key_event) = event {
-			if key_event.code == KeyCode::Esc && key_event.is_release() {
-				self.should_close = true;
-			}
+	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+		if key == KeyCode::Esc {
+			self.should_close = true;
 		}
+		Ok(())
+	}
+
+	fn event(&mut self, event: &event::Event) -> Result<(), String> {
 		println!("{event:?}");
 		Ok(())
 	}

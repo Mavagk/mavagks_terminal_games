@@ -28,21 +28,14 @@ impl Game for Minesweeper {
 		self.should_redraw
 	}
 
-	fn event(&mut self, event: &Event) -> Result<(), String> {
-		match event {
-			Event::Key(key_event) => {
-				if key_event.is_press() {
-					match key_event.code {
-						KeyCode::Esc => self.should_close = true,
-						KeyCode::Char('r') => {
-							self.board.reset();
-							self.should_redraw = true;
-						}
-						KeyCode::Char('e' | 's') => self.single_solve_step(Difficulty::Easy),
-						_ => {}
-					}
-				}
+	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+		match key {
+			KeyCode::Esc => self.should_close = true,
+			KeyCode::Char('r') => {
+				self.board.reset();
+				self.should_redraw = true;
 			}
+			KeyCode::Char('e' | 's') => self.single_solve_step(Difficulty::Easy),
 			_ => {}
 		}
 		Ok(())
