@@ -7,11 +7,12 @@ use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
 use crossterm::event::{poll, read, Event, MouseEventKind};
 
-use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, test_demo::TestDemo}};
+use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, paint::Paint, test_demo::TestDemo}};
 
 #[derive(Copy, Clone, EnumIter, FromRepr)]
 pub enum GameVariant {
 	Minesweeper,
+	Paint,
 	TestDemo,
 	LogEventsTest,
 }
@@ -27,6 +28,7 @@ impl GameVariant {
 	pub fn info(self) -> (&'static str, &'static str, &'static str, GameClass) {
 		match self {
 			Self::Minesweeper => ("Minesweeper", "The mine game.", "ms", GameClass::Game),
+			Self::Paint => ("Paint", "Paint on the console.", "pt", GameClass::NonGame),
 			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td", GameClass::Debug),
 			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le", GameClass::Debug),
 		}
@@ -35,6 +37,7 @@ impl GameVariant {
 	pub fn new(self) -> Result<Box<dyn Game>, String> {
 		Ok(match self {
 			Self::Minesweeper => Box::new(Minesweeper::new()?),
+			Self::Paint => Box::new(Paint::new()?),
 			Self::TestDemo => Box::new(TestDemo::new()),
 			Self::LogEventsTest => Box::new(LogEventsTest::new()),
 		})
