@@ -79,7 +79,7 @@ impl Game for Minesweeper {
 		Ok(())
 	}
 
-	fn mouse_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
+	fn mouse_start_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
 		match button {
 			// Left click to clear a tile
 			MouseButton::Left => self.clear_tile(pos_in_mouse_zone)?,

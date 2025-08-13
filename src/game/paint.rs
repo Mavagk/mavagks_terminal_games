@@ -21,7 +21,7 @@ impl Paint {
 		Ok(Self {
 			should_close: false,
 			should_redraw: false,
-			canvas: Array2D::filled_with(Cell::new(), width as usize, height as usize),
+			canvas: Array2D::filled_with(Cell::new(), height as usize, width as usize),
 		})
 	}
 
@@ -37,9 +37,9 @@ impl Paint {
 		(self.canvas_width(), self.canvas_height())
 	}
 
-	fn get_cell(&self, pos: (u16, u16)) -> &Cell {
-		&self.canvas[(pos.1 as usize, pos.0 as usize)]
-	}
+	//fn get_cell(&self, pos: (u16, u16)) -> &Cell {
+	//	&self.canvas[(pos.1 as usize, pos.0 as usize)]
+	//}
 
 	fn get_cell_mut(&mut self, pos: (u16, u16)) -> &mut Cell {
 		&mut self.canvas[(pos.1 as usize, pos.0 as usize)]
@@ -73,7 +73,16 @@ impl Game for Paint {
 		Ok(())
 	}
 
-	fn mouse_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
+	fn mouse_start_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
+		match button {
+			MouseButton::Left => self.tool_interact_at(pos_in_mouse_zone, 0),
+			MouseButton::Right => self.tool_interact_at(pos_in_mouse_zone, 1),
+			_ => {},
+		}
+		Ok(())
+	}
+
+	fn mouse_drag_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
 		match button {
 			MouseButton::Left => self.tool_interact_at(pos_in_mouse_zone, 0),
 			MouseButton::Right => self.tool_interact_at(pos_in_mouse_zone, 1),

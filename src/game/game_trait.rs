@@ -11,7 +11,8 @@ pub trait Game {
 	fn first_draw(&mut self, _writer: &mut Console) -> Result<(), String> { Ok(()) }
 	fn event(&mut self, _event: &Event) -> Result<(), String> { Ok(()) }
 	fn mouse_moved_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: Option<(u16, u16)>, _event: &Event) -> Result<(), String> { Ok(()) }
-	fn mouse_click_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: (u16, u16), _button: MouseButton, _event: &Event) -> Result<(), String> { Ok(()) }
+	fn mouse_start_click_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: (u16, u16), _button: MouseButton, _event: &Event) -> Result<(), String> { Ok(()) }
+	fn mouse_drag_in_game_mouse_zone(&mut self, _pos_in_mouse_zone: (u16, u16), _button: MouseButton, _event: &Event) -> Result<(), String> { Ok(()) }
 	fn keypress(&mut self, _key: KeyCode, _event: &Event) -> Result<(), String> { Ok(()) }
 	/// Called after an event is handled. If this returns true, the game will terminate, otherwise it won't.
 	fn should_close(&self) -> bool {

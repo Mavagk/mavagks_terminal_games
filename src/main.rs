@@ -196,7 +196,14 @@ fn main() {
 							if let Some(new_mouse_pos_in_mouse_zone) = new_mouse_pos_in_mouse_zone {
 								match mouse_event.kind {
 									MouseEventKind::Up(button) => {
-										if let Err(error) = game.mouse_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
+										if let Err(error) = game.mouse_start_click_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
+											console_writer.on_game_close();
+											println!("Error: {error}.");
+											break;
+										}
+									}
+									MouseEventKind::Drag(button) => {
+										if let Err(error) = game.mouse_drag_in_game_mouse_zone(new_mouse_pos_in_mouse_zone, button, &event) {
 											console_writer.on_game_close();
 											println!("Error: {error}.");
 											break;
