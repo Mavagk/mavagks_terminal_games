@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, mem::take};
 
 use array2d::Array2D;
 use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
@@ -6,13 +6,11 @@ use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyl
 use crate::{console::Console, game::game_trait::Game, get_input_value_or_default};
 
 pub struct Paint {
-	should_redraw_entire_canvas: bool,
-	should_redraw_info_bar: bool,
 	should_close: bool,
-	cells_to_redraw: HashSet<(u16, u16)>,
 	canvas: Array2D<Cell>,
 	button_stored_cell: [Option<Cell>; 3],
 	tool: Tool,
+	screen: Screen,
 }
 
 impl Paint {
@@ -26,12 +24,10 @@ impl Paint {
 		// Create game
 		Ok(Self {
 			should_close: false,
-			should_redraw_entire_canvas: true,
-			should_redraw_info_bar: true,
-			cells_to_redraw: HashSet::new(),
 			canvas: Array2D::filled_with(Cell::new(), height as usize, width as usize),
 			button_stored_cell: [Some(Cell { color: Color::White }), Some(Cell { color: Color::Black }), None],
 			tool: Tool::SingleCellPaint,
+			screen: Screen::main_screen_default(),
 		})
 	}
 
@@ -56,16 +52,18 @@ impl Paint {
 	}
 
 	fn tool_interact_at(&mut self, pos: (u16, u16), button: MouseButton) {
-		match self.tool {
-			Tool::SingleCellPaint => {
-				if let Some(format) = self.get_button_stored_cell(button) {
-					*self.get_cell_mut(pos) = format.clone();
+		if let Screen::Main { .. } = self.screen {
+			match self.tool {
+				Tool::SingleCellPaint => {
+					if let Some(format) = self.get_button_stored_cell(button) {
+						*self.get_cell_mut(pos) = format.clone();
+					}
+					self.screen.add_tile_to_redraw(pos);
 				}
-				self.cells_to_redraw.insert(pos);
-			}
-			Tool::Picker => {
-				*self.get_button_stored_cell_mut(button) = Some(*self.get_cell(pos));
-				self.should_redraw_info_bar = true;
+				Tool::Picker => {
+					*self.get_button_stored_cell_mut(button) = Some(*self.get_cell(pos));
+					self.screen.should_redraw_info_bar();
+				}
 			}
 		}
 	}
@@ -80,7 +78,7 @@ impl Paint {
 
 	fn set_tool(&mut self, tool: Tool) {
 		self.tool = tool;
-		self.should_redraw_info_bar = true;
+		self.screen.should_redraw_info_bar();
 	}
 }
 
@@ -90,14 +88,20 @@ impl Game for Paint {
 	}
 
 	fn should_redraw(&self) -> bool {
-		self.should_redraw_entire_canvas || self.should_redraw_info_bar || !self.cells_to_redraw.is_empty()
+		match &self.screen {
+			Screen::Main { should_redraw_entire_canvas, should_redraw_info_bar, cells_to_redraw, should_first_draw }
+				=> *should_redraw_entire_canvas || *should_redraw_info_bar || !cells_to_redraw.is_empty() || *should_first_draw,
+			Screen::Help { needs_redraw } => *needs_redraw,
+		}
 	}
 
 	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
-		match key {
-			KeyCode::Esc => self.should_close = true,
-			KeyCode::Char('p') => self.set_tool(Tool::SingleCellPaint),
-			KeyCode::Char('k') => self.set_tool(Tool::Picker),
+		match (key, &self.screen) {
+			(KeyCode::Esc, Screen::Main { .. }) => self.should_close = true,
+			(KeyCode::Char('h'), Screen::Main { .. }) => self.screen = Screen::help_screen_default(),
+			(KeyCode::Char('p'), Screen::Main { .. }) => self.set_tool(Tool::SingleCellPaint),
+			(KeyCode::Char('k'), Screen::Main { .. }) => self.set_tool(Tool::Picker),
+			(KeyCode::Char('h') | KeyCode::Esc, Screen::Help { .. }) => self.screen = Screen::main_screen_default(),
 			_ => {}
 		}
 		Ok(())
@@ -114,59 +118,81 @@ impl Game for Paint {
 	}
 
 	fn first_draw(&mut self, writer: &mut Console) -> Result<(), String> {
-		let board_size = self.canvas_size();
-		let mut screen_size = board_size;
-		screen_size.0 += 1;
-		screen_size.1 += 1;
-		writer.new_game_screen(screen_size);
-		writer.set_game_mouse_zone((1, 1), board_size);
-		writer.enable_mouse_capture();
-		writer.hide_cursor();
-		// Draw
 		self.draw(writer)?;
 		Ok(())
 	}
 
 	fn draw(&mut self, writer: &mut Console) -> Result<(), String> {
+		let board_size = self.canvas_size();
 		// Draw info bar
-		if self.should_redraw_info_bar {
-			writer.move_cursor_to((0, 0));
-			writer.write("Colors: ", ContentStyle::default());
-			self.should_redraw_info_bar = false;
-			for (index, color) in self.button_stored_cell.iter().enumerate() {
-				if let Some(color) = color {
-					let chr = match index {
-						index if index == MouseButton::Left as usize => 'L',
-						index if index == MouseButton::Right as usize => 'R',
-						index if index == MouseButton::Middle as usize => 'M',
-						_ => '?'
-					};
-					writer.write(chr, ContentStyle::default());
-					writer.write(' ', ContentStyle { background_color: Some(color.color), ..Default::default() });
-					writer.write(' ', ContentStyle::default());
+		match &mut self.screen {
+			Screen::Main { should_redraw_entire_canvas, should_redraw_info_bar, cells_to_redraw, should_first_draw } => {
+				if *should_first_draw {
+					*should_first_draw = false;
+					let mut screen_size = board_size;
+					screen_size.0 += 1;
+					screen_size.1 += 1;
+					writer.new_game_screen(screen_size);
+					writer.set_game_mouse_zone((1, 1), board_size);
+					writer.enable_mouse_capture();
+					writer.hide_cursor();
+				}
+				if *should_redraw_info_bar {
+					*should_redraw_info_bar = false;
+					writer.move_cursor_to((0, 0));
+					writer.write("Colors: ", ContentStyle::default());
+					for (index, color) in self.button_stored_cell.iter().enumerate() {
+						if let Some(color) = color {
+							let chr = match index {
+								index if index == MouseButton::Left as usize => 'L',
+								index if index == MouseButton::Right as usize => 'R',
+								index if index == MouseButton::Middle as usize => 'M',
+								_ => '?'
+							};
+							writer.write(chr, ContentStyle::default());
+							writer.write(' ', ContentStyle { background_color: Some(color.color), ..Default::default() });
+						}
+					}
+					writer.write(", Tool: ", ContentStyle::default());
+					writer.write(self.tool.name(), ContentStyle::default());
+					writer.write(", Keys: [Esc] Exit [H]elp", ContentStyle::default());
+				}
+				// Draw canvas if we should redraw the entire thing
+				writer.move_cursor_to((1, 1));
+				if *should_redraw_entire_canvas {
+					for (y, row) in self.canvas.rows_iter().enumerate() {
+						writer.move_cursor_to((1, (y + 1) as u16));
+						for (_x, cell) in row.enumerate() {
+							writer.write(' ', ContentStyle { background_color: Some(cell.color), ..Default::default() });
+						}
+					}
+					*should_redraw_entire_canvas = false;
+					cells_to_redraw.clear();
+				}
+				// Draw canvas cells to redraw
+				for cell_pos in take(cells_to_redraw).iter() {
+					writer.move_cursor_to((cell_pos.0 + 1, cell_pos.1 + 1));
+					writer.write(' ', ContentStyle { background_color: Some(self.get_cell(*cell_pos).color), ..Default::default() });
 				}
 			}
-			writer.write(" Tool: ", ContentStyle::default());
-			writer.write(self.tool.name(), ContentStyle::default());
-		}
-		// Draw canvas if we should redraw the entire thing
-		writer.move_cursor_to((1, 1));
-		if self.should_redraw_entire_canvas {
-			for (y, row) in self.canvas.rows_iter().enumerate() {
-				writer.move_cursor_to((1, (y + 1) as u16));
-				for (_x, cell) in row.enumerate() {
-					writer.write(' ', ContentStyle { background_color: Some(cell.color), ..Default::default() });
+			Screen::Help { needs_redraw } => {
+				if *needs_redraw {
+					*needs_redraw = false;
+					writer.new_game_screen((20, 40));
+					writer.hide_cursor();
+					writer.move_cursor_to((0, 0));
+
+					writer.write("--- Navigation Keys ---\n", ContentStyle::default());
+					writer.write("[Esc]: Go back or exit paint\n", ContentStyle::default());
+					writer.write("[H]elp: Go to this menu\n", ContentStyle::default());
+					writer.write("--- Tool Keys ---\n", ContentStyle::default());
+					writer.write("[P]: Single cell painter tool\n", ContentStyle::default());
+					writer.write("[K]: Color picker\n", ContentStyle::default());
+
+					writer.write("\nPress [Esc] to return to painter screen.\n", ContentStyle::default());
 				}
 			}
-			self.should_redraw_entire_canvas = false;
-			self.cells_to_redraw.clear();
 		}
-		// Draw canvas cells to redraw
-		for cell_pos in self.cells_to_redraw.iter() {
-			writer.move_cursor_to((cell_pos.0 + 1, cell_pos.1 + 1));
-			writer.write(' ', ContentStyle { background_color: Some(self.get_cell(*cell_pos).color), ..Default::default() });
-		}
-		self.cells_to_redraw.clear();
 		Ok(())
 	}
 }
@@ -195,6 +221,33 @@ impl Tool {
 		match self {
 			Self::SingleCellPaint => "Single Cell Painter",
 			Self::Picker => "Picker",
+		}
+	}
+}
+
+enum Screen {
+	Main { should_first_draw: bool, should_redraw_entire_canvas: bool, should_redraw_info_bar: bool, cells_to_redraw: HashSet<(u16, u16)> },
+	Help { needs_redraw: bool },
+}
+
+impl Screen {
+	fn main_screen_default() -> Self {
+		Self::Main { should_redraw_entire_canvas: true, should_redraw_info_bar: true, cells_to_redraw: HashSet::new(), should_first_draw: true }
+	}
+
+	fn help_screen_default() -> Self {
+		Screen::Help { needs_redraw: true }
+	}
+
+	fn add_tile_to_redraw(&mut self, pos: (u16, u16)) {
+		if let Self::Main { cells_to_redraw, .. } = self {
+			cells_to_redraw.insert(pos);
+		}
+	}
+
+	fn should_redraw_info_bar(&mut self) {
+		if let Self::Main { should_redraw_info_bar, .. } = self {
+			*should_redraw_info_bar = true;
 		}
 	}
 }

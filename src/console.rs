@@ -37,7 +37,10 @@ impl Console {
 	}
 
 	pub fn clear(&mut self) {
-		execute!(self.stdout, Clear(ClearType::Purge)).unwrap();
+		match self.is_in_alternate_screen {
+			false => execute!(self.stdout, Clear(ClearType::Purge)).unwrap(),
+			true => execute!(self.stdout, EnterAlternateScreen).unwrap(),
+		}
 	}
 
 	pub fn exit_game_screen(&mut self) {
