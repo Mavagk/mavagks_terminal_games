@@ -131,6 +131,7 @@ impl Game for Paint {
 			(KeyCode::Char('C'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkCyan),
 			(KeyCode::Char('Y'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkYellow),
 			(KeyCode::Char('M'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkMagenta),
+			(KeyCode::Char('X'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Reset),
 			_ => {}
 		}
 		Ok(())
