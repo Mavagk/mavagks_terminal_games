@@ -218,6 +218,13 @@ impl Game for Paint {
 					writer.write("--- Tool Keys ---\n", ContentStyle::default());
 					writer.write("[P]: Single cell painter tool\n", ContentStyle::default());
 					writer.write("[K]: Color picker\n", ContentStyle::default());
+					writer.write("--- Colors ---\n", ContentStyle::default());
+					writer.write("[Shift+R]ed  [Shift+G]reen  [Shift+B]lue    [Shift+K] Black\n", ContentStyle::default());
+					writer.write("[Shift+C]yan [Shift+Y]ellow [Shift+M]agenta [Shift+W]hite\n", ContentStyle::default());
+					writer.write("[Alt+Shift+R] Dark Red     [Alt+Shift+G] Dark Green\n", ContentStyle::default());
+					writer.write("[Alt+Shift+B] Dark Blue    [Alt+Shift+B] Dark Gray\n", ContentStyle::default());
+					writer.write("[Alt+Shift+C] Dark Cyan    [Alt+Shift+Y] Dark Yellow\n", ContentStyle::default());
+					writer.write("[Alt+Shift+M] Dark Magenta [Alt+Shift+W] Gray\n", ContentStyle::default());
 
 					writer.write("\nPress [Esc] to return to painter screen.\n", ContentStyle::default());
 				}
