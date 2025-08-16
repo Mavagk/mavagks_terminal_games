@@ -1,4 +1,4 @@
-use crossterm::{event::{Event, KeyCode}, style::ContentStyle};
+use crossterm::{event::{Event, KeyCode, KeyModifiers}, style::ContentStyle};
 
 use crate::{console::Console, Game};
 
@@ -42,7 +42,7 @@ impl Game for TestDemo {
 		Ok(())
 	}
 	
-	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+	fn keypress(&mut self, key: KeyCode, _modifiers: KeyModifiers, _event: &Event) -> Result<(), String> {
 		if key == KeyCode::Esc {
 			self.should_close = true;
 		}

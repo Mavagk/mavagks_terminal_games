@@ -1,7 +1,7 @@
 use std::iter::once;
 
 use array2d::Array2D;
-use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
+use crossterm::{event::{Event, KeyCode, KeyModifiers, MouseButton}, style::{Color, ContentStyle}};
 use rand::{random, rngs::SmallRng, Rng, SeedableRng};
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
@@ -28,7 +28,7 @@ impl Game for Minesweeper {
 		self.should_redraw
 	}
 
-	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+	fn keypress(&mut self, key: KeyCode, _modifiers: KeyModifiers, _event: &Event) -> Result<(), String> {
 		match key {
 			KeyCode::Esc => self.should_close = true,
 			KeyCode::Char('r') => {

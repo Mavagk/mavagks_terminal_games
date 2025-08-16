@@ -1,7 +1,7 @@
 use std::{collections::HashSet, mem::take};
 
 use array2d::Array2D;
-use crossterm::{event::{Event, KeyCode, MouseButton}, style::{Color, ContentStyle}};
+use crossterm::{event::{Event, KeyCode, KeyModifiers, MouseButton}, style::{Color, ContentStyle}};
 
 use crate::{console::Console, game::game_trait::Game, get_input_value_or_default};
 
@@ -76,6 +76,17 @@ impl Paint {
 		&mut self.button_stored_cell[button as usize]
 	}
 
+	fn set_button_stored_cell_color(&mut self, button: MouseButton, color: Color) {
+		let stored = self.get_button_stored_cell_mut(button);
+		match stored {
+			None => *stored = Some(Cell { color }),
+			Some(stored) => stored.color = color,
+		}
+		if let Screen::Main { should_redraw_info_bar, .. } = &mut self.screen {
+			*should_redraw_info_bar = true;
+		}
+	}
+
 	fn set_tool(&mut self, tool: Tool) {
 		self.tool = tool;
 		self.screen.should_redraw_info_bar();
@@ -95,13 +106,31 @@ impl Game for Paint {
 		}
 	}
 
-	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
-		match (key, &self.screen) {
-			(KeyCode::Esc, Screen::Main { .. }) => self.should_close = true,
-			(KeyCode::Char('h'), Screen::Main { .. }) => self.screen = Screen::help_screen_default(),
-			(KeyCode::Char('p'), Screen::Main { .. }) => self.set_tool(Tool::SingleCellPaint),
-			(KeyCode::Char('k'), Screen::Main { .. }) => self.set_tool(Tool::Picker),
-			(KeyCode::Char('h') | KeyCode::Esc, Screen::Help { .. }) => self.screen = Screen::main_screen_default(),
+	fn keypress(&mut self, key: KeyCode, modifiers: KeyModifiers, _event: &Event) -> Result<(), String> {
+		let shift_alt: KeyModifiers = KeyModifiers::SHIFT | KeyModifiers::ALT;
+		match (key, modifiers, &self.screen) {
+			(KeyCode::Esc, KeyModifiers::NONE, Screen::Main { .. }) => self.should_close = true,
+			(KeyCode::Char('h'), KeyModifiers::NONE, Screen::Main { .. }) => self.screen = Screen::help_screen_default(),
+			(KeyCode::Char('p'), KeyModifiers::NONE, Screen::Main { .. }) => self.set_tool(Tool::SingleCellPaint),
+			(KeyCode::Char('k'), KeyModifiers::NONE, Screen::Main { .. }) => self.set_tool(Tool::Picker),
+			(KeyCode::Char('h') | KeyCode::Esc, KeyModifiers::NONE, Screen::Help { .. }) => self.screen = Screen::main_screen_default(),
+
+			(KeyCode::Char('K'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Black),
+			(KeyCode::Char('W'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::White),
+			(KeyCode::Char('R'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Red),
+			(KeyCode::Char('G'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Green),
+			(KeyCode::Char('B'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Blue),
+			(KeyCode::Char('C'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Cyan),
+			(KeyCode::Char('Y'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Yellow),
+			(KeyCode::Char('M'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Magenta),
+			(KeyCode::Char('K'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkGrey),
+			(KeyCode::Char('W'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::Grey),
+			(KeyCode::Char('R'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkRed),
+			(KeyCode::Char('G'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkGreen),
+			(KeyCode::Char('B'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkBlue),
+			(KeyCode::Char('C'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkCyan),
+			(KeyCode::Char('Y'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkYellow),
+			(KeyCode::Char('M'), modifiers, Screen::Main { .. }) if modifiers == shift_alt => self.set_button_stored_cell_color(MouseButton::Left, Color::DarkMagenta),
 			_ => {}
 		}
 		Ok(())

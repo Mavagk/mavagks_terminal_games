@@ -215,7 +215,7 @@ fn main() {
 						}
 						Event::Key(key_event) => {
 							if key_event.is_press() {
-								if let Err(error) = game.keypress(key_event.code, &event) {
+								if let Err(error) = game.keypress(key_event.code, key_event.modifiers, &event) {
 									console_writer.on_game_close();
 									println!("Error: {error}.");
 									break;

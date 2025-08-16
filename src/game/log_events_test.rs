@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use crate::{console::Console, Game};
 
@@ -15,7 +15,7 @@ impl Game for LogEventsTest {
 		Ok(())
 	}
 
-	fn keypress(&mut self, key: KeyCode, _event: &Event) -> Result<(), String> {
+	fn keypress(&mut self, key: KeyCode, _modifiers: KeyModifiers, _event: &Event) -> Result<(), String> {
 		if key == KeyCode::Esc {
 			self.should_close = true;
 		}
