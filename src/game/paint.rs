@@ -82,8 +82,10 @@ impl Paint {
 			None => *stored = Some(Cell { color }),
 			Some(stored) => stored.color = color,
 		}
-		if let Screen::Main { should_redraw_info_bar, .. } = &mut self.screen {
-			*should_redraw_info_bar = true;
+		match &mut self.screen {
+			Screen::Main { should_redraw_info_bar, .. } => *should_redraw_info_bar = true,
+			Screen::ColorSelector { should_redraw_info_bar, .. } => *should_redraw_info_bar = true,
+			_ => {}
 		}
 	}
 
@@ -103,6 +105,7 @@ impl Game for Paint {
 			Screen::Main { should_redraw_entire_canvas, should_redraw_info_bar, cells_to_redraw, should_first_draw }
 				=> *should_redraw_entire_canvas || *should_redraw_info_bar || !cells_to_redraw.is_empty() || *should_first_draw,
 			Screen::Help { needs_redraw } => *needs_redraw,
+			Screen::ColorSelector { should_redraw_colors, should_redraw_info_bar } => *should_redraw_colors | *should_redraw_info_bar,
 		}
 	}
 
@@ -114,6 +117,8 @@ impl Game for Paint {
 			(KeyCode::Char('p'), KeyModifiers::NONE, Screen::Main { .. }) => self.set_tool(Tool::SingleCellPaint),
 			(KeyCode::Char('k'), KeyModifiers::NONE, Screen::Main { .. }) => self.set_tool(Tool::Picker),
 			(KeyCode::Char('h') | KeyCode::Esc, KeyModifiers::NONE, Screen::Help { .. }) => self.screen = Screen::main_screen_default(),
+			(KeyCode::Char('c'), KeyModifiers::NONE, Screen::Main { .. }) => self.screen = Screen::color_selector_screen_default(),
+			(KeyCode::Char('c') | KeyCode::Esc, KeyModifiers::NONE, Screen::ColorSelector { .. }) => self.screen = Screen::main_screen_default(),
 
 			(KeyCode::Char('K'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::Black),
 			(KeyCode::Char('W'), KeyModifiers::SHIFT, Screen::Main { .. }) => self.set_button_stored_cell_color(MouseButton::Left, Color::White),
@@ -138,12 +143,18 @@ impl Game for Paint {
 	}
 
 	fn mouse_start_click_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
-		self.tool_interact_at(pos_in_mouse_zone, button);
+		match self.screen {
+			Screen::Main { .. } => self.tool_interact_at(pos_in_mouse_zone, button),
+			Screen::ColorSelector { .. } => self.set_button_stored_cell_color(button, Color::AnsiValue(pos_in_mouse_zone.0 as u8 / 2 + pos_in_mouse_zone.1 as u8 * 16)),
+			_ => {}
+		}
 		Ok(())
 	}
 
 	fn mouse_drag_in_game_mouse_zone(&mut self, pos_in_mouse_zone: (u16, u16), button: MouseButton, _event: &Event) -> Result<(), String> {
-		self.tool_interact_at(pos_in_mouse_zone, button);
+		if matches!(self.screen, Screen::Main { .. }) {
+			self.tool_interact_at(pos_in_mouse_zone, button);
+		}
 		Ok(())
 	}
 
@@ -215,6 +226,7 @@ impl Game for Paint {
 					writer.write("--- Navigation Keys ---\n", ContentStyle::default());
 					writer.write("[Esc]: Go back or exit paint\n", ContentStyle::default());
 					writer.write("[H]elp: Go to this menu\n", ContentStyle::default());
+					writer.write("[C]olor selector\n", ContentStyle::default());
 					writer.write("--- Tool Keys ---\n", ContentStyle::default());
 					writer.write("[P]: Single cell painter tool\n", ContentStyle::default());
 					writer.write("[K]: Color picker\n", ContentStyle::default());
@@ -227,6 +239,40 @@ impl Game for Paint {
 					writer.write("[Alt+Shift+M] Dark Magenta [Alt+Shift+W] Gray\n", ContentStyle::default());
 
 					writer.write("\nPress [Esc] to return to painter screen.\n", ContentStyle::default());
+				}
+			}
+			Screen::ColorSelector { should_redraw_colors, should_redraw_info_bar } => {
+				if *should_redraw_colors {
+					*should_redraw_colors = false;
+					writer.new_game_screen((33, 17));
+					writer.set_game_mouse_zone((1, 1), (32, 16));
+					writer.hide_cursor();
+					writer.move_cursor_to((0, 0));
+					for y in 0..16 {
+						writer.move_cursor_to((1, y + 1));
+						for x in 0..16 {
+							let color_id = y * 16 + x;
+							let color = Color::AnsiValue(color_id as u8);
+							writer.write("  ", ContentStyle { background_color: Some(color), ..Default::default() });
+						}
+					}
+				}
+				if *should_redraw_info_bar {
+					writer.move_cursor_to((0, 0));
+					writer.write("Colors: ", ContentStyle::default());
+					for (index, color) in self.button_stored_cell.iter().enumerate() {
+						if let Some(color) = color {
+							let chr = match index {
+								index if index == MouseButton::Left as usize => 'L',
+								index if index == MouseButton::Right as usize => 'R',
+								index if index == MouseButton::Middle as usize => 'M',
+								_ => '?'
+							};
+							writer.write(chr, ContentStyle::default());
+							writer.write(' ', ContentStyle { background_color: Some(color.color), ..Default::default() });
+						}
+					}
+					writer.write(", Keys: [Esc] Back to drawer", ContentStyle::default());
 				}
 			}
 		}
@@ -265,6 +311,7 @@ impl Tool {
 enum Screen {
 	Main { should_first_draw: bool, should_redraw_entire_canvas: bool, should_redraw_info_bar: bool, cells_to_redraw: HashSet<(u16, u16)> },
 	Help { needs_redraw: bool },
+	ColorSelector { should_redraw_colors: bool, should_redraw_info_bar: bool },
 }
 
 impl Screen {
@@ -274,6 +321,10 @@ impl Screen {
 
 	fn help_screen_default() -> Self {
 		Screen::Help { needs_redraw: true }
+	}
+
+	fn color_selector_screen_default() -> Self {
+		Screen::ColorSelector { should_redraw_colors: true, should_redraw_info_bar: true }
 	}
 
 	fn add_tile_to_redraw(&mut self, pos: (u16, u16)) {
