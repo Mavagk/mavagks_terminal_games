@@ -1,5 +1,6 @@
 pub mod game;
 pub mod console;
+pub mod mavagk_basic;
 
 use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr, thread::yield_now, time::{Duration, Instant}};
 
