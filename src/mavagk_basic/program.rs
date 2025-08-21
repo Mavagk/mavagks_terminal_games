@@ -5,5 +5,5 @@ use num::BigInt;
 use crate::mavagk_basic::statement::Statement;
 
 pub struct Program {
-	lines: BTreeMap<BigInt, (Box<[Statement]>, Box<str>)>,
+	_lines: BTreeMap<BigInt, (Box<[Statement]>, Box<str>)>,
 }

@@ -11,7 +11,7 @@ impl Machine {
 		}
 	}
 
-	pub fn line_of_text_entered(&mut self, line: &str) -> Result<(), Error> {
+	pub fn line_of_text_entered(&mut self, _line: &str) -> Result<(), Error> {
 		Ok(())
 	}
 }
