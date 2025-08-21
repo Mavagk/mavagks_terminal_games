@@ -8,12 +8,13 @@ use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
 use crossterm::event::{poll, read, Event, MouseEventKind};
 
-use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, minesweeper::Minesweeper, paint::Paint, test_demo::TestDemo}};
+use crate::{console::Console, game::{game_trait::Game, log_events_test::LogEventsTest, mavagk_basic_terminal::MavagkBasicTerminal, minesweeper::Minesweeper, paint::Paint, test_demo::TestDemo}};
 
 #[derive(Copy, Clone, EnumIter, FromRepr)]
 pub enum GameVariant {
 	Minesweeper,
 	Paint,
+	MavagkBasicTerminal,
 	TestDemo,
 	LogEventsTest,
 }
@@ -30,6 +31,7 @@ impl GameVariant {
 		match self {
 			Self::Minesweeper => ("Minesweeper", "The mine game.", "ms", GameClass::Game),
 			Self::Paint => ("Paint", "Paint on the console.", "pt", GameClass::NonGame),
+			Self::MavagkBasicTerminal => ("MavagkBasic Terminal", "Terminal for writing, running and interacting with MavagkBasic programs.", "mb", GameClass::NonGame),
 			Self::TestDemo => ("Test Demo", "A test demo for testing out engine features.", "td", GameClass::Debug),
 			Self::LogEventsTest => ("Log Events Test", "Lists all console events.", "le", GameClass::Debug),
 		}
@@ -39,6 +41,7 @@ impl GameVariant {
 		Ok(match self {
 			Self::Minesweeper => Box::new(Minesweeper::new()?),
 			Self::Paint => Box::new(Paint::new()?),
+			Self::MavagkBasicTerminal => Box::new(MavagkBasicTerminal::new()),
 			Self::TestDemo => Box::new(TestDemo::new()),
 			Self::LogEventsTest => Box::new(LogEventsTest::new()),
 		})
@@ -150,6 +153,11 @@ fn main() {
 		let mut time_overflow = Duration::from_micros(0);
 		// Enter game loop
 		loop {
+			if let Err(error) = game.before_poll() {
+				console_writer.on_game_close();
+				println!("Error: {error}.");
+				break;
+			}
 			while matches!(poll(Duration::from_secs(0)), Ok(true)) {
 				if let Ok(event) = read() {
 					if let Err(error) = game.event(&event) {

@@ -24,4 +24,5 @@ pub trait Game {
 	}
 	fn tick_frequency(&self) -> Option<Duration> { None }
 	fn tick(&mut self, _since_last_tick: Option<Duration>) -> Result<(), String> { Ok(()) }
+	fn before_poll(&mut self) -> Result<(), String> { Ok(()) }
 }
