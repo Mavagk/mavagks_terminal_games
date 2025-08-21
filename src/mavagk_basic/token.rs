@@ -17,8 +17,8 @@ impl Token {
 		todo!()
 	}
 
-	/// Takes in a line of basic code in text form. Converts it into a line number and a list of statements, each statement in the form of a list of (column number, token) pairs.
-	pub fn parse_line(line: &str) -> Result<(Option<BigInt>, Box<[Box<[(NonZeroUsize, Token)]>]>), Error> {
+	/// Takes in a line of basic code in text form. Converts it into a line number and a list of (column number, token) pairs.
+	pub fn parse_line(line: &str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Token)]>), Error> {
 		todo!()
 	}
 }
