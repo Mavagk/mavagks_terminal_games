@@ -4,20 +4,22 @@ use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
 
-const fn is_identifier_or_numeric_literal(chr: char) -> bool {
-	matches!(chr, '#' | '$' | '%' | '?' | '_' | '.') || chr.is_ascii_alphanumeric()
-}
+//const fn is_identifier_or_numeric_literal(chr: char) -> bool {
+//	matches!(chr, '#' | '$' | '%' | '?' | '_' | '.') || chr.is_ascii_alphanumeric()
+//}
 
 #[derive(Debug)]
 pub enum Token<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
-	IdentifiersNumericLiterals(&'a str),
+	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
+	NumericLiteral(&'a str),
 	LeftParenthesis,
 	RightParenthesis,
 	Comma,
 	Colon,
 	Semicolon,
+	SingleQuestionMark,
 }
 
 impl<'a> Token<'a> {
@@ -45,16 +47,27 @@ impl<'a> Token<'a> {
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::Operator(token_string), rest_of_string_with_token_removed)
 			}
+			// Separators
 			'(' => (Token::LeftParenthesis, &line_starting_with_token[1..]),
 			')' => (Token::RightParenthesis, &line_starting_with_token[1..]),
 			',' => (Token::Comma, &line_starting_with_token[1..]),
 			';' => (Token::Semicolon, &line_starting_with_token[1..]),
 			':' => (Token::Colon, &line_starting_with_token[1..]),
-			// Identifiers and Numeric Literals
-			chr if is_identifier_or_numeric_literal(chr) => {
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !is_identifier_or_numeric_literal(chr)).unwrap_or_else(|| line_starting_with_token.len());
+			'?' => (Token::SingleQuestionMark, &line_starting_with_token[1..]),
+			// Identifier
+			'a'..='z' | 'A'..='Z' | '_' => {
+				// TODO: Types
+				let length_of_token_in_bytes = line_starting_with_token.find(|chr| matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(Token::IdentifiersNumericLiterals(token_string), rest_of_string_with_token_removed)
+				(Token::Identifier { name: token_string, identifier_type: IdentifierType::Number, is_optional: false }, rest_of_string_with_token_removed)
+			}
+			// Numeric literal
+			'0'..='9' | '.' => {
+				// TODO: E
+				// TODO: Second '.' is a new literal
+				let length_of_token_in_bytes = line_starting_with_token.find(|chr| matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')).unwrap_or_else(|| line_starting_with_token.len());
+				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
+				(Token::NumericLiteral(token_string), rest_of_string_with_token_removed)
 			}
 			// TODO: Quoteless string literals in DATA statements
 			// TODO
@@ -93,4 +106,13 @@ impl<'a> Token<'a> {
 		// Return
 		Ok((line_number, tokens.into()))
 	}
+}
+
+#[derive(Debug)]
+pub enum IdentifierType {
+	Number,
+	String,
+	Integer,
+	Boolean,
+	ComplexNumber,
 }
