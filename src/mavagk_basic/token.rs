@@ -57,7 +57,7 @@ impl<'a> Token<'a> {
 			// Identifier
 			'a'..='z' | 'A'..='Z' | '_' => {
 				// TODO: Types
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
+				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::Identifier { name: token_string, identifier_type: IdentifierType::Number, is_optional: false }, rest_of_string_with_token_removed)
 			}
@@ -65,9 +65,16 @@ impl<'a> Token<'a> {
 			'0'..='9' | '.' => {
 				// TODO: E
 				// TODO: Second '.' is a new literal
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')).unwrap_or_else(|| line_starting_with_token.len());
+				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')).unwrap_or_else(|| line_starting_with_token.len());
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::NumericLiteral(token_string), rest_of_string_with_token_removed)
+			}
+			// Strings
+			'"' => {
+				match line_starting_with_token[1..].find('"') {
+					Some(double_quote_index_in_bytes) => (Token::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
+					None => (Token::StringLiteral(&line_starting_with_token[1..]), ""),
+				}
 			}
 			// TODO: Quoteless string literals in DATA statements
 			// TODO
