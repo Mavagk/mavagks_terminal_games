@@ -4,11 +4,19 @@ use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
 
+const fn is_identifier_or_numeric_literal(chr: char) -> bool {
+	matches!(chr, '#' | '$' | '%' | '?' | '_' | '.') || chr.is_ascii_alphanumeric()
+}
+
 pub enum Token<'a> {
 	Operator(&'a str),
-	NumericLiteral(&'a str),
 	StringLiteral(&'a str),
-	Identifier(&'a str),
+	IdentifiersNumericLiterals(&'a str),
+	LeftParenthesis,
+	RightParenthesis,
+	Comma,
+	Colon,
+	Semicolon,
 }
 
 impl<'a> Token<'a> {
@@ -33,19 +41,18 @@ impl<'a> Token<'a> {
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::Operator(token_string), rest_of_string_with_token_removed)
 			}
-			// Identifier
-			//chr if chr.is_ascii_alphabetic() => (
-			//	// TODO: Ending in a type specifier char
-			//	line_starting_with_token.find(|chr: char| !(chr.is_alphanumeric() || chr == '_')).unwrap_or_else(|| line_starting_with_token.len()),
-			//	TokenVariant::Identifier
-			//),
-			//// Numeric literal
-			//chr if chr.is_ascii_alphabetic() => (
-			//	// TODO: Starting with a base char
-			//	line_starting_with_token.find(|chr: char| !(chr.is_alphanumeric() || chr == '_' || chr == '.')).unwrap_or_else(|| line_starting_with_token.len()),
-			//	TokenVariant::NumericLiteral
-			//),
-			//'(' | ')' | ':' | ',' | ';' => (1, TokenVariant::Separator),
+			'(' => (Token::LeftParenthesis, &line_starting_with_token[1..]),
+			')' => (Token::RightParenthesis, &line_starting_with_token[1..]),
+			',' => (Token::Comma, &line_starting_with_token[1..]),
+			';' => (Token::Semicolon, &line_starting_with_token[1..]),
+			':' => (Token::Colon, &line_starting_with_token[1..]),
+			// Identifiers and Numeric Literals
+			chr if is_identifier_or_numeric_literal(chr) => {
+				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !is_identifier_or_numeric_literal(chr)).unwrap_or_else(|| line_starting_with_token.len());
+				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
+				(Token::IdentifiersNumericLiterals(token_string), rest_of_string_with_token_removed)
+			}
+			// TODO: Quoteless string literals in DATA statements
 			// TODO
 			_ => return Err(Error::NotYetImplemented(None, column_number, "Other tokens".into()))
 		};
