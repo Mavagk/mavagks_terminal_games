@@ -8,6 +8,7 @@ const fn is_identifier_or_numeric_literal(chr: char) -> bool {
 	matches!(chr, '#' | '$' | '%' | '?' | '_' | '.') || chr.is_ascii_alphanumeric()
 }
 
+#[derive(Debug)]
 pub enum Token<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
@@ -36,8 +37,11 @@ impl<'a> Token<'a> {
 		let first_char = line_starting_with_token.chars().next().unwrap();
 		let (token, rest_of_string_with_token_removed) = match first_char {
 			// Operator
-			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' => {
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, '/' | '*' | '↑' | '<' | '=' | '>')).unwrap_or_else(|| line_starting_with_token.len());
+			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' => {
+				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '*' | '↑' | '<' | '=' | '>')) {
+					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
+					None => line_starting_with_token.len(),
+				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::Operator(token_string), rest_of_string_with_token_removed)
 			}
@@ -61,7 +65,32 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a line number and a list of (column number, token) pairs.
-	pub fn parse_line(_line: &str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Token)]>), Error> {
-		todo!()
+	pub fn parse_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Self)]>), Error> {
+		// Get line number
+		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
+		let line_number = match line.chars().next() {
+			Some('0'..='9' | '-') => {
+				let length_of_line_number = line.find(|chr| !matches!(chr, '0'..='9' | '-')).unwrap_or_else(|| line.len());
+				let line_number_string;
+				(line_number_string, line) = line.split_at(length_of_line_number);
+				column_number = column_number.saturating_add(length_of_line_number);
+				Some(line_number_string.parse::<BigInt>().map_err(|_| Error::MalformedLineNumber(1.try_into().unwrap(), line_number_string.into()))?)
+			}
+			_ => None,
+		};
+		// Parse tokens
+		let mut tokens = Vec::new();
+		loop {
+			let (token_column_number, token, remaining_string) = match Self::parse_token(line, column_number)? {
+				None => break,
+				Some(result) => result,
+			};
+			let token_length_in_bytes = line.len() - remaining_string.len();
+			column_number = column_number.saturating_add(line[..token_length_in_bytes].chars().count());
+			line = remaining_string;
+			tokens.push((token_column_number, token));
+		}
+		// Return
+		Ok((line_number, tokens.into()))
 	}
 }

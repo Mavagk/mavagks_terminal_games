@@ -1,4 +1,4 @@
-use crate::{game::game_trait::Game, get_input, mavagk_basic::machine::Machine};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{machine::Machine, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
@@ -10,6 +10,18 @@ impl Game for MavagkBasicTerminal {
 		let line = get_input();
 		if &*line == "exit" {
 			self.should_exit = true;
+			return Ok(());
+		}
+		if line.starts_with("tokens ") {
+			let tokens = match Token::parse_line(&line[7..]) {
+				Err(error) => {
+					println!("Basic error {error}");
+					return Ok(());
+				},
+				Ok(tokens) => tokens,
+			};
+			println!("{tokens:?}");
+			return Ok(());
 		}
 		if let Err(error) = self.machine.line_of_text_entered(&*line) {
 			println!("Basic error {error}");
