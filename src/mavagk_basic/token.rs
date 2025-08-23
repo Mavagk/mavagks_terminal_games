@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
-
+// TODO: Token variant enum. Token struct with variant, start column, end column.
 #[derive(Debug)]
 pub enum Token<'a> {
 	Operator(&'a str),
@@ -23,7 +23,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_token(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(NonZeroUsize, Self, &'a str)>, Error> {
+	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(NonZeroUsize, Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let column_number = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -94,7 +94,7 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a line number and a list of (column number, token) pairs.
-	pub fn parse_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Self)]>), Error> {
+	pub fn tokenize_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Self)]>), Error> {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line.chars().next() {
@@ -110,7 +110,7 @@ impl<'a> Token<'a> {
 		// Parse tokens
 		let mut tokens = Vec::new();
 		loop {
-			let (token_column_number, token, remaining_string) = match Self::parse_token(line, column_number)? {
+			let (token_column_number, token, remaining_string) = match Self::parse_token_from_str(line, column_number)? {
 				None => break,
 				Some(result) => result,
 			};

@@ -1,4 +1,4 @@
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{machine::Machine, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, machine::Machine, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
@@ -13,7 +13,7 @@ impl Game for MavagkBasicTerminal {
 			return Ok(());
 		}
 		if line.starts_with("tokens ") {
-			let tokens = match Token::parse_line(&line[7..]) {
+			let tokens = match Token::tokenize_line(&line[7..]) {
 				Err(error) => {
 					println!("Basic error {error}");
 					return Ok(());
@@ -21,6 +21,24 @@ impl Game for MavagkBasicTerminal {
 				Ok(tokens) => tokens,
 			};
 			println!("{tokens:?}");
+			return Ok(());
+		}
+		if line.starts_with("ast ") {
+			let (_line, tokens) = match Token::tokenize_line(&line[4..]) {
+				Err(error) => {
+					println!("Basic error {error}");
+					return Ok(());
+				},
+				Ok(tokens) => tokens,
+			};
+			let trees = match parse_line(&*tokens) {
+				Err(error) => {
+					println!("Basic error {error}");
+					return Ok(());
+				},
+				Ok(tokens) => tokens,
+			};
+			println!("{trees:?}");
 			return Ok(());
 		}
 		if let Err(error) = self.machine.line_of_text_entered(&*line) {

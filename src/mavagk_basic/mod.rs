@@ -3,3 +3,4 @@ pub mod machine;
 pub mod statement;
 pub mod token;
 pub mod error;
+pub mod abstract_syntax_tree;
