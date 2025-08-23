@@ -4,10 +4,6 @@ use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
 
-//const fn is_identifier_or_numeric_literal(chr: char) -> bool {
-//	matches!(chr, '#' | '$' | '%' | '?' | '_' | '.') || chr.is_ascii_alphanumeric()
-//}
-
 #[derive(Debug)]
 pub enum Token<'a> {
 	Operator(&'a str),
@@ -39,8 +35,8 @@ impl<'a> Token<'a> {
 		let first_char = line_starting_with_token.chars().next().unwrap();
 		let (token, rest_of_string_with_token_removed) = match first_char {
 			// Operator
-			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' => {
-				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '*' | '↑' | '<' | '=' | '>')) {
+			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' => {
+				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '<' | '=' | '>')) {
 					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
 					None => line_starting_with_token.len(),
 				};
@@ -56,16 +52,29 @@ impl<'a> Token<'a> {
 			'?' => (Token::SingleQuestionMark, &line_starting_with_token[1..]),
 			// Identifier
 			'a'..='z' | 'A'..='Z' | '_' => {
-				// TODO: Types
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
-				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(Token::Identifier { name: token_string, identifier_type: IdentifierType::Number, is_optional: false }, rest_of_string_with_token_removed)
+				// Get name part of identifier
+				let length_of_identifier_name_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
+				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
+				// Get type
+				match string_with_name_removed {
+					_ if string_with_name_removed.starts_with("$?") => (Token::Identifier { name, identifier_type: IdentifierType::String, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("$") => (Token::Identifier { name, identifier_type: IdentifierType::String, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("%?") => (Token::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("%") => (Token::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("#?") => (Token::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("#") => (Token::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("?") => (Token::Identifier { name, identifier_type: IdentifierType::Number, is_optional: true }, string_with_name_removed),
+					_ => (Token::Identifier { name, identifier_type: IdentifierType::Number, is_optional: false }, &string_with_name_removed[1..]),
+				}
 			}
 			// Numeric literal
-			'0'..='9' | '.' => {
+			'0'..='9' | '.' | '$' | '%' => {
 				// TODO: E
 				// TODO: Second '.' is a new literal
-				let length_of_token_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')).unwrap_or_else(|| line_starting_with_token.len());
+				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')) {
+					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
+					None => line_starting_with_token.len(),
+				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				(Token::NumericLiteral(token_string), rest_of_string_with_token_removed)
 			}
@@ -120,6 +129,5 @@ pub enum IdentifierType {
 	Number,
 	String,
 	Integer,
-	Boolean,
 	ComplexNumber,
 }
