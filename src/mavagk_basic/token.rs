@@ -5,7 +5,14 @@ use num::BigInt;
 use crate::mavagk_basic::error::Error;
 // TODO: Token variant enum. Token struct with variant, start column, end column.
 #[derive(Debug)]
-pub enum Token<'a> {
+pub struct Token<'a> {
+	pub variant: TokenVariant<'a>,
+	pub start_column: NonZeroUsize,
+	pub end_column: NonZeroUsize,
+}
+
+#[derive(Debug)]
+pub enum TokenVariant<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
@@ -23,9 +30,9 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(NonZeroUsize, Self, &'a str)>, Error> {
+	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
-		let column_number = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
+		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
 		// Return if we are at the end of the non-comment portion of the line
 		if line_starting_with_token.is_empty() || !line_starting_with_token.get(0..=2).is_none_or(|st| !st.eq_ignore_ascii_case("rem")) {
@@ -33,7 +40,7 @@ impl<'a> Token<'a> {
 		}
 		// Parse token
 		let first_char = line_starting_with_token.chars().next().unwrap();
-		let (token, rest_of_string_with_token_removed) = match first_char {
+		let (variant, rest_of_string_with_token_removed) = match first_char {
 			// Operator
 			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' => {
 				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '<' | '=' | '>')) {
@@ -41,15 +48,15 @@ impl<'a> Token<'a> {
 					None => line_starting_with_token.len(),
 				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(Token::Operator(token_string), rest_of_string_with_token_removed)
+				(TokenVariant::Operator(token_string), rest_of_string_with_token_removed)
 			}
 			// Separators
-			'(' => (Token::LeftParenthesis, &line_starting_with_token[1..]),
-			')' => (Token::RightParenthesis, &line_starting_with_token[1..]),
-			',' => (Token::Comma, &line_starting_with_token[1..]),
-			';' => (Token::Semicolon, &line_starting_with_token[1..]),
-			':' => (Token::Colon, &line_starting_with_token[1..]),
-			'?' => (Token::SingleQuestionMark, &line_starting_with_token[1..]),
+			'(' => (TokenVariant::LeftParenthesis, &line_starting_with_token[1..]),
+			')' => (TokenVariant::RightParenthesis, &line_starting_with_token[1..]),
+			',' => (TokenVariant::Comma, &line_starting_with_token[1..]),
+			';' => (TokenVariant::Semicolon, &line_starting_with_token[1..]),
+			':' => (TokenVariant::Colon, &line_starting_with_token[1..]),
+			'?' => (TokenVariant::SingleQuestionMark, &line_starting_with_token[1..]),
 			// Identifier
 			'a'..='z' | 'A'..='Z' | '_' => {
 				// Get name part of identifier
@@ -57,14 +64,14 @@ impl<'a> Token<'a> {
 				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
 				// Get type
 				match string_with_name_removed {
-					_ if string_with_name_removed.starts_with("$?") => (Token::Identifier { name, identifier_type: IdentifierType::String, is_optional: true }, &string_with_name_removed[2..]),
-					_ if string_with_name_removed.starts_with("$") => (Token::Identifier { name, identifier_type: IdentifierType::String, is_optional: false }, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("%?") => (Token::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: true }, &string_with_name_removed[2..]),
-					_ if string_with_name_removed.starts_with("%") => (Token::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: false }, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("#?") => (Token::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: true }, &string_with_name_removed[2..]),
-					_ if string_with_name_removed.starts_with("#") => (Token::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: false }, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("?") => (Token::Identifier { name, identifier_type: IdentifierType::Number, is_optional: true }, string_with_name_removed),
-					_ => (Token::Identifier { name, identifier_type: IdentifierType::Number, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("$?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::String, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("$") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::String, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("%?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("%") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("#?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: true }, &string_with_name_removed[2..]),
+					_ if string_with_name_removed.starts_with("#") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: false }, &string_with_name_removed[1..]),
+					_ if string_with_name_removed.starts_with("?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Number, is_optional: true }, string_with_name_removed),
+					_ => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Number, is_optional: false }, string_with_name_removed),
 				}
 			}
 			// Numeric literal
@@ -76,25 +83,27 @@ impl<'a> Token<'a> {
 					None => line_starting_with_token.len(),
 				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(Token::NumericLiteral(token_string), rest_of_string_with_token_removed)
+				(TokenVariant::NumericLiteral(token_string), rest_of_string_with_token_removed)
 			}
 			// Strings
 			'"' => {
 				match line_starting_with_token[1..].find('"') {
-					Some(double_quote_index_in_bytes) => (Token::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
-					None => (Token::StringLiteral(&line_starting_with_token[1..]), ""),
+					Some(double_quote_index_in_bytes) => (TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
+					None => (TokenVariant::StringLiteral(&line_starting_with_token[1..]), ""),
 				}
 			}
 			// TODO: Quoteless string literals in DATA statements
 			// TODO
-			_ => return Err(Error::NotYetImplemented(None, column_number, "Other tokens".into()))
+			_ => return Err(Error::NotYetImplemented(None, start_column, "Other tokens".into()))
 		};
 		// Return
-		Ok(Some((column_number, token, rest_of_string_with_token_removed)))
+		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
+		let token_length_in_chars = line_starting_with_token[..token_length_in_bytes].chars().count();
+		Ok(Some((Self { variant, start_column, end_column: start_column.saturating_add(token_length_in_chars) }, rest_of_string_with_token_removed)))
 	}
 
-	/// Takes in a line of basic code in text form. Converts it into a line number and a list of (column number, token) pairs.
-	pub fn tokenize_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[(NonZeroUsize, Self)]>), Error> {
+	/// Takes in a line of basic code in text form. Converts it into a list of tokens.
+	pub fn tokenize_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[Self]>), Error> {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line.chars().next() {
@@ -110,14 +119,15 @@ impl<'a> Token<'a> {
 		// Parse tokens
 		let mut tokens = Vec::new();
 		loop {
-			let (token_column_number, token, remaining_string) = match Self::parse_token_from_str(line, column_number)? {
+			let (token, remaining_string) = match Self::parse_token_from_str(line, column_number)? {
 				None => break,
 				Some(result) => result,
 			};
-			let token_length_in_bytes = line.len() - remaining_string.len();
-			column_number = column_number.saturating_add(line[..token_length_in_bytes].chars().count());
+			column_number = token.end_column;
+			//let token_length_in_bytes = line.len() - remaining_string.len();
+			//column_number = column_number.saturating_add(line[..token_length_in_bytes].chars().count());
 			line = remaining_string;
-			tokens.push((token_column_number, token));
+			tokens.push(token);
 		}
 		// Return
 		Ok((line_number, tokens.into()))
