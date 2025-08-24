@@ -3,7 +3,7 @@ use std::num::NonZeroUsize;
 use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
-// TODO: Token variant enum. Token struct with variant, start column, end column.
+
 #[derive(Debug)]
 pub struct Token<'a> {
 	pub variant: TokenVariant<'a>,

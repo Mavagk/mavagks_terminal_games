@@ -10,9 +10,9 @@ pub struct Statement<'a> {
 
 impl<'a> Statement<'a> {
 	pub fn parse<'b>(tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
-		if let Some(Token { variant, start_column, end_column: _ }) = tokens.first() {
+		if let Some(Token { variant, start_column, end_column }) = tokens.first() {
 			if let TokenVariant::Identifier { name: "print", identifier_type: IdentifierType::Number, is_optional: false } = variant {
-				let (expression, remaining_tokens) = Expression::parse(&tokens[1..])?;
+				let (expression, remaining_tokens) = Expression::parse(&tokens[1..], *end_column)?;
 				if !remaining_tokens.is_empty() {
 					return Err(Error::NotYetImplemented(None, *start_column, "More that one print sub-expression".into()));
 				}
@@ -36,7 +36,7 @@ pub struct Expression<'a> {
 }
 
 impl<'a> Expression<'a> {
-	pub fn parse<'b>(tokens: &'b [Token<'a>]) -> Result<(Self, &'b [Token<'a>]), Error> {
+	pub fn parse<'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<(Self, &'b [Token<'a>]), Error> {
 		// TODO: Refactor
 		if let Some(Token { variant, start_column, end_column: _ }) = tokens.first() {
 			if let TokenVariant::StringLiteral(value) = variant {
@@ -44,7 +44,7 @@ impl<'a> Expression<'a> {
 			}
 			return Err(Error::NotYetImplemented(None, *start_column, "Expressions that are not string literals".into()));
 		}
-		Err(Error::ExpectedExpression(1.try_into().unwrap()))
+		Err(Error::ExpectedExpression(start_column))
 	}
 }
 
