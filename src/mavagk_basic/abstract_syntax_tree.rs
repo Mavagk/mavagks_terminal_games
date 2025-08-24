@@ -12,7 +12,10 @@ impl<'a> Statement<'a> {
 	pub fn parse<'b>(tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		if let Some(Token { variant, start_column, end_column }) = tokens.first() {
 			if let TokenVariant::Identifier { name: "print", identifier_type: IdentifierType::Number, is_optional: false } = variant {
-				let (expression, remaining_tokens) = Expression::parse(&tokens[1..], *end_column)?;
+				let (expression, remaining_tokens) = match Expression::parse(&tokens[1..], *end_column)? {
+					None => return Err(Error::NotYetImplemented(None, *end_column, "Empty print statement".into())),
+					Some(result) => result,
+				};
 				if !remaining_tokens.is_empty() {
 					return Err(Error::NotYetImplemented(None, *start_column, "More that one print sub-expression".into()));
 				}
@@ -31,20 +34,23 @@ pub enum StatementVariant<'a> {
 
 #[derive(Debug)]
 pub struct Expression<'a> {
-	variant: ExpressionVariant<'a>,
-	column: NonZeroUsize,
+	pub variant: ExpressionVariant<'a>,
+	pub column: NonZeroUsize,
 }
 
 impl<'a> Expression<'a> {
-	pub fn parse<'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<(Self, &'b [Token<'a>]), Error> {
-		// TODO: Refactor
+	pub fn parse<'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		if let Some(Token { variant, start_column, end_column: _ }) = tokens.first() {
 			if let TokenVariant::StringLiteral(value) = variant {
-				return Ok((Expression { column: *start_column, variant: ExpressionVariant::StringLiteral(*value) }, &tokens[1..]));
+				return Ok(Some((Expression { column: *start_column, variant: ExpressionVariant::StringLiteral(*value) }, &tokens[1..])));
 			}
 			return Err(Error::NotYetImplemented(None, *start_column, "Expressions that are not string literals".into()));
 		}
 		Err(Error::ExpectedExpression(start_column))
+	}
+
+	fn get_expression_length(tokens: &[Token<'a>]) -> usize {
+		todo!()
 	}
 }
 
