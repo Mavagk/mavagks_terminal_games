@@ -4,14 +4,14 @@ use num::BigInt;
 
 use crate::mavagk_basic::error::Error;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Token<'a> {
 	pub variant: TokenVariant<'a>,
 	pub start_column: NonZeroUsize,
 	pub end_column: NonZeroUsize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum TokenVariant<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
@@ -152,7 +152,7 @@ impl<'a> TokenVariant<'a> {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum IdentifierType {
 	UnmarkedNumber,
 	String,
