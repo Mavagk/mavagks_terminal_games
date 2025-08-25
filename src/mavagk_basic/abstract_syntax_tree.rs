@@ -83,17 +83,28 @@ pub struct Expression<'a> {
 
 impl<'a> Expression<'a> {
 	pub fn parse<'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+		// Get the tokens for this expression or return if no tokens where passed in
 		let expression_length = Self::get_expression_length(tokens);
-		if expression_length != 1 {
-			return Err(Error::NotYetImplemented(None, start_column, "Multi-token expressions".into()));
+		if expression_length == 0 {
+			return Ok(None);
 		}
-		if let Some(Token { variant, start_column, end_column: _ }) = tokens.first() {
-			if let TokenVariant::StringLiteral(value) = variant {
-				return Ok(Some((Expression { column: *start_column, variant: ExpressionVariant::StringLiteral(*value) }, &tokens[1..])));
+		let (expression_tokens, tokens_after_expression_tokens) = tokens.split_at(expression_length);
+		// Parse each token
+		let mut maybe_parsed_tokens = Vec::new();
+		for token in expression_tokens {
+			match token.variant {
+				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(value), column: token.start_column })),
+				TokenVariant::NumericLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral(value), column: token.start_column })),
+				_ => return Err(Error::NotYetImplemented(None, start_column, "other expressions".into())),
 			}
-			return Err(Error::NotYetImplemented(None, *start_column, "Expressions that are not string literals".into()));
 		}
-		Ok(None)
+		// Return
+		debug_assert!(maybe_parsed_tokens.len() == 1);
+		let expression = match maybe_parsed_tokens.into_iter().next() {
+			Some(MaybeParsedToken::Expression(expression)) => expression,
+			_ => panic!()
+		};
+		Ok(Some((expression, tokens_after_expression_tokens)))
 	}
 
 	/// Takes in a list of tokens and returns how many form one expression given the following productions:
@@ -150,4 +161,9 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, 
 		}
 	}
 	Ok(out.into())
+}
+
+enum MaybeParsedToken<'a> {
+	Token(Token<'a>),
+	Expression(Expression<'a>),
 }
