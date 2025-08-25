@@ -11,7 +11,7 @@ pub struct Statement<'a> {
 impl<'a> Statement<'a> {
 	pub fn parse<'b>(tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		if let Some(Token { variant, start_column, end_column }) = tokens.first() {
-			if let TokenVariant::Identifier { name: "print", identifier_type: IdentifierType::Number, is_optional: false } = variant {
+			if let TokenVariant::Identifier { name: "print", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } = variant {
 				let (expression, remaining_tokens) = match Expression::parse(&tokens[1..], *end_column)? {
 					None => return Err(Error::NotYetImplemented(None, *end_column, "Empty print statement".into())),
 					Some(result) => result,
@@ -49,8 +49,16 @@ impl<'a> Expression<'a> {
 		Err(Error::ExpectedExpression(start_column))
 	}
 
+	/// Takes in a list of tokens and returns how many form one expression given the following productions:
+	///
+	/// `expression = operand (binary-operator operand)*`
+	///
+	/// `operand = unary-operator operand / (fn-keyword? identifier)? left-parenthesis parentheses-content right-parenthesis`
 	fn get_expression_length(tokens: &[Token<'a>]) -> usize {
-		todo!()
+		for (index, token) in tokens.iter().enumerate() {
+
+		}
+		tokens.len()
 	}
 }
 

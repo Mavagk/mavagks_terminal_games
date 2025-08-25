@@ -70,8 +70,8 @@ impl<'a> Token<'a> {
 					_ if string_with_name_removed.starts_with("%") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: false }, &string_with_name_removed[1..]),
 					_ if string_with_name_removed.starts_with("#?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: true }, &string_with_name_removed[2..]),
 					_ if string_with_name_removed.starts_with("#") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: false }, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Number, is_optional: true }, string_with_name_removed),
-					_ => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Number, is_optional: false }, string_with_name_removed),
+					_ if string_with_name_removed.starts_with("?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: true }, string_with_name_removed),
+					_ => (TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, string_with_name_removed),
 				}
 			}
 			// Numeric literal
@@ -134,9 +134,27 @@ impl<'a> Token<'a> {
 	}
 }
 
+impl<'a> TokenVariant<'a> {
+	pub fn is_binary_operator(&self) -> bool {
+		match self {
+			TokenVariant::Operator(..) => true,
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } => name.eq_ignore_ascii_case("and") || name.eq_ignore_ascii_case("or"),
+			_ => false,
+		}
+	}
+
+	pub fn is_unary_operator(&self) -> bool {
+		match self {
+			TokenVariant::Operator("-" | "+") => true,
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } => name.eq_ignore_ascii_case("not"),
+			_ => false,
+		}
+	}
+}
+
 #[derive(Debug)]
 pub enum IdentifierType {
-	Number,
+	UnmarkedNumber,
 	String,
 	Integer,
 	ComplexNumber,
