@@ -114,7 +114,7 @@ impl<'a> Expression<'a> {
 						let function_identifier;
 						(function_identifier, function_start_column) = match start_parenthesis_index.checked_sub(1) {
 							Some(function_identifier_index) => match &tokens[function_identifier_index] {
-								Token { variant: TokenVariant::Identifier { .. }, start_column, .. } => (Some(token), *start_column),
+								Token { variant: TokenVariant::Identifier { .. }, start_column, .. } => (Some(&tokens[function_identifier_index]), *start_column),
 								_ => (None, 1.try_into().unwrap()),
 							},
 							None => (None, 1.try_into().unwrap()),
@@ -185,7 +185,7 @@ impl<'a> Expression<'a> {
 							}
 						}
 						// If the identifier has a open parenthesis to the right, do nothing, we will parse it once we get to the matching closing parenthesis
-						_ if !matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
+						_ if matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
 						_ => match last_token {
 							// If the last token was a "fn" keyword, this is a fn identifier without arguments
 							Some(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if name.eq_ignore_ascii_case("fn") =>
