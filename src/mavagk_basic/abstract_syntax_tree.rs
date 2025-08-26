@@ -68,6 +68,22 @@ impl<'a> Statement<'a> {
 		}
 		tokens.len()
 	}
+
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: ", self.column);
+		match &self.variant {
+			StatementVariant::Print(arguments) => {
+				print!("Print");
+				println!();
+				for argument in arguments {
+					argument.print(depth + 1);
+				}
+			}
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -188,10 +204,10 @@ impl<'a> Expression<'a> {
 						_ if matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
 						_ => match last_token {
 							// If the last token was a "fn" keyword, this is a fn identifier without arguments
-							Some(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if name.eq_ignore_ascii_case("fn") =>
+							Some(Token { variant: TokenVariant::Identifier { name: last_token_name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if last_token_name.eq_ignore_ascii_case("fn") =>
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
 							// Else it is a non-fn identifier
-							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: start_column })),
+							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
 						}
 					}
 				}
@@ -203,7 +219,7 @@ impl<'a> Expression<'a> {
 			return Err(Error::MoreLeftParenthesesThanRightParentheses(last_token.unwrap().end_column));
 		}
 		// Return
-		println!("{maybe_parsed_tokens:?}");
+		//println!("{maybe_parsed_tokens:?}");
 		debug_assert!(maybe_parsed_tokens.len() == 1);
 		let expression = match maybe_parsed_tokens.into_iter().next() {
 			Some(MaybeParsedToken::Expression(expression)) => expression,
@@ -245,6 +261,44 @@ impl<'a> Expression<'a> {
 			last_token = Some(&token.variant);
 		}
 		tokens.len()
+	}
+
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: ", self.column);
+		match &self.variant {
+			ExpressionVariant::NumericLiteral(value) => print!("Numeric Literal \"{value}\""),
+			ExpressionVariant::StringLiteral(value) => print!("String Literal \"{value}\""),
+			ExpressionVariant::PrintComma => print!("Comma"),
+			ExpressionVariant::PrintSemicolon => print!("Semicolon"),
+			ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments, uses_fn_keyword, has_parentheses } => {
+				print!("Identifier/Function \"{name}\", ");
+				match identifier_type {
+					IdentifierType::UnmarkedNumber => print!("Number/Unmarked"),
+					IdentifierType::Integer => print!("Integer/%"),
+					IdentifierType::String => print!("String/$"),
+					IdentifierType::ComplexNumber => print!("Complex Number/#"),
+				}
+				if *is_optional {
+					print!(", Optional/?");
+				}
+				if *uses_fn_keyword {
+					print!(", Fn");
+				}
+				if *has_parentheses {
+					print!(", Parenthesised/()");
+				}
+				println!();
+				for argument in arguments {
+					argument.print(depth + 1);
+				}
+			}
+		}
+		if !matches!(self.variant, ExpressionVariant::IdentifierOrFunction { .. }) {
+			println!();
+		}
 	}
 }
 

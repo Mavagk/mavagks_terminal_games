@@ -38,7 +38,10 @@ impl Game for MavagkBasicTerminal {
 				},
 				Ok(tokens) => tokens,
 			};
-			println!("{trees:?}");
+			//println!("{trees:?}");
+			for tree in trees {
+				tree.print(0);
+			}
 			return Ok(());
 		}
 		if let Err(error) = self.machine.line_of_text_entered(&*line) {
