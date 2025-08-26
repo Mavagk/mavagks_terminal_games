@@ -134,10 +134,10 @@ impl<'a> Expression<'a> {
 							Some(function_identifier) => {
 								let mut parentheses_content_tokens_left = parentheses_content_tokens;
 								let mut function_arguments = Vec::new();
-								if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
-									return Err(Error::FunctionArgumentsNotCommaSeparated(tokens[start_parenthesis_index].end_column));
-								}
 								while !parentheses_content_tokens_left.is_empty() {
+									if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
+										return Err(Error::FunctionArgumentsNotCommaSeparated(tokens[start_parenthesis_index].end_column));
+									}
 									let parsed_argument_expression;
 									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, parentheses_content_tokens_left[0].start_column)?.unwrap();
 									function_arguments.push(parsed_argument_expression);
@@ -226,6 +226,9 @@ impl<'a> Expression<'a> {
 			}
 			if matches!(token.variant, TokenVariant::RightParenthesis) {
 				parenthesis_depth = parenthesis_depth.saturating_sub(1);
+			}
+			if matches!(token.variant, TokenVariant::LeftParenthesis) && matches!(last_token, Some(TokenVariant::NumericLiteral(_) | TokenVariant::StringLiteral(_))) && parenthesis_depth == 1 {
+				return index;
 			}
 			if parenthesis_depth == 0 {
 				if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral(..) | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
