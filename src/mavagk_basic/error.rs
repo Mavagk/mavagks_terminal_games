@@ -10,7 +10,7 @@ pub enum Error {
 	FnWithoutIdentifier(NonZeroUsize),
 	NothingInParentheses(NonZeroUsize),
 	ParenthesesDoNotContainOneExpression(NonZeroUsize),
-	//InvalidCharInParentheses(NonZeroUsize, char),
+	FunctionArgumentsNotCommaSeparated(NonZeroUsize),
 }
 
 impl Display for Error {
@@ -28,7 +28,7 @@ impl Display for Error {
 			Self::FnWithoutIdentifier(column) => write!(f, "in column {column}: FN keyword that is not followed by an identifier."),
 			Self::NothingInParentheses(column) => write!(f, "in column {column}: Nothing in parentheses."),
 			Self::ParenthesesDoNotContainOneExpression(column) => write!(f, "in column {column}: Parentheses do not contain one expression that takes up the entire parenthesised area."),
-			//Self::InvalidCharInParentheses(column, chr) => write!(f, "in column {column}: invalid character '{chr}' in parentheses."),
+			Self::FunctionArgumentsNotCommaSeparated(column) => write!(f, "in column {column}: Function parentheses do not contain a comma separated list of arguments."),
 		}
 	}
 }

@@ -110,21 +110,48 @@ impl<'a> Expression<'a> {
 					// Parse the parenthesised area/function that this is closing
 					if parentheses_depth == 0 {
 						let parentheses_content_tokens = &tokens[start_parenthesis_index + 1..index];
-						let function_identifier = match start_parenthesis_index.checked_sub(1) {
+						let mut function_start_column;
+						let function_identifier;
+						(function_identifier, function_start_column) = match start_parenthesis_index.checked_sub(1) {
 							Some(function_identifier_index) => match &tokens[function_identifier_index] {
-								function_identifier if matches!(function_identifier, Token { variant: TokenVariant::Identifier { .. }, start_column, end_column }) => Some(function_identifier),
-								_ => None,
+								Token { variant: TokenVariant::Identifier { .. }, start_column, .. } => (Some(token), *start_column),
+								_ => (None, 1.try_into().unwrap()),
 							},
-							None => None,
+							None => (None, 1.try_into().unwrap()),
 						};
 						let is_fn_function = match start_parenthesis_index.checked_sub(2) {
 							None => false,
-							Some(token_index) => matches!(tokens[token_index], Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. } if name.eq_ignore_ascii_case("fn")),
+							Some(token_index) => match &tokens[token_index] {
+								Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. } if name.eq_ignore_ascii_case("fn") => {
+									function_start_column = *start_column;
+									true
+								}
+								_ => false,
+							},
 						};
 						match function_identifier {
 							// If we are parsing a function
 							Some(function_identifier) => {
-								todo!()
+								let mut parentheses_content_tokens_left = parentheses_content_tokens;
+								let mut function_arguments = Vec::new();
+								if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
+									return Err(Error::FunctionArgumentsNotCommaSeparated(tokens[start_parenthesis_index].end_column));
+								}
+								while !parentheses_content_tokens_left.is_empty() {
+									let parsed_argument_expression;
+									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, parentheses_content_tokens_left[0].start_column)?.unwrap();
+									function_arguments.push(parsed_argument_expression);
+									match parentheses_content_tokens_left.get(0) {
+										Some(Token { variant: TokenVariant::Comma, .. }) => parentheses_content_tokens_left = &parentheses_content_tokens_left[1..],
+										None => {}
+										Some(Token { variant: _, start_column, .. }) => return Err(Error::FunctionArgumentsNotCommaSeparated(*start_column))
+									}
+								}
+								let (name, identifier_type, is_optional) = match function_identifier {
+									Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional }, .. } => (*name, *identifier_type, *is_optional),
+									_ => unreachable!(),
+								};
+								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments: function_arguments.into(), uses_fn_keyword: is_fn_function, has_parentheses: true }, column: function_start_column }));
 							}
 							// If we are just parsing some brackets that are not part of a function
 							None => {
@@ -168,7 +195,7 @@ impl<'a> Expression<'a> {
 						}
 					}
 				}
-				_ => return Err(Error::NotYetImplemented(None, start_column, "other expressions".into())),
+				_ => {}//return Err(Error::NotYetImplemented(None, start_column, "other expressions".into())),
 			}
 			last_token = Some(token);
 		}
