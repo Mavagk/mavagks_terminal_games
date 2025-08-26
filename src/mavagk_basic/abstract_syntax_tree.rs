@@ -89,16 +89,94 @@ impl<'a> Expression<'a> {
 			return Ok(None);
 		}
 		let (expression_tokens, tokens_after_expression_tokens) = tokens.split_at(expression_length);
-		// Parse each token
+		// First parse run
+		let mut last_token: Option<&Token<'_>> = None;
+		let mut parentheses_depth = 0usize;
 		let mut maybe_parsed_tokens = Vec::new();
-		for token in expression_tokens {
-			match token.variant {
+		let mut start_parenthesis_index = 0;
+		for (index, token) in expression_tokens.iter().enumerate() {
+			let next_token = expression_tokens.get(index + 1);
+			match &token.variant {
+				// Left parentheses
+				TokenVariant::LeftParenthesis => {
+					if parentheses_depth == 0 {
+						start_parenthesis_index = index;
+					}
+					parentheses_depth += 1;
+				}
+				// Right parentheses
+				TokenVariant::RightParenthesis => {
+					parentheses_depth = parentheses_depth.checked_sub(1).ok_or_else(|| Error::MoreRightParenthesesThanLeftParentheses(token.start_column))?;
+					// Parse the parenthesised area/function that this is closing
+					if parentheses_depth == 0 {
+						let parentheses_content_tokens = &tokens[start_parenthesis_index + 1..index];
+						let function_identifier = match start_parenthesis_index.checked_sub(1) {
+							Some(function_identifier_index) => match &tokens[function_identifier_index] {
+								function_identifier if matches!(function_identifier, Token { variant: TokenVariant::Identifier { .. }, start_column, end_column }) => Some(function_identifier),
+								_ => None,
+							},
+							None => None,
+						};
+						let is_fn_function = match start_parenthesis_index.checked_sub(2) {
+							None => false,
+							Some(token_index) => matches!(tokens[token_index], Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. } if name.eq_ignore_ascii_case("fn")),
+						};
+						match function_identifier {
+							// If we are parsing a function
+							Some(function_identifier) => {
+								todo!()
+							}
+							// If we are just parsing some brackets that are not part of a function
+							None => {
+								if parentheses_content_tokens.len() == 0 {
+									return Err(Error::NothingInParentheses(tokens[start_parenthesis_index].end_column));
+								}
+								if Self::get_expression_length(parentheses_content_tokens) != parentheses_content_tokens.len() {
+									return Err(Error::ParenthesesDoNotContainOneExpression(tokens[start_parenthesis_index].end_column));
+								}
+								let content_parsed = Self::parse(parentheses_content_tokens, tokens[start_parenthesis_index].end_column)?.unwrap().0;
+								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
+							}
+						}
+					}
+				}
+				// Operators
+				_ if token.variant.is_binary_operator() || token.variant.is_unary_operator() => {
+					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
+				}
+				// Literals should be copied across
 				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(value), column: token.start_column })),
-				TokenVariant::NumericLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral(value), column: token.start_column })),
+				TokenVariant::NumericLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral(value), column: token.start_column })),
+				// Identifiers
+				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
+					match () {
+						// Ignore fn keywords or throw an error if they are not followed by an identifier.
+						_ if matches!(token, Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. } if name.eq_ignore_ascii_case("fn")) => {
+							match next_token {
+								Some(Token { variant: TokenVariant::Identifier { name: next_name, .. }, .. }) if !next_name.eq_ignore_ascii_case("fn") => {}
+								_ => return Err(Error::FnWithoutIdentifier(start_column)),
+							}
+						}
+						// If the identifier has a open parenthesis to the right, do nothing, we will parse it once we get to the matching closing parenthesis
+						_ if !matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
+						_ => match last_token {
+							// If the last token was a "fn" keyword, this is a fn identifier without arguments
+							Some(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if name.eq_ignore_ascii_case("fn") =>
+								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
+							// Else it is a non-fn identifier
+							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: start_column })),
+						}
+					}
+				}
 				_ => return Err(Error::NotYetImplemented(None, start_column, "other expressions".into())),
 			}
+			last_token = Some(token);
+		}
+		if parentheses_depth > 0 {
+			return Err(Error::MoreLeftParenthesesThanRightParentheses(last_token.unwrap().end_column));
 		}
 		// Return
+		println!("{maybe_parsed_tokens:?}");
 		debug_assert!(maybe_parsed_tokens.len() == 1);
 		let expression = match maybe_parsed_tokens.into_iter().next() {
 			Some(MaybeParsedToken::Expression(expression)) => expression,
@@ -122,18 +200,17 @@ impl<'a> Expression<'a> {
 			if matches!(token.variant, TokenVariant::RightParenthesis) {
 				parenthesis_depth = parenthesis_depth.saturating_sub(1);
 			}
-			if parenthesis_depth > 0 {
-				continue;
-			}
-			if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral(..) | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
-				matches!(token.variant, TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral(..) | TokenVariant::StringLiteral(..)) &&
-				!last_token.unwrap().is_unary_operator() && !token.variant.is_binary_operator() && !last_token.unwrap().is_binary_operator() &&
-				!matches!(last_token, Some(TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }) if name.eq_ignore_ascii_case("fn"))
-			{
-				return index;
-			}
-			if matches!(token.variant, TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon) {
-				return index
+			if parenthesis_depth == 0 {
+				if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral(..) | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
+					matches!(token.variant, TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral(..) | TokenVariant::StringLiteral(..)) &&
+					!last_token.unwrap().is_unary_operator() && !token.variant.is_binary_operator() && !last_token.unwrap().is_binary_operator() &&
+					!matches!(last_token, Some(TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }) if name.eq_ignore_ascii_case("fn"))
+				{
+					return index;
+				}
+				if matches!(token.variant, TokenVariant::Colon | TokenVariant::Comma | TokenVariant::Semicolon) {
+					return index
+				}
 			}
 			last_token = Some(&token.variant);
 		}
@@ -147,6 +224,7 @@ pub enum ExpressionVariant<'a> {
 	NumericLiteral(&'a str),
 	PrintComma,
 	PrintSemicolon,
+	IdentifierOrFunction { name: &'a str, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression<'a>]>, uses_fn_keyword: bool, has_parentheses: bool }
 }
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, Error> {
@@ -163,7 +241,8 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, 
 	Ok(out.into())
 }
 
-enum MaybeParsedToken<'a> {
-	Token(Token<'a>),
+#[derive(Debug)]
+enum MaybeParsedToken<'a, 'b> {
+	Token(&'b Token<'a>),
 	Expression(Expression<'a>),
 }
