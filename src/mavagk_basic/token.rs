@@ -16,7 +16,7 @@ pub enum TokenVariant<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
-	NumericLiteral(&'a str),
+	NumericLiteral { base: NumericBase, integer_part: &'a str, fractional_part: &'a str, exponent_is_negative: bool, exponent_after_sign: &'a str, is_imaginary: bool },
 	LeftParenthesis,
 	RightParenthesis,
 	Comma,
@@ -76,14 +76,73 @@ impl<'a> Token<'a> {
 			}
 			// Numeric literal
 			'0'..='9' | '.' | '$' | '%' => {
-				// TODO: E
-				// TODO: Second '.' is a new literal
-				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_' | '.')) {
-					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
-					None => line_starting_with_token.len(),
+				let mut length_of_token_in_bytes = 0;
+				let mut line_after_token_read = line_starting_with_token;
+				// Read the number base
+				let mut base = NumericBase::Decimal;
+				if line_after_token_read.starts_with(|first_char| matches!(first_char, '$' | '%')) {
+					length_of_token_in_bytes += 1;
+					let base_string;
+					(base_string, line_after_token_read) = line_after_token_read.split_at(1);
+					base = match base_string {
+						"$" => NumericBase::Hexadecimal,
+						"%" => NumericBase::Binary,
+						_ => unreachable!(),
+					}
+				}
+				// Read integer part
+				let length_of_integer_part = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+					Some(length_of_integer_part) => length_of_integer_part,
+					None => line_after_token_read.len(),
 				};
-				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(TokenVariant::NumericLiteral(token_string), rest_of_string_with_token_removed)
+				length_of_token_in_bytes += length_of_integer_part;
+				let integer_part;
+				(integer_part, line_after_token_read) = line_after_token_read.split_at(length_of_integer_part);
+				// Read decimal point
+				if line_after_token_read.starts_with(|first_char| matches!(first_char, '.')) {
+					length_of_token_in_bytes += 1;
+					line_after_token_read = &line_after_token_read[1..];
+				}
+				// Read fractional part
+				let length_of_fractional_part = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+					Some(length_of_integer_part) => length_of_integer_part,
+					None => line_after_token_read.len(),
+				};
+				length_of_token_in_bytes += length_of_fractional_part;
+				let fractional_part;
+				(fractional_part, line_after_token_read) = line_after_token_read.split_at(length_of_fractional_part);
+				// Read exrad
+				let mut exponent_is_negative = false;
+				let mut exponent_after_sign = "";
+				if line_after_token_read.starts_with(|first_char| matches!(first_char, 'e' | 'E')) {
+					length_of_token_in_bytes += 1;
+					line_after_token_read = &line_after_token_read[1..];
+					// Read exponent sign
+					// Read the number base
+					if line_after_token_read.starts_with(|first_char| matches!(first_char, '-' | '+')) {
+						if line_after_token_read.chars().next().unwrap() == '-' {
+							exponent_is_negative = true;
+						}
+						length_of_token_in_bytes += 1;
+						line_after_token_read = &line_after_token_read[1..];
+					}
+					// Read exponent integer
+					let length_of_exponent_integer = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+						Some(length_of_integer_part) => length_of_integer_part,
+						None => line_after_token_read.len(),
+					};
+					length_of_token_in_bytes += length_of_exponent_integer;
+					(exponent_after_sign, line_after_token_read) = line_after_token_read.split_at(length_of_exponent_integer);
+				}
+				// Read imaginary multiplier
+				let mut is_imaginary = false;
+				if line_after_token_read.starts_with(|first_char| matches!(first_char, 'i' | 'I')) {
+					is_imaginary = true;
+					length_of_token_in_bytes += 1;
+					//line_after_token_read = &line_after_token_read[1..];
+				}
+
+				(TokenVariant::NumericLiteral { base, integer_part, fractional_part, exponent_is_negative, exponent_after_sign, is_imaginary }, &line_starting_with_token[length_of_token_in_bytes..])
 			}
 			// Strings
 			'"' => {
@@ -158,4 +217,11 @@ pub enum IdentifierType {
 	String,
 	Integer,
 	ComplexNumber,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum NumericBase {
+	Decimal,
+	Hexadecimal,
+	Binary,
 }
