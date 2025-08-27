@@ -1,6 +1,8 @@
 use std::num::NonZeroUsize;
 
-use crate::mavagk_basic::{error::Error, token::{IdentifierType, NumericBase, Token, TokenVariant}};
+use num::BigInt;
+
+use crate::mavagk_basic::{error::Error, token::{IdentifierType, Token, TokenVariant}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -189,7 +191,8 @@ impl Expression {
 				}
 				// Literals should be copied across
 				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral((*value).into()), column: token.start_column })),
-				TokenVariant::NumericLiteral { base, integer_part, fractional_part, exponent_is_negative, exponent_after_sign, is_imaginary } if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral { base: *base, integer_part: (*integer_part).into(), fractional_part: (*fractional_part).into(), exponent_is_negative: *exponent_is_negative, exponent_after_sign: (*exponent_after_sign).into(), is_imaginary: *is_imaginary }, column: token.start_column })),
+				TokenVariant::IntegerLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(value.clone()), column: token.start_column})),
+				TokenVariant::FloatLiteral { value, is_imaginary } => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
 				// Identifiers
 				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
 					match () {
@@ -488,12 +491,12 @@ impl Expression {
 			if matches!(token.variant, TokenVariant::RightParenthesis) {
 				parenthesis_depth = parenthesis_depth.saturating_sub(1);
 			}
-			if matches!(token.variant, TokenVariant::LeftParenthesis) && matches!(last_token, Some(TokenVariant::NumericLiteral { .. } | TokenVariant::StringLiteral(_))) && parenthesis_depth == 1 {
+			if matches!(token.variant, TokenVariant::LeftParenthesis) && matches!(last_token, Some(TokenVariant::IntegerLiteral(..) | TokenVariant::FloatLiteral { .. } | TokenVariant::StringLiteral(_))) && parenthesis_depth == 1 {
 				return index;
 			}
 			if parenthesis_depth == 0 {
-				if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral { .. } | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
-					matches!(token.variant, TokenVariant::Identifier { .. } | TokenVariant::NumericLiteral { .. } | TokenVariant::StringLiteral(..)) &&
+				if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::IntegerLiteral(..) | TokenVariant::FloatLiteral { .. } | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
+					matches!(token.variant, TokenVariant::Identifier { .. } | TokenVariant::IntegerLiteral(..) | TokenVariant::FloatLiteral { .. } | TokenVariant::StringLiteral(..)) &&
 					!last_token.unwrap().is_unary_operator() && !token.variant.is_binary_operator() && !last_token.unwrap().is_binary_operator() &&
 					!matches!(last_token, Some(TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }) if name.eq_ignore_ascii_case("fn"))
 				{
@@ -514,22 +517,13 @@ impl Expression {
 		}
 		print!(" {:03}: ", self.column);
 		match &self.variant {
-			ExpressionVariant::NumericLiteral { base, integer_part, fractional_part, exponent_is_negative, exponent_after_sign, is_imaginary } => {
-				print!("Numeric Literal, ");
-				match base {
-					NumericBase::Decimal => print!("Decimal"),
-					NumericBase::Hexadecimal => print!("Hexadecimal/$"),
-					NumericBase::Binary => print!("Binary/%"),
-				}
-				print!(", Integer Part: \"{integer_part}\", Fractional Part: \"{fractional_part}\"");
-				if *exponent_is_negative {
-					print!(", Exponent is Negative/-");
-				}
-				print!(", Exponent After Sign: \"{exponent_after_sign}\"");
+			ExpressionVariant::FloatLiteral { value, is_imaginary } => {
+				print!("Float Literal {value}");
 				if *is_imaginary {
 					print!(", Imaginary/i");
 				}
 			}
+			ExpressionVariant::IntegerLiteral(value) => print!("Integer Literal {value}"),
 			ExpressionVariant::StringLiteral(value) => print!("String Literal \"{value}\""),
 			ExpressionVariant::PrintComma => print!("Comma"),
 			ExpressionVariant::PrintSemicolon => print!("Semicolon"),
@@ -655,7 +649,7 @@ impl Expression {
 				right_operand.print(depth + 1);
 			}
 		}
-		if matches!(self.variant, ExpressionVariant::NumericLiteral { .. } | ExpressionVariant::PrintComma | ExpressionVariant::PrintSemicolon | ExpressionVariant::StringLiteral(..)) {
+		if matches!(self.variant, ExpressionVariant::IntegerLiteral { .. } | ExpressionVariant::FloatLiteral { .. } | ExpressionVariant::PrintComma | ExpressionVariant::PrintSemicolon | ExpressionVariant::StringLiteral(..)) {
 			println!();
 		}
 	}
@@ -664,7 +658,8 @@ impl Expression {
 #[derive(Debug)]
 pub enum ExpressionVariant {
 	StringLiteral(Box<str>),
-	NumericLiteral { base: NumericBase, integer_part: Box<str>, fractional_part: Box<str>, exponent_is_negative: bool, exponent_after_sign: Box<str>, is_imaginary: bool },
+	IntegerLiteral(BigInt),
+	FloatLiteral { value: f64, is_imaginary: bool },
 	PrintComma,
 	PrintSemicolon,
 	IdentifierOrFunction { name: Box<str>, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },

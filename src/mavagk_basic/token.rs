@@ -1,22 +1,24 @@
 use std::num::NonZeroUsize;
 
-use num::BigInt;
+use num::{BigInt, Num};
 
 use crate::mavagk_basic::error::Error;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub struct Token<'a> {
 	pub variant: TokenVariant<'a>,
 	pub start_column: NonZeroUsize,
 	pub end_column: NonZeroUsize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 pub enum TokenVariant<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
-	NumericLiteral { base: NumericBase, integer_part: &'a str, fractional_part: &'a str, exponent_is_negative: bool, exponent_after_sign: &'a str, is_imaginary: bool },
+	//NumericLiteral { base: NumericBase, integer_part: &'a str, fractional_part: &'a str, exponent: BigInt, is_imaginary: bool },
+	IntegerLiteral(BigInt),
+	FloatLiteral { value: f64, is_imaginary: bool },
 	LeftParenthesis,
 	RightParenthesis,
 	Comma,
@@ -91,7 +93,7 @@ impl<'a> Token<'a> {
 					}
 				}
 				// Read integer part
-				let length_of_integer_part = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+				let length_of_integer_part = match line_after_token_read.find(|chr| !base.is_digit(chr)) {
 					Some(length_of_integer_part) => length_of_integer_part,
 					None => line_after_token_read.len(),
 				};
@@ -104,21 +106,24 @@ impl<'a> Token<'a> {
 					line_after_token_read = &line_after_token_read[1..];
 				}
 				// Read fractional part
-				let length_of_fractional_part = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+				let length_of_fractional_part = match line_after_token_read.find(|chr| !base.is_digit(chr)) {
 					Some(length_of_integer_part) => length_of_integer_part,
 					None => line_after_token_read.len(),
 				};
 				length_of_token_in_bytes += length_of_fractional_part;
 				let fractional_part;
 				(fractional_part, line_after_token_read) = line_after_token_read.split_at(length_of_fractional_part);
+				let fractional_part = match fractional_part.strip_suffix('0') {
+					Some(fractional_part) => fractional_part,
+					None => fractional_part,
+				};
 				// Read exrad
-				let mut exponent_is_negative = false;
-				let mut exponent_after_sign = "";
-				if line_after_token_read.starts_with(|first_char| matches!(first_char, 'e' | 'E')) {
+				let mut exponent = None;
+				if base != NumericBase::Hexadecimal && line_after_token_read.starts_with(|first_char| matches!(first_char, 'e' | 'E')) {
 					length_of_token_in_bytes += 1;
 					line_after_token_read = &line_after_token_read[1..];
 					// Read exponent sign
-					// Read the number base
+					let mut exponent_is_negative = false;
 					if line_after_token_read.starts_with(|first_char| matches!(first_char, '-' | '+')) {
 						if line_after_token_read.chars().next().unwrap() == '-' {
 							exponent_is_negative = true;
@@ -127,12 +132,22 @@ impl<'a> Token<'a> {
 						line_after_token_read = &line_after_token_read[1..];
 					}
 					// Read exponent integer
-					let length_of_exponent_integer = match line_after_token_read.find(|chr| !matches!(chr, '0'..='9')) {
+					let length_of_exponent_integer = match line_after_token_read.find(|chr| !base.is_digit(chr)) {
 						Some(length_of_integer_part) => length_of_integer_part,
 						None => line_after_token_read.len(),
 					};
 					length_of_token_in_bytes += length_of_exponent_integer;
+					let exponent_after_sign;
 					(exponent_after_sign, line_after_token_read) = line_after_token_read.split_at(length_of_exponent_integer);
+					// Convert exponent parts to big int
+					let exrad_being_constructed: BigInt = match BigInt::from_str_radix(exponent_after_sign, base.radix() as u32) {
+						Err(..) => BigInt::ZERO,
+						Ok(exrad_being_constructed) => exrad_being_constructed,
+					};
+					exponent = Some(match exponent_is_negative {
+						true => -exrad_being_constructed,
+						false => exrad_being_constructed,
+					})
 				}
 				// Read imaginary multiplier
 				let mut is_imaginary = false;
@@ -142,7 +157,35 @@ impl<'a> Token<'a> {
 					//line_after_token_read = &line_after_token_read[1..];
 				}
 
-				(TokenVariant::NumericLiteral { base, integer_part, fractional_part, exponent_is_negative, exponent_after_sign, is_imaginary }, &line_starting_with_token[length_of_token_in_bytes..])
+				let exponent = match exponent {
+					Some(exponent) => exponent,
+					None => BigInt::ZERO,
+				};
+				match !is_imaginary && exponent == BigInt::ZERO && fractional_part.len() == 0 {
+					// If the number should be an integer
+					true => {
+						let value = match BigInt::from_str_radix(integer_part, base.radix() as u32) {
+							Ok(value) => value,
+							_ => BigInt::ZERO,
+						};
+						(TokenVariant::IntegerLiteral(value), &line_starting_with_token[length_of_token_in_bytes..])
+					}
+					// If the number should be a float
+					false => {
+						let exponent: i32 = match (&exponent).try_into() {
+							Ok(exponent) => exponent,
+							Err(_) => match exponent > i32::MAX.into() {
+								true => i32::MAX,
+								false => i32::MIN,
+							}
+						};
+						let value = match f64::from_str_radix(format!("{integer_part}.{fractional_part}").as_str(), base.radix() as u32) {
+							Ok(value) => value,
+							_ => 0.,
+						} * (base.radix() as f64).powi(exponent);
+						(TokenVariant::FloatLiteral { value, is_imaginary }, &line_starting_with_token[length_of_token_in_bytes..])
+					}
+				}
 			}
 			// Strings
 			'"' => {
@@ -220,8 +263,26 @@ pub enum IdentifierType {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum NumericBase {
+enum NumericBase {
 	Decimal,
 	Hexadecimal,
 	Binary,
+}
+
+impl NumericBase {
+	const fn is_digit(self, digit: char) -> bool {
+		match self {
+			Self::Decimal => digit.is_ascii_digit(),
+			Self::Hexadecimal => digit.is_ascii_hexdigit(),
+			Self::Binary => matches!(digit, '0' | '1'),
+		}
+	}
+
+	const fn radix(self) -> u8 {
+		match self {
+			NumericBase::Decimal => 10,
+			NumericBase::Binary => 2,
+			NumericBase::Hexadecimal => 16,
+		}
+	}
 }

@@ -82,7 +82,12 @@ impl Machine {
 		let Expression { variant, column } = expression;
 		Ok(match variant {
 			ExpressionVariant::StringLiteral(string) => Value::String((&**string).into()),
-			_ => return Err(Error::NotYetImplemented(line_number.cloned(), *column, "".into()))
+			ExpressionVariant::IntegerLiteral(value) => Value::Int(Rc::new(value.clone())),
+			ExpressionVariant::FloatLiteral { value, is_imaginary } => match is_imaginary {
+				false => Value::Float(*value),
+				true => Value::Complex(Complex64::new(0., *value)),
+			}
+			_ => return Err(Error::NotYetImplemented(line_number.cloned(), *column, "Other expressions".into()))
 		})
 	}
 }
