@@ -11,6 +11,7 @@ pub enum Error {
 	NothingInParentheses(NonZeroUsize),
 	ParenthesesDoNotContainOneExpression(NonZeroUsize),
 	FunctionArgumentsNotCommaSeparated(NonZeroUsize),
+	InvalidOperator(NonZeroUsize),
 }
 
 impl Display for Error {
@@ -29,6 +30,7 @@ impl Display for Error {
 			Self::NothingInParentheses(column) => write!(f, "in column {column}: Nothing in parentheses."),
 			Self::ParenthesesDoNotContainOneExpression(column) => write!(f, "in column {column}: Parentheses do not contain one expression that takes up the entire parenthesised area."),
 			Self::FunctionArgumentsNotCommaSeparated(column) => write!(f, "in column {column}: Function parentheses do not contain a comma separated list of arguments."),
+			Self::InvalidOperator(column) => write!(f, "in column {column}: Invalid operator."),
 		}
 	}
 }

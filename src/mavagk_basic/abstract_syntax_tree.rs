@@ -184,7 +184,7 @@ impl<'a> Expression<'a> {
 					}
 				}
 				// Operators
-				_ if token.variant.is_binary_operator() || token.variant.is_unary_operator() => {
+				_ if (token.variant.is_binary_operator() || token.variant.is_unary_operator()) && parentheses_depth == 0 => {
 					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
 				}
 				// Literals should be copied across
@@ -218,8 +218,230 @@ impl<'a> Expression<'a> {
 		if parentheses_depth > 0 {
 			return Err(Error::MoreLeftParenthesesThanRightParentheses(last_token.unwrap().end_column));
 		}
+		// Parse operators
+		'a: loop {
+			// Exponentiation
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("↑" | "^"), start_column, .. }) => *start_column,
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Exponentiation(Box::new(left_expression), Box::new(right_expression)), column });
+				continue 'a;
+			}
+			// Unary negation and plus
+			'b: for index in (0..maybe_parsed_tokens.len()).rev() {
+				if index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let (column, is_plus) = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("-"), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("+"), start_column, .. }) => (*start_column, true),
+					_ => continue 'b,
+				};
+				match index.checked_sub(1) {
+					Some(left_index) => match &maybe_parsed_tokens[left_index] {
+						MaybeParsedToken::Expression(..) => continue 'b,
+						MaybeParsedToken::Token(..) => {}
+					}
+					None => {}
+				}
+				if !matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_)) {
+					continue 'b;
+				}
+				let right_expression = match maybe_parsed_tokens.remove(index + 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index] = match is_plus {
+					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Negation(Box::new(right_expression)), column }),
+					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::UnaryPlus(Box::new(right_expression)), column }),
+				};
+				continue 'a;
+			}
+			// Multiplication and division
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let (column, is_division) = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("*"), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("/"), start_column, .. }) => (*start_column, true),
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = match is_division {
+					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
+					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
+				};
+				continue 'a;
+			}
+			// Addition and subtraction
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let (column, is_subtraction) = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("+"), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("-"), start_column, .. }) => (*start_column, true),
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = match is_subtraction {
+					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::AdditionConcatenation(Box::new(left_expression), Box::new(right_expression)), column }),
+					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Subtraction(Box::new(left_expression), Box::new(right_expression)), column }),
+				};
+				continue 'a;
+			}
+			// Comparison
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let (column, operator) = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator), start_column, .. }) if matches!(*operator, "<" | "<=" | ">" | ">=" | "=" | "<>" | "=<" | "=>" | "><") => (*start_column, *operator),
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = match operator {
+					"<" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					"<=" | "=<" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					">" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					">=" | "=>" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					"=" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					"<>" | "><" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					_ => unreachable!(),
+				};
+				continue 'a;
+			}
+			// Not
+			'b: for index in (0..maybe_parsed_tokens.len()).rev() {
+				if index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
+						if name.eq_ignore_ascii_case("not") => *start_column,
+					_ => continue 'b,
+				};
+				match index.checked_sub(1) {
+					Some(left_index) => match &maybe_parsed_tokens[left_index] {
+						MaybeParsedToken::Expression(..) => continue 'b,
+						MaybeParsedToken::Token(..) => {}
+					}
+					None => {}
+				}
+				if !matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_)) {
+					continue 'b;
+				}
+				let right_expression = match maybe_parsed_tokens.remove(index + 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Not(Box::new(right_expression)), column });
+				continue 'a;
+			}
+			// And
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
+						if name.eq_ignore_ascii_case("and") => *start_column,
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::And(Box::new(left_expression), Box::new(right_expression)), column });
+				continue 'a;
+			}
+			// Or
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
+						if name.eq_ignore_ascii_case("or") => *start_column,
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Or(Box::new(left_expression), Box::new(right_expression)), column });
+				continue 'a;
+			}
+			break 'a;
+		}
+		for maybe_parsed_token in maybe_parsed_tokens.iter() {
+			match maybe_parsed_token {
+				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error::InvalidOperator(*start_column)),
+				_ => {}
+			}
+		}
 		// Return
-		//println!("{maybe_parsed_tokens:?}");
 		debug_assert!(maybe_parsed_tokens.len() == 1);
 		let expression = match maybe_parsed_tokens.into_iter().next() {
 			Some(MaybeParsedToken::Expression(expression)) => expression,
@@ -295,8 +517,101 @@ impl<'a> Expression<'a> {
 					argument.print(depth + 1);
 				}
 			}
+			ExpressionVariant::Exponentiation(left_operand, right_operand) => {
+				print!("Exponentiation/^");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::Negation(operand) => {
+				print!("Negation/-");
+				println!();
+				operand.print(depth + 1);
+			}
+			ExpressionVariant::UnaryPlus(operand) => {
+				print!("Unary Plus/+");
+				println!();
+				operand.print(depth + 1);
+			}
+			ExpressionVariant::Multiplication(left_operand, right_operand) => {
+				print!("Multiplication/*");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::Division(left_operand, right_operand) => {
+				print!("Division//");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::AdditionConcatenation(left_operand, right_operand) => {
+				print!("Addition/Concatenation/+");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::Subtraction(left_operand, right_operand) => {
+				print!("Subtraction/-");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::GreaterThan(left_operand, right_operand) => {
+				print!("Greater Than/>");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::LessThan(left_operand, right_operand) => {
+				print!("Less Than/<");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::GreaterThanOrEqualTo(left_operand, right_operand) => {
+				print!("Greater Than or Equal to/>=");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::LessThanOrEqualTo(left_operand, right_operand) => {
+				print!("Less Than Or Equal to/<=");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::EqualTo(left_operand, right_operand) => {
+				print!("Equal to/=");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::NotEqualTo(left_operand, right_operand) => {
+				print!("Not Equal to/<>");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::Not(operand) => {
+				print!("Not");
+				println!();
+				operand.print(depth + 1);
+			}
+			ExpressionVariant::And(left_operand, right_operand) => {
+				print!("And");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
+			ExpressionVariant::Or(left_operand, right_operand) => {
+				print!("Or");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
 		}
-		if !matches!(self.variant, ExpressionVariant::IdentifierOrFunction { .. }) {
+		if matches!(self.variant, ExpressionVariant::NumericLiteral(..) | ExpressionVariant::PrintComma | ExpressionVariant::PrintSemicolon | ExpressionVariant::StringLiteral(..)) {
 			println!();
 		}
 	}
@@ -308,7 +623,23 @@ pub enum ExpressionVariant<'a> {
 	NumericLiteral(&'a str),
 	PrintComma,
 	PrintSemicolon,
-	IdentifierOrFunction { name: &'a str, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression<'a>]>, uses_fn_keyword: bool, has_parentheses: bool }
+	IdentifierOrFunction { name: &'a str, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression<'a>]>, uses_fn_keyword: bool, has_parentheses: bool },
+	Exponentiation(Box<Expression<'a>>, Box<Expression<'a>>),
+	Negation(Box<Expression<'a>>),
+	UnaryPlus(Box<Expression<'a>>),
+	Multiplication(Box<Expression<'a>>, Box<Expression<'a>>),
+	Division(Box<Expression<'a>>, Box<Expression<'a>>),
+	AdditionConcatenation(Box<Expression<'a>>, Box<Expression<'a>>),
+	Subtraction(Box<Expression<'a>>, Box<Expression<'a>>),
+	LessThan(Box<Expression<'a>>, Box<Expression<'a>>),
+	GreaterThan(Box<Expression<'a>>, Box<Expression<'a>>),
+	EqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
+	NotEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
+	LessThanOrEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
+	GreaterThanOrEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
+	Not(Box<Expression<'a>>),
+	And(Box<Expression<'a>>, Box<Expression<'a>>),
+	Or(Box<Expression<'a>>, Box<Expression<'a>>),
 }
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, Error> {
