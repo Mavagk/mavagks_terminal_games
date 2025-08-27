@@ -1,8 +1,9 @@
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, machine::Machine, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, machine::Machine, program::Program, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
 	machine: Machine,
+	program: Program,
 }
 
 impl Game for MavagkBasicTerminal {
@@ -38,13 +39,12 @@ impl Game for MavagkBasicTerminal {
 				},
 				Ok(tokens) => tokens,
 			};
-			//println!("{trees:?}");
 			for tree in trees {
 				tree.print(0);
 			}
 			return Ok(());
 		}
-		if let Err(error) = self.machine.line_of_text_entered(&*line) {
+		if let Err(error) = self.machine.line_of_text_entered(line, &mut self.program) {
 			println!("Basic error {error}");
 		}
 		Ok(())
@@ -60,6 +60,7 @@ impl MavagkBasicTerminal {
 		Self {
 			should_exit: false,
 			machine: Machine::new(),
+			program: Program::new(),
 		}
 	}
 }
