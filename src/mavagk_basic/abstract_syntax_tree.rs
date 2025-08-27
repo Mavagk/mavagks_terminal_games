@@ -3,13 +3,13 @@ use std::num::NonZeroUsize;
 use crate::mavagk_basic::{error::Error, token::{IdentifierType, Token, TokenVariant}};
 
 #[derive(Debug)]
-pub struct Statement<'a> {
-	pub variant: StatementVariant<'a>,
+pub struct Statement {
+	pub variant: StatementVariant,
 	pub column: NonZeroUsize,
 }
 
-impl<'a> Statement<'a> {
-	pub fn parse<'b>(mut tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+impl Statement {
+	pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Strip leading colons
 		while matches!(tokens.first(), Some(Token { variant: TokenVariant::Colon, .. })) {
 			tokens = &tokens[1..];
@@ -25,7 +25,7 @@ impl<'a> Statement<'a> {
 		// Parse depending on keyword
 		match identifier_token.variant {
 			// PRINT
-			TokenVariant::Identifier { name: "print", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } => {
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } if name.eq_ignore_ascii_case("print") => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expressions = Vec::new();
 				while !remaining_tokens.is_empty() {
@@ -56,7 +56,7 @@ impl<'a> Statement<'a> {
 		}
 	}
 
-	fn get_statement_length(tokens: &[Token<'a>]) -> usize {
+	fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
 		let mut parenthesis_depth = 0usize;
 		for (index, token) in tokens.iter().enumerate() {
 			match token.variant {
@@ -87,18 +87,18 @@ impl<'a> Statement<'a> {
 }
 
 #[derive(Debug)]
-pub enum StatementVariant<'a> {
-	Print(Box<[Expression<'a>]>),
+pub enum StatementVariant {
+	Print(Box<[Expression]>),
 }
 
 #[derive(Debug)]
-pub struct Expression<'a> {
-	pub variant: ExpressionVariant<'a>,
+pub struct Expression {
+	pub variant: ExpressionVariant,
 	pub column: NonZeroUsize,
 }
 
-impl<'a> Expression<'a> {
-	pub fn parse<'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+impl Expression {
+	pub fn parse<'a, 'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Get the tokens for this expression or return if no tokens where passed in
 		let expression_length = Self::get_expression_length(tokens);
 		if expression_length == 0 {
@@ -167,7 +167,7 @@ impl<'a> Expression<'a> {
 									Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional }, .. } => (*name, *identifier_type, *is_optional),
 									_ => unreachable!(),
 								};
-								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments: function_arguments.into(), uses_fn_keyword: is_fn_function, has_parentheses: true }, column: function_start_column }));
+								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: name.into(), identifier_type, is_optional, arguments: function_arguments.into(), uses_fn_keyword: is_fn_function, has_parentheses: true }, column: function_start_column }));
 							}
 							// If we are just parsing some brackets that are not part of a function
 							None => {
@@ -188,8 +188,8 @@ impl<'a> Expression<'a> {
 					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
 				}
 				// Literals should be copied across
-				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(value), column: token.start_column })),
-				TokenVariant::NumericLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral(value), column: token.start_column })),
+				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral((*value).into()), column: token.start_column })),
+				TokenVariant::NumericLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NumericLiteral((*value).into()), column: token.start_column })),
 				// Identifiers
 				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
 					match () {
@@ -205,9 +205,9 @@ impl<'a> Expression<'a> {
 						_ => match last_token {
 							// If the last token was a "fn" keyword, this is a fn identifier without arguments
 							Some(Token { variant: TokenVariant::Identifier { name: last_token_name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if last_token_name.eq_ignore_ascii_case("fn") =>
-								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
+								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
 							// Else it is a non-fn identifier
-							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
+							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
 						}
 					}
 				}
@@ -455,7 +455,7 @@ impl<'a> Expression<'a> {
 	/// `expression = operand (binary-operator operand)*`
 	///
 	/// `operand = unary-operator operand / (fn-keyword? identifier)? left-parenthesis parentheses-content right-parenthesis`
-	fn get_expression_length(tokens: &[Token<'a>]) -> usize {
+	fn get_expression_length<'a>(tokens: &[Token<'a>]) -> usize {
 		let mut last_token: Option<&TokenVariant<'_>> = None;
 		let mut parenthesis_depth = 0usize;
 		for (index, token) in tokens.iter().enumerate() {
@@ -618,31 +618,31 @@ impl<'a> Expression<'a> {
 }
 
 #[derive(Debug)]
-pub enum ExpressionVariant<'a> {
-	StringLiteral(&'a str),
-	NumericLiteral(&'a str),
+pub enum ExpressionVariant {
+	StringLiteral(Box<str>),
+	NumericLiteral(Box<str>),
 	PrintComma,
 	PrintSemicolon,
-	IdentifierOrFunction { name: &'a str, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression<'a>]>, uses_fn_keyword: bool, has_parentheses: bool },
-	Exponentiation(Box<Expression<'a>>, Box<Expression<'a>>),
-	Negation(Box<Expression<'a>>),
-	UnaryPlus(Box<Expression<'a>>),
-	Multiplication(Box<Expression<'a>>, Box<Expression<'a>>),
-	Division(Box<Expression<'a>>, Box<Expression<'a>>),
-	AdditionConcatenation(Box<Expression<'a>>, Box<Expression<'a>>),
-	Subtraction(Box<Expression<'a>>, Box<Expression<'a>>),
-	LessThan(Box<Expression<'a>>, Box<Expression<'a>>),
-	GreaterThan(Box<Expression<'a>>, Box<Expression<'a>>),
-	EqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
-	NotEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
-	LessThanOrEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
-	GreaterThanOrEqualTo(Box<Expression<'a>>, Box<Expression<'a>>),
-	Not(Box<Expression<'a>>),
-	And(Box<Expression<'a>>, Box<Expression<'a>>),
-	Or(Box<Expression<'a>>, Box<Expression<'a>>),
+	IdentifierOrFunction { name: Box<str>, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	Exponentiation(Box<Expression>, Box<Expression>),
+	Negation(Box<Expression>),
+	UnaryPlus(Box<Expression>),
+	Multiplication(Box<Expression>, Box<Expression>),
+	Division(Box<Expression>, Box<Expression>),
+	AdditionConcatenation(Box<Expression>, Box<Expression>),
+	Subtraction(Box<Expression>, Box<Expression>),
+	LessThan(Box<Expression>, Box<Expression>),
+	GreaterThan(Box<Expression>, Box<Expression>),
+	EqualTo(Box<Expression>, Box<Expression>),
+	NotEqualTo(Box<Expression>, Box<Expression>),
+	LessThanOrEqualTo(Box<Expression>, Box<Expression>),
+	GreaterThanOrEqualTo(Box<Expression>, Box<Expression>),
+	Not(Box<Expression>),
+	And(Box<Expression>, Box<Expression>),
+	Or(Box<Expression>, Box<Expression>),
 }
 
-pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, Error> {
+pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement]>, Error> {
 	let mut out = Vec::new();
 	loop {
 		match Statement::parse(tokens)? {
@@ -659,5 +659,5 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement<'a>]>, 
 #[derive(Debug)]
 enum MaybeParsedToken<'a, 'b> {
 	Token(&'b Token<'a>),
-	Expression(Expression<'a>),
+	Expression(Expression),
 }

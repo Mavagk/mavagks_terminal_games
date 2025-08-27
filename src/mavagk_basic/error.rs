@@ -1,8 +1,10 @@
 use std::{fmt::{self, Display, Formatter}, num::NonZeroUsize};
 
+use num::BigInt;
+
 pub enum Error {
 	InvalidTokenFirstChar(NonZeroUsize, char),
-	NotYetImplemented(Option<NonZeroUsize>, NonZeroUsize, String),
+	NotYetImplemented(Option<BigInt>, NonZeroUsize, String),
 	MalformedLineNumber(NonZeroUsize, String),
 	ExpectedExpression(NonZeroUsize),
 	MoreLeftParenthesesThanRightParentheses(NonZeroUsize),
@@ -12,6 +14,7 @@ pub enum Error {
 	ParenthesesDoNotContainOneExpression(NonZeroUsize),
 	FunctionArgumentsNotCommaSeparated(NonZeroUsize),
 	InvalidOperator(NonZeroUsize),
+	InvalidLineNumber(BigInt),
 }
 
 impl Display for Error {
@@ -31,6 +34,7 @@ impl Display for Error {
 			Self::ParenthesesDoNotContainOneExpression(column) => write!(f, "in column {column}: Parentheses do not contain one expression that takes up the entire parenthesised area."),
 			Self::FunctionArgumentsNotCommaSeparated(column) => write!(f, "in column {column}: Function parentheses do not contain a comma separated list of arguments."),
 			Self::InvalidOperator(column) => write!(f, "in column {column}: Invalid operator."),
+			Self::InvalidLineNumber(line_number) => write!(f, "trying to execute line {line_number}: Line not found."),
 		}
 	}
 }

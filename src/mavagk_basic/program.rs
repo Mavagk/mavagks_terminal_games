@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use num::BigInt;
 
-use crate::mavagk_basic::statement::Statement;
+use crate::mavagk_basic::abstract_syntax_tree::Statement;
 
 pub struct Program {
 	pub lines: BTreeMap<BigInt, (Box<[Statement]>, Box<str>)>,
