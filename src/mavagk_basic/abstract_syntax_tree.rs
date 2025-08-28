@@ -54,8 +54,30 @@ impl Statement {
 				debug_assert!(remaining_tokens.is_empty());
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 			}
+			// RUN / GOTO / GOSUB
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }
+				if name.eq_ignore_ascii_case("run") || name.eq_ignore_ascii_case("goto") || name.eq_ignore_ascii_case("gosub") =>
+			{
+				let mut remaining_tokens = &tokens[1..];
+				let mut expression = None;
+				if !remaining_tokens.is_empty() {
+					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, identifier_token.end_column)? {
+						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(remaining_tokens[0].start_column) }),
+						Some((result, remaining_tokens)) => (Some(result), remaining_tokens),
+					};
+					if !remaining_tokens.is_empty() {
+						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+					}
+				}
+				let variant = match name {
+					_ if name.eq_ignore_ascii_case("run") => StatementVariant::Run(expression),
+					_ if name.eq_ignore_ascii_case("goto") => StatementVariant::Goto(expression),
+					_ if name.eq_ignore_ascii_case("gosub") => StatementVariant::Gosub(expression),
+					_ => unreachable!(),
+				};
+				Ok(Some((Self { column: identifier_token.start_column, variant }, rest_of_tokens)))
+			}
 			_ => Err(Error { variant: ErrorVariant::NotYetImplemented("Statements that are not print statements".into()), line_number: None, column_number: Some(identifier_token.start_column) }),
-			//_ => Err(Error::NotYetImplemented(None, identifier_token.start_column, "Statements that are not print statements".into())),
 		}
 	}
 
@@ -85,6 +107,27 @@ impl Statement {
 					argument.print(depth + 1);
 				}
 			}
+			StatementVariant::Run(argument) => {
+				print!("Run");
+				println!();
+				if let Some(argument) = argument {
+					argument.print(depth + 1);
+				}
+			}
+			StatementVariant::Goto(argument) => {
+				print!("Goto");
+				println!();
+				if let Some(argument) = argument {
+					argument.print(depth + 1);
+				}
+			}
+			StatementVariant::Gosub(argument) => {
+				print!("Gosub");
+				println!();
+				if let Some(argument) = argument {
+					argument.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -92,6 +135,9 @@ impl Statement {
 #[derive(Debug)]
 pub enum StatementVariant {
 	Print(Box<[Expression]>),
+	Run(Option<Expression>),
+	Goto(Option<Expression>),
+	Gosub(Option<Expression>),
 }
 
 #[derive(Debug)]

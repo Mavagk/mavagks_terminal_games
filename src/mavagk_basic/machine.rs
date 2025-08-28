@@ -1,6 +1,6 @@
 use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
 
-use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
+use num::{complex::Complex64, traits::ConstZero, BigInt, Complex, FromPrimitive, ToPrimitive};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::Token};
 
@@ -15,6 +15,14 @@ impl Machine {
 			is_executing_unnumbered_line: false,
 			line_executing: 0.into(),
 		}
+	}
+
+	fn set_line_executing_to_first_line(&mut self, program: &Program) {
+		self.line_executing = match program.lines.first_key_value() {
+			Some(first_entry) => first_entry.0.clone(),
+			None => BigInt::ZERO,
+		};
+		self.is_executing_unnumbered_line = false;
 	}
 
 	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
@@ -41,7 +49,7 @@ impl Machine {
 	}
 
 	fn execute(&mut self, program: &mut Program) -> Result<(), Error> {
-		loop {
+		'lines_loop: loop {
 			// Get the line number to be executed
 			let line_number = match self.is_executing_unnumbered_line {
 				false => Some(&self.line_executing),
@@ -56,15 +64,30 @@ impl Machine {
 				}
 			};
 			// Execute statements
-			for Statement { variant, column: _ } in statements {
+			for Statement { variant, column } in statements {
 				match variant {
 					StatementVariant::Print(sub_expressions) => {
 						for sub_expression in sub_expressions {
-							let expression = self.execute_expression(sub_expression, line_number)?;
-							print!("{expression}");
+							let value = self.execute_expression(sub_expression, line_number)?;
+							print!("{value}");
 						}
 						println!();
 					}
+					StatementVariant::Goto(sub_expression) => {
+						if let Some(sub_expression) = sub_expression {
+							let line_number = self.execute_expression(sub_expression, line_number)?.cast_to_int()
+								.map_err(|error| error.set_line_number(line_number).set_column_number(sub_expression.column))?;
+							let line_number = line_number.unwrap_int();
+							self.line_executing = (&*line_number).clone();
+							continue 'lines_loop;
+						}
+						else {
+							self.set_line_executing_to_first_line(&program);
+							continue 'lines_loop;
+						}
+					}
+					StatementVariant::Run(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("RUN statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
+					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
 				}
 			}
 			// Decide what to execute next
@@ -180,6 +203,13 @@ impl Value {
 			Self::Int(_) => "integer",
 			Self::String(_) => "string",
 			Self::Complex(_) => "complex",
+		}
+	}
+
+	pub fn unwrap_int(self) -> Rc<BigInt> {
+		match self {
+			Value::Int(value) => value,
+			_ => panic!(),
 		}
 	}
 }

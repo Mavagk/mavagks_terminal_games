@@ -10,6 +10,18 @@ pub struct Error {
 	pub column_number: Option<NonZeroUsize>,
 }
 
+impl Error {
+	pub fn set_line_number(mut self, line_number: Option<&BigInt>) -> Self {
+		self.line_number = line_number.cloned();
+		self
+	}
+
+	pub fn set_column_number(mut self, column_number: NonZeroUsize) -> Self {
+		self.column_number = Some(column_number);
+		self
+	}
+}
+
 impl Display for Error {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match (&self.line_number, self.column_number) {
@@ -37,6 +49,7 @@ pub enum ErrorVariant {
 	NonNumberValueCastToInt(Value),
 	NonRealComplexValueCastToReal(Value),
 	StringCastToNumber,
+	StatementShouldEnd,
 }
 
 impl Display for ErrorVariant {
@@ -57,6 +70,7 @@ impl Display for ErrorVariant {
 			Self::NonNumberValueCastToInt(value) => write!(f, "Non-number {} value {value} cast to int.", value.get_type_name()),
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
+			Self::StatementShouldEnd => write!(f, "Statement should end."),
 		}
 	}
 }
