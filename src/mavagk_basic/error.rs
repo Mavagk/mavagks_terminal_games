@@ -50,6 +50,9 @@ pub enum ErrorVariant {
 	NonRealComplexValueCastToReal(Value),
 	StringCastToNumber,
 	StatementShouldEnd,
+	CannotUseThisOperatorOnAString,
+	CannotConcatenateNumbers,
+	FlooredDivisionByZero,
 }
 
 impl Display for ErrorVariant {
@@ -71,6 +74,9 @@ impl Display for ErrorVariant {
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
 			Self::StatementShouldEnd => write!(f, "Statement should end."),
+			Self::CannotConcatenateNumbers => write!(f, "Cannot concatenate numbers."),
+			Self::CannotUseThisOperatorOnAString => write!(f, "Cannot use this operator on a string."),
+			Self::FlooredDivisionByZero => write!(f, "Floored division by zero."),
 		}
 	}
 }

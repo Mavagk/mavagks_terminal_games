@@ -44,7 +44,7 @@ impl<'a> Token<'a> {
 		let first_char = line_starting_with_token.chars().next().unwrap();
 		let (variant, rest_of_string_with_token_removed) = match first_char {
 			// Operator
-			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' => {
+			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' | '\\' => {
 				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '<' | '=' | '>')) {
 					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
 					None => line_starting_with_token.len(),

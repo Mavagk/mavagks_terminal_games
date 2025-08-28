@@ -1,6 +1,6 @@
-use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
+use std::{f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::NonZeroUsize, rc::Rc};
 
-use num::{complex::Complex64, traits::ConstZero, BigInt, Complex, FromPrimitive, ToPrimitive};
+use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::Token};
 
@@ -23,6 +23,10 @@ impl Machine {
 			None => BigInt::ZERO,
 		};
 		self.is_executing_unnumbered_line = false;
+	}
+
+	fn clear_machine_state(&mut self) {
+		// TODO
 	}
 
 	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
@@ -73,20 +77,24 @@ impl Machine {
 						}
 						println!();
 					}
-					StatementVariant::Goto(sub_expression) => {
-						if let Some(sub_expression) = sub_expression {
-							let line_number = self.execute_expression(sub_expression, line_number)?.cast_to_int()
-								.map_err(|error| error.set_line_number(line_number).set_column_number(sub_expression.column))?;
-							let line_number = line_number.unwrap_int();
-							self.line_executing = (&*line_number).clone();
-							continue 'lines_loop;
+					StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
+						// Set the line to be executed next
+						match sub_expression {
+							Some(sub_expression) => {
+								let line_number = self.execute_expression(sub_expression, line_number)?.cast_to_int(line_number, *column)?;
+								let line_number = line_number.unwrap_int();
+								self.line_executing = (&*line_number).clone();
+								self.is_executing_unnumbered_line = false;
+							}
+							None => self.set_line_executing_to_first_line(&program),
 						}
-						else {
-							self.set_line_executing_to_first_line(&program);
-							continue 'lines_loop;
+						// Clear if this is a RUN statement
+						if matches!(variant, StatementVariant::Run(..)) {
+							self.clear_machine_state();
 						}
+						// Next statement
+						continue 'lines_loop;
 					}
-					StatementVariant::Run(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("RUN statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
 					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
 				}
 			}
@@ -101,7 +109,7 @@ impl Machine {
 		}
 	}
 
-	fn execute_expression(&self, expression: &Expression, line_number: Option<&BigInt>) -> Result<Value, Error> {
+	fn execute_expression(&self, expression: &Expression, line: Option<&BigInt>) -> Result<Value, Error> {
 		let Expression { variant, column } = expression;
 		Ok(match variant {
 			ExpressionVariant::StringLiteral(string) => Value::String(string.clone()),
@@ -110,7 +118,109 @@ impl Machine {
 				false => Value::Float(*value),
 				true => Value::Complex(Complex64::new(0., *value)),
 			}
-			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line_number.cloned(), column_number: Some(*column) })
+			ExpressionVariant::AdditionConcatenation(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Int(Rc::new(BigInt::from_u8(lhs as u8).unwrap() + BigInt::from_u8(rhs as u8).unwrap())),
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) += &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs + rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Complex(lhs + rhs),
+					(Value::String(mut lhs), Value::String(rhs)) => {
+						let string = Rc::<String>::make_mut(&mut lhs);
+						string.push_str(rhs.as_str());
+						Value::String(lhs)
+					}
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::Subtraction(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Int(Rc::new(BigInt::from_u8(lhs as u8).unwrap() - BigInt::from_u8(rhs as u8).unwrap())),
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) -= &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs - rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Complex(lhs - rhs),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::Concatenation(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				match (lhs, rhs) {
+					(Value::String(mut lhs), Value::String(rhs)) => {
+						let string = Rc::<String>::make_mut(&mut lhs);
+						string.push_str(rhs.as_str());
+						Value::String(lhs)
+					}
+					_ => return Err(Error { variant: ErrorVariant::CannotConcatenateNumbers, line_number: line.cloned(), column_number: Some(*column) }),
+				}
+			}
+			ExpressionVariant::Multiplication(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs && rhs),
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) *= &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs * rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Complex(lhs * rhs),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::Division(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => match (lhs, rhs) {
+						(true, true) => Value::Bool(true),
+						(true, false) => Value::Float(INFINITY),
+						(false, true) => Value::Bool(false),
+						(false, false) => Value::Float(NAN),
+					}
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						if *rhs == BigInt::ZERO || &*lhs % &*rhs == BigInt::ZERO {
+							return Ok(Value::Float(Value::Int(lhs).cast_to_float(line, *column)?.unwrap_float() / Value::Int(rhs).cast_to_float(line, *column)?.unwrap_float()))
+						}
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) /= &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs / rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Complex(lhs / rhs),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::FlooredDivision(lhs_expression, rhs_expression) => {
+				let mut lhs = self.execute_expression(&lhs_expression, line)?.cast_to_int(line, *column)?.unwrap_int();
+				let rhs = self.execute_expression(&rhs_expression, line)?.cast_to_int(line, *column)?.unwrap_int();
+				if *rhs == BigInt::ZERO {
+					return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line.cloned(), column_number: Some(*column) })
+				}
+				let int = Rc::<BigInt>::make_mut(&mut lhs);
+				(*int) /= &*rhs;
+				Value::Int(lhs)
+			}
+			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
 		})
 	}
 }
@@ -125,43 +235,43 @@ pub enum Value {
 }
 
 impl Value {
-	fn upcast(self, rhs: Self) -> Result<(Self, Self), Error> {
+	fn upcast(self, rhs: Self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<(Self, Self), Error> {
 		Ok(match (&self, &rhs) {
 			// Two of the same type
 			(Self::Float(_), Self::Float(_)) | (Self::Int(_), Self::Int(_)) | (Self::Complex(_), Self::Complex(_)) | (Self::Bool(_), Self::Bool(_)) | (Self::String(_), Self::String(_)) => (self, rhs),
 			// To int
-			(Self::Int(_), Self::Bool(_)) => (self, rhs.cast_to_int()?),
-			(Self::Bool(_), Self::Int(_)) => (self.cast_to_int()?, rhs),
+			(Self::Int(_), Self::Bool(_)) => (self, rhs.cast_to_int(line_number, column_number)?),
+			(Self::Bool(_), Self::Int(_)) => (self.cast_to_int(line_number, column_number)?, rhs),
 			// To float
-			(Self::Float(_), Self::Bool(_) | Self::Int(_)) => (self, rhs.cast_to_float()?),
-			(Self::Bool(_) | Self::Int(_), Self::Float(_)) => (self.cast_to_float()?, rhs),
+			(Self::Float(_), Self::Bool(_) | Self::Int(_)) => (self, rhs.cast_to_float(line_number, column_number)?),
+			(Self::Bool(_) | Self::Int(_), Self::Float(_)) => (self.cast_to_float(line_number, column_number)?, rhs),
 			// To complex
-			(Self::Complex(_), Self::Bool(_) | Self::Int(_) | Self::Float(_)) => (self, rhs.cast_to_complex()?),
-			(Self::Bool(_) | Self::Int(_) | Self::Float(_), Self::Complex(_)) => (self.cast_to_complex()?, rhs),
-			_ => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+			(Self::Complex(_), Self::Bool(_) | Self::Int(_) | Self::Float(_)) => (self, rhs.cast_to_complex(line_number, column_number)?),
+			(Self::Bool(_) | Self::Int(_) | Self::Float(_), Self::Complex(_)) => (self.cast_to_complex(line_number, column_number)?, rhs),
+			_ => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
 		})
 	}
 
-	fn cast_to_int(self) -> Result<Self, Error> {
+	fn cast_to_int(self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<Self, Error> {
 		Ok(match self {
 			Self::Bool(value) => Self::Int(Rc::new(BigInt::from_u8(value as u8).unwrap())),
 			Self::Int(_) => self,
 			Self::Float(value) => Self::Int(Rc::new(match BigInt::from_f64(value) {
 				Some(value) => value,
-				None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: None, column_number: None }),
+				None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: line_number.cloned(), column_number: Some(column_number) }),
 			})),
 			Self::Complex(Complex { re, im }) => match im == 0. {
 				true => Self::Int(Rc::new(match BigInt::from_f64(re) {
 					Some(value) => value,
-					None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: None, column_number: None }),
+					None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: line_number.cloned(), column_number: Some(column_number) }),
 				})),
-				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: None, column_number: None }),
+				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: line_number.cloned(), column_number: Some(column_number) }),
 			}
-			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
 		})
 	}
 
-	fn cast_to_float(self) -> Result<Self, Error> {
+	fn cast_to_float(self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<Self, Error> {
 		Ok(match self {
 			Self::Bool(value) => Self::Float(value as u8 as f64),
 			Self::Int(value) => Self::Float(match (&*value).to_i128() {
@@ -174,13 +284,13 @@ impl Value {
 			Self::Float(_) => self,
 			Self::Complex(Complex { re, im }) => match im == 0. {
 				true => Self::Float(re),
-				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: None, column_number: None }),
+				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: line_number.cloned(), column_number: Some(column_number) }),
 			}
-			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
 		})
 	}
 
-	fn cast_to_complex(self) -> Result<Self, Error> {
+	fn cast_to_complex(self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<Self, Error> {
 		Ok(match self {
 			Self::Bool(value) => Self::Complex(Complex { re: value as u8 as f64, im: 0. }),
 			Self::Int(value) => Self::Complex(Complex { re: match (&*value).to_i128() {
@@ -192,7 +302,7 @@ impl Value {
 			}, im: 0. }),
 			Self::Float(value) => Self::Complex(Complex { re: value, im: 0. }),
 			Self::Complex(_) => self,
-			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
 		})
 	}
 
@@ -206,9 +316,37 @@ impl Value {
 		}
 	}
 
+	pub fn unwrap_bool(self) -> bool {
+		match self {
+			Value::Bool(value) => value,
+			_ => panic!(),
+		}
+	}
+
 	pub fn unwrap_int(self) -> Rc<BigInt> {
 		match self {
 			Value::Int(value) => value,
+			_ => panic!(),
+		}
+	}
+
+	pub fn unwrap_float(self) -> f64 {
+		match self {
+			Value::Float(value) => value,
+			_ => panic!(),
+		}
+	}
+
+	pub fn unwrap_complex(self) -> Complex64 {
+		match self {
+			Value::Complex(value) => value,
+			_ => panic!(),
+		}
+	}
+
+	pub fn unwrap_string(self) -> Rc<String> {
+		match self {
+			Value::String(value) => value,
 			_ => panic!(),
 		}
 	}

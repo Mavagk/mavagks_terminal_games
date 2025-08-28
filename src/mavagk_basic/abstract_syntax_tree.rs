@@ -225,11 +225,9 @@ impl Expression {
 							None => {
 								if parentheses_content_tokens.len() == 0 {
 									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
-									//return Err(Error::NothingInParentheses(tokens[start_parenthesis_index].end_column));
 								}
 								if Self::get_expression_length(parentheses_content_tokens) != parentheses_content_tokens.len() {
 									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
-									//return Err(Error::ParenthesesDoNotContainOneExpression(tokens[start_parenthesis_index].end_column));
 								}
 								let content_parsed = Self::parse(parentheses_content_tokens, tokens[start_parenthesis_index].end_column)?.unwrap().0;
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
@@ -333,9 +331,8 @@ impl Expression {
 				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
 					continue 'b;
 				}
-				let (column, is_division) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("*"), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("/"), start_column, .. }) => (*start_column, true),
+				let (column, chr) = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr), start_column, .. }) if matches!(*chr, "*" | "/" | "\\") => (*start_column, *chr),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -349,9 +346,11 @@ impl Expression {
 					MaybeParsedToken::Expression(expression) => expression,
 					_ => unreachable!(),
 				};
-				maybe_parsed_tokens[index - 1] = match is_division {
-					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
-					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
+				maybe_parsed_tokens[index - 1] = match chr {
+					"*" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
+					"/" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
+					"\\" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
+					_ => unreachable!(),
 				};
 				continue 'a;
 			}
@@ -630,6 +629,12 @@ impl Expression {
 				left_operand.print(depth + 1);
 				right_operand.print(depth + 1);
 			}
+			ExpressionVariant::FlooredDivision(left_operand, right_operand) => {
+				print!("Floored Division/\\");
+				println!();
+				left_operand.print(depth + 1);
+				right_operand.print(depth + 1);
+			}
 			ExpressionVariant::AdditionConcatenation(left_operand, right_operand) => {
 				print!("Addition/Concatenation/+");
 				println!();
@@ -721,6 +726,7 @@ pub enum ExpressionVariant {
 	UnaryPlus(Box<Expression>),
 	Multiplication(Box<Expression>, Box<Expression>),
 	Division(Box<Expression>, Box<Expression>),
+	FlooredDivision(Box<Expression>, Box<Expression>),
 	AdditionConcatenation(Box<Expression>, Box<Expression>),
 	Subtraction(Box<Expression>, Box<Expression>),
 	LessThan(Box<Expression>, Box<Expression>),
