@@ -220,6 +220,24 @@ impl Machine {
 				(*int) /= &*rhs;
 				Value::Int(lhs)
 			}
+			ExpressionVariant::Negation(sub_expression) => {
+				let sub_expression = self.execute_expression(&sub_expression, line)?;
+				match sub_expression {
+					Value::Bool(sub_expression) => match sub_expression {
+						true => Value::Int(Rc::new(BigInt::from_i8(-1).unwrap())),
+						false => Value::Bool(false),
+					}
+					Value::Int(mut sub_expression) => {
+						let int = Rc::<BigInt>::make_mut(&mut sub_expression);
+						let int = -(int.clone());
+						Value::Int(Rc::new(int))
+					}
+					Value::Float(sub_expression) => Value::Float(-sub_expression),
+					Value::Complex(sub_expression) => Value::Complex(-sub_expression),
+					Value::String(_) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+				}
+			}
+			ExpressionVariant::UnaryPlus(sub_expression) => self.execute_expression(&sub_expression, line)?,
 			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
 		})
 	}
