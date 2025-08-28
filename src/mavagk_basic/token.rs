@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use num::{BigInt, Num};
 
-use crate::mavagk_basic::error::Error;
+use crate::mavagk_basic::error::{Error, ErrorVariant};
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
@@ -196,7 +196,7 @@ impl<'a> Token<'a> {
 			}
 			// TODO: Quoteless string literals in DATA statements
 			// TODO
-			_ => return Err(Error::NotYetImplemented(None, start_column, "Other tokens".into()))
+			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other tokens".into()), line_number: None, column_number: Some(start_column) })
 		};
 		// Return
 		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
@@ -214,7 +214,7 @@ impl<'a> Token<'a> {
 				let line_number_string;
 				(line_number_string, line) = line.split_at(length_of_line_number);
 				column_number = column_number.saturating_add(length_of_line_number);
-				Some(line_number_string.parse::<BigInt>().map_err(|_| Error::MalformedLineNumber(1.try_into().unwrap(), line_number_string.into()))?)
+				Some(line_number_string.parse::<BigInt>().map_err(|_| Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })?)
 			}
 			_ => None,
 		};

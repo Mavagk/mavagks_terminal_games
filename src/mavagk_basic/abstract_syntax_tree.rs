@@ -1,8 +1,8 @@
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{error::Error, token::{IdentifierType, Token, TokenVariant}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Token, TokenVariant}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -54,7 +54,8 @@ impl Statement {
 				debug_assert!(remaining_tokens.is_empty());
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 			}
-			_ => Err(Error::NotYetImplemented(None, identifier_token.start_column, "Statements that are not print statements".into())),
+			_ => Err(Error { variant: ErrorVariant::NotYetImplemented("Statements that are not print statements".into()), line_number: None, column_number: Some(identifier_token.start_column) }),
+			//_ => Err(Error::NotYetImplemented(None, identifier_token.start_column, "Statements that are not print statements".into())),
 		}
 	}
 
@@ -124,7 +125,9 @@ impl Expression {
 				}
 				// Right parentheses
 				TokenVariant::RightParenthesis => {
-					parentheses_depth = parentheses_depth.checked_sub(1).ok_or_else(|| Error::MoreRightParenthesesThanLeftParentheses(token.start_column))?;
+					//parentheses_depth = parentheses_depth.checked_sub(1).ok_or_else(|| Error::MoreRightParenthesesThanLeftParentheses(token.start_column))?;
+					parentheses_depth = parentheses_depth.checked_sub(1)
+						.ok_or_else(|| Error { variant: ErrorVariant::MoreRightParenthesesThanLeftParentheses, line_number: None, column_number: Some(token.start_column) })?;
 					// Parse the parenthesised area/function that this is closing
 					if parentheses_depth == 0 {
 						let parentheses_content_tokens = &tokens[start_parenthesis_index + 1..index];
@@ -154,7 +157,7 @@ impl Expression {
 								let mut function_arguments = Vec::new();
 								while !parentheses_content_tokens_left.is_empty() {
 									if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
-										return Err(Error::FunctionArgumentsNotCommaSeparated(tokens[start_parenthesis_index].end_column));
+										return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
 									}
 									let parsed_argument_expression;
 									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, parentheses_content_tokens_left[0].start_column)?.unwrap();
@@ -162,7 +165,8 @@ impl Expression {
 									match parentheses_content_tokens_left.get(0) {
 										Some(Token { variant: TokenVariant::Comma, .. }) => parentheses_content_tokens_left = &parentheses_content_tokens_left[1..],
 										None => {}
-										Some(Token { variant: _, start_column, .. }) => return Err(Error::FunctionArgumentsNotCommaSeparated(*start_column))
+										Some(Token { variant: _, start_column, .. }) =>
+											return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: None, column_number: Some(*start_column) }),
 									}
 								}
 								let (name, identifier_type, is_optional) = match function_identifier {
@@ -174,10 +178,12 @@ impl Expression {
 							// If we are just parsing some brackets that are not part of a function
 							None => {
 								if parentheses_content_tokens.len() == 0 {
-									return Err(Error::NothingInParentheses(tokens[start_parenthesis_index].end_column));
+									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
+									//return Err(Error::NothingInParentheses(tokens[start_parenthesis_index].end_column));
 								}
 								if Self::get_expression_length(parentheses_content_tokens) != parentheses_content_tokens.len() {
-									return Err(Error::ParenthesesDoNotContainOneExpression(tokens[start_parenthesis_index].end_column));
+									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
+									//return Err(Error::ParenthesesDoNotContainOneExpression(tokens[start_parenthesis_index].end_column));
 								}
 								let content_parsed = Self::parse(parentheses_content_tokens, tokens[start_parenthesis_index].end_column)?.unwrap().0;
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
@@ -190,8 +196,8 @@ impl Expression {
 					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
 				}
 				// Literals should be copied across
-				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral((*value).into()), column: token.start_column })),
-				TokenVariant::IntegerLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(value.clone()), column: token.start_column})),
+				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(Rc::new((*value).into())), column: token.start_column })),
+				TokenVariant::IntegerLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: token.start_column})),
 				TokenVariant::FloatLiteral { value, is_imaginary } => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
 				// Identifiers
 				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
@@ -200,7 +206,7 @@ impl Expression {
 						_ if matches!(token, Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. } if name.eq_ignore_ascii_case("fn")) => {
 							match next_token {
 								Some(Token { variant: TokenVariant::Identifier { name: next_name, .. }, .. }) if !next_name.eq_ignore_ascii_case("fn") => {}
-								_ => return Err(Error::FnWithoutIdentifier(start_column)),
+								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: None, column_number: Some(start_column) }),
 							}
 						}
 						// If the identifier has a open parenthesis to the right, do nothing, we will parse it once we get to the matching closing parenthesis
@@ -219,7 +225,7 @@ impl Expression {
 			last_token = Some(token);
 		}
 		if parentheses_depth > 0 {
-			return Err(Error::MoreLeftParenthesesThanRightParentheses(last_token.unwrap().end_column));
+			return Err(Error { variant: ErrorVariant::MoreLeftParenthesesThanRightParentheses, line_number: None, column_number: Some(last_token.unwrap().end_column) });
 		}
 		// Parse operators
 		'a: loop {
@@ -330,6 +336,29 @@ impl Expression {
 				};
 				continue 'a;
 			}
+			// Concatenation
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("&"), start_column, .. }) => *start_column,
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Concatenation(Box::new(left_expression), Box::new(right_expression)), column });
+				continue 'a;
+			}
 			// Comparison
 			'b: for index in 0..maybe_parsed_tokens.len() {
 				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
@@ -436,34 +465,12 @@ impl Expression {
 				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Or(Box::new(left_expression), Box::new(right_expression)), column });
 				continue 'a;
 			}
-			// Concatenation
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("&"), start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Concatenation(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
 			break 'a;
 		}
 		for maybe_parsed_token in maybe_parsed_tokens.iter() {
 			match maybe_parsed_token {
-				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error::InvalidOperator(*start_column)),
+				//MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error::InvalidOperator(*start_column)),
+				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::InvalidOperator, line_number: None, column_number: Some(*start_column) }),
 				_ => {}
 			}
 		}
@@ -657,8 +664,8 @@ impl Expression {
 
 #[derive(Debug)]
 pub enum ExpressionVariant {
-	StringLiteral(Box<str>),
-	IntegerLiteral(BigInt),
+	StringLiteral(Rc<String>),
+	IntegerLiteral(Rc<BigInt>),
 	FloatLiteral { value: f64, is_imaginary: bool },
 	PrintComma,
 	PrintSemicolon,

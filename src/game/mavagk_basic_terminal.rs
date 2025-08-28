@@ -16,7 +16,7 @@ impl Game for MavagkBasicTerminal {
 		if line.starts_with("tokens ") {
 			let tokens = match Token::tokenize_line(&line[7..]) {
 				Err(error) => {
-					println!("Basic error {error}");
+					println!("Basic error{error}");
 					return Ok(());
 				},
 				Ok(tokens) => tokens,
@@ -27,14 +27,14 @@ impl Game for MavagkBasicTerminal {
 		if line.starts_with("ast ") {
 			let (_line, tokens) = match Token::tokenize_line(&line[4..]) {
 				Err(error) => {
-					println!("Basic error {error}");
+					println!("Basic error{error}");
 					return Ok(());
 				},
 				Ok(tokens) => tokens,
 			};
 			let trees = match parse_line(&*tokens) {
 				Err(error) => {
-					println!("Basic error {error}");
+					println!("Basic error{error}");
 					return Ok(());
 				},
 				Ok(tokens) => tokens,
@@ -45,7 +45,7 @@ impl Game for MavagkBasicTerminal {
 			return Ok(());
 		}
 		if let Err(error) = self.machine.line_of_text_entered(line, &mut self.program) {
-			println!("Basic error {error}");
+			println!("Basic error{error}");
 		}
 		Ok(())
 	}

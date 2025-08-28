@@ -1,8 +1,8 @@
-use std::{fmt::{self, Display, Formatter}, rc::Rc};
+use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
 
-use num::{complex::Complex64, BigInt};
+use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::Error, program::Program, token::Token};
+use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::Token};
 
 pub struct Machine {
 	is_executing_unnumbered_line: bool,
@@ -52,7 +52,7 @@ impl Machine {
 				true => &program.unnumbered_line,
 				false => match program.lines.get(&self.line_executing) {
 					Some(line) => &line.0,
-					None => return Err(Error::InvalidLineNumber(self.line_executing.clone())),
+					None => return Err(Error { variant: ErrorVariant::InvalidLineNumber, line_number: Some(line_number.cloned().unwrap()), column_number: None })
 				}
 			};
 			// Execute statements
@@ -81,24 +81,107 @@ impl Machine {
 	fn execute_expression(&self, expression: &Expression, line_number: Option<&BigInt>) -> Result<Value, Error> {
 		let Expression { variant, column } = expression;
 		Ok(match variant {
-			ExpressionVariant::StringLiteral(string) => Value::String((&**string).into()),
-			ExpressionVariant::IntegerLiteral(value) => Value::Int(Rc::new(value.clone())),
+			ExpressionVariant::StringLiteral(string) => Value::String(string.clone()),
+			ExpressionVariant::IntegerLiteral(value) => Value::Int(value.clone()),
 			ExpressionVariant::FloatLiteral { value, is_imaginary } => match is_imaginary {
 				false => Value::Float(*value),
 				true => Value::Complex(Complex64::new(0., *value)),
 			}
-			_ => return Err(Error::NotYetImplemented(line_number.cloned(), *column, "Other expressions".into()))
+			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line_number.cloned(), column_number: Some(*column) })
 		})
 	}
 }
 
 #[derive(Clone)]
-enum Value {
+pub enum Value {
 	Int(Rc<BigInt>),
 	Float(f64),
 	Bool(bool),
 	Complex(Complex64),
-	String(Rc<str>),
+	String(Rc<String>),
+}
+
+impl Value {
+	fn upcast(self, rhs: Self) -> Result<(Self, Self), Error> {
+		Ok(match (&self, &rhs) {
+			// Two of the same type
+			(Self::Float(_), Self::Float(_)) | (Self::Int(_), Self::Int(_)) | (Self::Complex(_), Self::Complex(_)) | (Self::Bool(_), Self::Bool(_)) | (Self::String(_), Self::String(_)) => (self, rhs),
+			// To int
+			(Self::Int(_), Self::Bool(_)) => (self, rhs.cast_to_int()?),
+			(Self::Bool(_), Self::Int(_)) => (self.cast_to_int()?, rhs),
+			// To float
+			(Self::Float(_), Self::Bool(_) | Self::Int(_)) => (self, rhs.cast_to_float()?),
+			(Self::Bool(_) | Self::Int(_), Self::Float(_)) => (self.cast_to_float()?, rhs),
+			// To complex
+			(Self::Complex(_), Self::Bool(_) | Self::Int(_) | Self::Float(_)) => (self, rhs.cast_to_complex()?),
+			(Self::Bool(_) | Self::Int(_) | Self::Float(_), Self::Complex(_)) => (self.cast_to_complex()?, rhs),
+			_ => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+		})
+	}
+
+	fn cast_to_int(self) -> Result<Self, Error> {
+		Ok(match self {
+			Self::Bool(value) => Self::Int(Rc::new(BigInt::from_u8(value as u8).unwrap())),
+			Self::Int(_) => self,
+			Self::Float(value) => Self::Int(Rc::new(match BigInt::from_f64(value) {
+				Some(value) => value,
+				None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: None, column_number: None }),
+			})),
+			Self::Complex(Complex { re, im }) => match im == 0. {
+				true => Self::Int(Rc::new(match BigInt::from_f64(re) {
+					Some(value) => value,
+					None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(self), line_number: None, column_number: None }),
+				})),
+				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: None, column_number: None }),
+			}
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+		})
+	}
+
+	fn cast_to_float(self) -> Result<Self, Error> {
+		Ok(match self {
+			Self::Bool(value) => Self::Float(value as u8 as f64),
+			Self::Int(value) => Self::Float(match (&*value).to_i128() {
+				Some(int_value) => int_value as f64,
+				None => match &*value > &BigInt::ZERO {
+					true => INFINITY,
+					false => NEG_INFINITY,
+				}
+			}),
+			Self::Float(_) => self,
+			Self::Complex(Complex { re, im }) => match im == 0. {
+				true => Self::Float(re),
+				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: None, column_number: None }),
+			}
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+		})
+	}
+
+	fn cast_to_complex(self) -> Result<Self, Error> {
+		Ok(match self {
+			Self::Bool(value) => Self::Complex(Complex { re: value as u8 as f64, im: 0. }),
+			Self::Int(value) => Self::Complex(Complex { re: match (&*value).to_i128() {
+				Some(int_value) => int_value as f64,
+				None => match &*value > &BigInt::ZERO {
+					true => INFINITY,
+					false => NEG_INFINITY,
+				}
+			}, im: 0. }),
+			Self::Float(value) => Self::Complex(Complex { re: value, im: 0. }),
+			Self::Complex(_) => self,
+			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: None, column_number: None }),
+		})
+	}
+
+	pub fn get_type_name(&self) -> &'static str {
+		match self {
+			Self::Bool(_) => "boolean",
+			Self::Float(_) => "float",
+			Self::Int(_) => "integer",
+			Self::String(_) => "string",
+			Self::Complex(_) => "complex",
+		}
+	}
 }
 
 impl Display for Value {
