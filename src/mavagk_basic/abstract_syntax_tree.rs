@@ -24,8 +24,65 @@ impl Statement {
 			Some(token) => token,
 			None => return Ok(None),
 		};
+		// Parse assignments without LET
+		'a: {
+			// Check if this a non-LET assignment
+			let l_value_length = Expression::get_l_value_length(tokens);
+			if l_value_length == 0 {
+				break 'a;
+			}
+			let equal_sign_end_column = match tokens.get(l_value_length) {
+				None => break 'a,
+				Some(Token { variant: TokenVariant::Operator("="), end_column, .. }) => *end_column,
+				_ => break 'a,
+			};
+			// Get l-value
+			let l_value_expression;
+			(l_value_expression, _) = Expression::parse(&tokens[..l_value_length], identifier_token.end_column)?.unwrap();
+			// Get r-value expression
+				let r_value_expression;
+				let remaining_tokens;
+				(r_value_expression, remaining_tokens) = match Expression::parse(&tokens[l_value_length + 1..], equal_sign_end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(equal_sign_end_column) }),
+					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+				};
+				if remaining_tokens.len() != 0 {
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+				}
+
+				return Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)));
+		}
 		// Parse depending on keyword
 		match identifier_token.variant {
+			// LET
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } if name.eq_ignore_ascii_case("let") => {
+				let mut remaining_tokens = &tokens[1..];
+				// Get l-value expression
+				let l_value_length = Expression::get_l_value_length(remaining_tokens);
+				let l_value_expression;
+				(l_value_expression, _) = match Expression::parse(&remaining_tokens[..l_value_length], identifier_token.end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(tokens[0].end_column) }),
+					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+				};
+				remaining_tokens = &remaining_tokens[l_value_length..];
+				// Expect equal sign
+				let equal_sign_end_column = match remaining_tokens.get(0) {
+					Some(Token { variant: TokenVariant::Operator("="), end_column, .. }) => *end_column,
+					Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(*start_column) }),
+					None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(tokens[l_value_length].end_column) }),
+				};
+				// Get r-value expression
+				let r_value_expression;
+				(r_value_expression, remaining_tokens) = match Expression::parse(&remaining_tokens[1..], equal_sign_end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(equal_sign_end_column) }),
+					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+				};
+				if remaining_tokens.len() != 0 {
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+				}
+
+				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)))
+			}
 			// PRINT
 			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } if name.eq_ignore_ascii_case("print") => {
 				let mut remaining_tokens = &tokens[1..];
@@ -101,32 +158,38 @@ impl Statement {
 		print!(" {:03}: ", self.column);
 		match &self.variant {
 			StatementVariant::Print(arguments) => {
-				print!("Print");
+				print!("PRINT");
 				println!();
 				for argument in arguments {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::Run(argument) => {
-				print!("Run");
+				print!("RUN");
 				println!();
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::Goto(argument) => {
-				print!("Goto");
+				print!("GOTO");
 				println!();
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::Gosub(argument) => {
-				print!("Gosub");
+				print!("GOSUB");
 				println!();
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
+			}
+			StatementVariant::Assign(l_value, r_value) => {
+				print!("LET");
+				println!();
+				l_value.print(depth + 1);
+				r_value.print(depth + 1);
 			}
 		}
 	}
@@ -138,6 +201,7 @@ pub enum StatementVariant {
 	Run(Option<Expression>),
 	Goto(Option<Expression>),
 	Gosub(Option<Expression>),
+	Assign(Expression, Expression),
 }
 
 #[derive(Debug)]
@@ -240,9 +304,9 @@ impl Expression {
 					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
 				}
 				// Literals should be copied across
-				TokenVariant::StringLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(Rc::new((*value).into())), column: token.start_column })),
-				TokenVariant::IntegerLiteral(value) => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: token.start_column})),
-				TokenVariant::FloatLiteral { value, is_imaginary } => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
+				TokenVariant::StringLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(Rc::new((*value).into())), column: token.start_column })),
+				TokenVariant::IntegerLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: token.start_column})),
+				TokenVariant::FloatLiteral { value, is_imaginary } if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
 				// Identifiers
 				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
 					match () {
@@ -264,7 +328,7 @@ impl Expression {
 						}
 					}
 				}
-				_ => {}//return Err(Error::NotYetImplemented(None, start_column, "other expressions".into())),
+				_ => {}
 			}
 			last_token = Some(token);
 		}
@@ -533,7 +597,7 @@ impl Expression {
 	/// `expression = operand (binary-operator operand)*`
 	///
 	/// `operand = unary-operator operand / (fn-keyword? identifier)? left-parenthesis parentheses-content right-parenthesis`
-	fn get_expression_length<'a>(tokens: &[Token<'a>]) -> usize {
+	pub fn get_expression_length<'a>(tokens: &[Token<'a>]) -> usize {
 		let mut last_token: Option<&TokenVariant<'_>> = None;
 		let mut parenthesis_depth = 0usize;
 		for (index, token) in tokens.iter().enumerate() {
@@ -559,6 +623,30 @@ impl Expression {
 				}
 			}
 			last_token = Some(&token.variant);
+		}
+		tokens.len()
+	}
+
+	pub fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
+		let mut parenthesis_depth = 0usize;
+		for (index, token) in tokens.iter().enumerate() {
+			if matches!(token.variant, TokenVariant::LeftParenthesis) {
+				parenthesis_depth += 1;
+			}
+			if matches!(token.variant, TokenVariant::RightParenthesis) {
+				parenthesis_depth = parenthesis_depth.saturating_sub(1);
+				if parenthesis_depth == 0 {
+					return index + 1;
+				}
+			}
+			if index == 1 && !matches!(token, Token { variant: TokenVariant::LeftParenthesis, .. }) {
+					return index;
+				}
+			if parenthesis_depth == 0 {
+				if !matches!(token, Token { variant: TokenVariant::Identifier { .. }, .. }) {
+					return index;
+				}
+			}
 		}
 		tokens.len()
 	}

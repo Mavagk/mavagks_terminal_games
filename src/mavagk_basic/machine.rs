@@ -96,6 +96,7 @@ impl Machine {
 						continue 'lines_loop;
 					}
 					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
+					StatementVariant::Assign(_, _) => todo!(),
 				}
 			}
 			// Decide what to execute next

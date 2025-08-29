@@ -53,6 +53,7 @@ pub enum ErrorVariant {
 	CannotUseThisOperatorOnAString,
 	CannotConcatenateNumbers,
 	FlooredDivisionByZero,
+	ExpectedEqualSign,
 }
 
 impl Display for ErrorVariant {
@@ -77,6 +78,7 @@ impl Display for ErrorVariant {
 			Self::CannotConcatenateNumbers => write!(f, "Cannot concatenate numbers."),
 			Self::CannotUseThisOperatorOnAString => write!(f, "Cannot use this operator on a string."),
 			Self::FlooredDivisionByZero => write!(f, "Floored division by zero."),
+			Self::ExpectedEqualSign => write!(f, "Expected equal sign."),
 		}
 	}
 }
