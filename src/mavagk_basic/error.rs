@@ -49,11 +49,14 @@ pub enum ErrorVariant {
 	NonNumberValueCastToInt(Value),
 	NonRealComplexValueCastToReal(Value),
 	StringCastToNumber,
+	NumberCastToString,
 	StatementShouldEnd,
 	CannotUseThisOperatorOnAString,
 	CannotConcatenateNumbers,
 	FlooredDivisionByZero,
 	ExpectedEqualSign,
+	InvalidLValue,
+	VariableNotFound,
 }
 
 impl Display for ErrorVariant {
@@ -74,11 +77,14 @@ impl Display for ErrorVariant {
 			Self::NonNumberValueCastToInt(value) => write!(f, "Non-number {} value {value} cast to int.", value.get_type_name()),
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
+			Self::NumberCastToString => write!(f, "Number cast to string."),
 			Self::StatementShouldEnd => write!(f, "Statement should end."),
 			Self::CannotConcatenateNumbers => write!(f, "Cannot concatenate numbers."),
 			Self::CannotUseThisOperatorOnAString => write!(f, "Cannot use this operator on a string."),
 			Self::FlooredDivisionByZero => write!(f, "Floored division by zero."),
 			Self::ExpectedEqualSign => write!(f, "Expected equal sign."),
+			Self::InvalidLValue => write!(f, "Invalid l-value."),
+			Self::VariableNotFound => write!(f, "Variable not found."),
 		}
 	}
 }

@@ -1,12 +1,16 @@
-use std::{f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::NonZeroUsize, rc::Rc};
+use std::{collections::HashMap, f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::Token};
+use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
 
 pub struct Machine {
 	is_executing_unnumbered_line: bool,
 	line_executing: BigInt,
+	float_variables: HashMap<Box<str>, f64>,
+	complex_variables: HashMap<Box<str>, Complex64>,
+	int_variables: HashMap<Box<str>, Rc<BigInt>>,
+	string_variables: HashMap<Box<str>, Rc<String>>,
 }
 
 impl Machine {
@@ -14,6 +18,10 @@ impl Machine {
 		Self {
 			is_executing_unnumbered_line: false,
 			line_executing: 0.into(),
+			int_variables: HashMap::new(),
+			float_variables: HashMap::new(),
+			complex_variables: HashMap::new(),
+			string_variables: HashMap::new(),
 		}
 	}
 
@@ -27,6 +35,10 @@ impl Machine {
 
 	fn clear_machine_state(&mut self) {
 		// TODO
+		self.int_variables = HashMap::new();
+		self.float_variables = HashMap::new();
+		self.complex_variables = HashMap::new();
+		self.string_variables = HashMap::new();
 	}
 
 	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
@@ -96,7 +108,36 @@ impl Machine {
 						continue 'lines_loop;
 					}
 					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
-					StatementVariant::Assign(_, _) => todo!(),
+					StatementVariant::Assign(l_value, r_value_expression) => {
+						// Get what to assign to
+						let (name, identifier_type, is_optional, _arguments, has_parentheses) = match l_value {
+							Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments, uses_fn_keyword: false, has_parentheses }, .. } => (name, *identifier_type, *is_optional, arguments, *has_parentheses),
+							Expression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
+						};
+						// Get r-value
+						let r_value = Self::execute_expression(&self, r_value_expression, line_number)?;
+						// Assign
+						if has_parentheses {
+							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column) });
+						}
+						if is_optional {
+							return Err(Error { variant: ErrorVariant::NotYetImplemented("Optionals".into()), line_number: line_number.cloned(), column_number: Some(*column) });
+						}
+						match identifier_type {
+							IdentifierType::Integer => {
+								self.int_variables.insert(name.clone(), r_value.cast_to_int(line_number, r_value_expression.column)?.unwrap_int());
+							}
+							IdentifierType::UnmarkedNumber => {
+								self.float_variables.insert(name.clone(), r_value.cast_to_float(line_number, r_value_expression.column)?.unwrap_float());
+							}
+							IdentifierType::ComplexNumber => {
+								self.complex_variables.insert(name.clone(), r_value.cast_to_complex(line_number, r_value_expression.column)?.unwrap_complex());
+							}
+							IdentifierType::String => {
+								self.string_variables.insert(name.clone(), r_value.cast_to_string(line_number, r_value_expression.column)?.unwrap_string());
+							}
+						};
+					}
 				}
 			}
 			// Decide what to execute next
@@ -239,6 +280,32 @@ impl Machine {
 				}
 			}
 			ExpressionVariant::UnaryPlus(sub_expression) => self.execute_expression(&sub_expression, line)?,
+			ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments: _, uses_fn_keyword, has_parentheses } => {
+				if *has_parentheses || *uses_fn_keyword {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line.cloned(), column_number: Some(*column) });
+				}
+				if *is_optional {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Optionals".into()), line_number: line.cloned(), column_number: Some(*column) });
+				}
+				match identifier_type {
+					IdentifierType::Integer => match self.int_variables.get(name) {
+						Some(int_variable) => Value::Int(int_variable.clone()),
+						None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					IdentifierType::UnmarkedNumber => match self.float_variables.get(name) {
+						Some(float_variable) => Value::Float(*float_variable),
+						None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					IdentifierType::ComplexNumber => match self.complex_variables.get(name) {
+						Some(complex_variable) => Value::Complex(*complex_variable),
+						None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					IdentifierType::String => match self.string_variables.get(name) {
+						Some(string_variable) => Value::String(string_variable.clone()),
+						None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line.cloned(), column_number: Some(*column) }),
+					}
+				}
+			}
 			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
 		})
 	}
@@ -287,6 +354,13 @@ impl Value {
 				false => return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self), line_number: line_number.cloned(), column_number: Some(column_number) }),
 			}
 			Self::String(_) => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
+		})
+	}
+
+	fn cast_to_string(self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<Self, Error> {
+		Ok(match self {
+			Self::String(_) => self,
+			_ => return Err(Error { variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(column_number) }),
 		})
 	}
 
