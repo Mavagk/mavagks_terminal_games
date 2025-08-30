@@ -628,4 +628,39 @@ mod tests {
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
 		);
 	}
+
+	#[test]
+	fn test_tokenize_line() {
+		let tokens = Token::tokenize_line("10 PRINT 10 + 8").unwrap();
+		assert_eq!(tokens.0, Some(10.into()));
+		assert_eq!(tokens.1.len(), 4);
+		assert_eq!(tokens.1[0], Token {
+			variant: TokenVariant::Identifier { name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column: 4.try_into().unwrap(), end_column: 9.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[1], Token {
+			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 10.try_into().unwrap(), end_column: 12.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[2], Token {
+			variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column: 13.try_into().unwrap(), end_column: 14.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[3], Token {
+			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 15.try_into().unwrap(), end_column: 16.try_into().unwrap()
+		});
+
+		let tokens = Token::tokenize_line("PRINT 10 + 8").unwrap();
+		assert_eq!(tokens.0, None);
+		assert_eq!(tokens.1.len(), 4);
+		assert_eq!(tokens.1[0], Token {
+			variant: TokenVariant::Identifier { name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[1], Token {
+			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 7.try_into().unwrap(), end_column: 9.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[2], Token {
+			variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column: 10.try_into().unwrap(), end_column: 11.try_into().unwrap()
+		});
+		assert_eq!(tokens.1[3], Token {
+			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 12.try_into().unwrap(), end_column: 13.try_into().unwrap()
+		});
+	}
 }
