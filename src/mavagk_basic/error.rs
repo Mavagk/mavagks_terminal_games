@@ -35,6 +35,7 @@ impl Display for Error {
 
 pub enum ErrorVariant {
 	InvalidTokenFirstChar(char),
+	InvalidToken,
 	NotYetImplemented(String),
 	MalformedLineNumber(String),
 	ExpectedExpression,
@@ -45,6 +46,7 @@ pub enum ErrorVariant {
 	ParenthesesDoNotContainOneExpression,
 	FunctionArgumentsNotCommaSeparated,
 	InvalidOperator,
+	InvalidOperatorSymbol,
 	InvalidLineNumber,
 	NonNumberValueCastToInt(Value),
 	NonRealComplexValueCastToReal(Value),
@@ -73,6 +75,7 @@ impl Display for ErrorVariant {
 			Self::ParenthesesDoNotContainOneExpression => write!(f, "Parentheses do not contain one expression that takes up the entire parenthesised area."),
 			Self::FunctionArgumentsNotCommaSeparated => write!(f, "Function parentheses do not contain a comma separated list of arguments."),
 			Self::InvalidOperator => write!(f, "Invalid operator."),
+			Self::InvalidOperatorSymbol => write!(f, "Invalid operator symbol."),
 			Self::InvalidLineNumber => write!(f, "Line not found."),
 			Self::NonNumberValueCastToInt(value) => write!(f, "Non-number {} value {value} cast to int.", value.get_type_name()),
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
@@ -85,6 +88,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedEqualSign => write!(f, "Expected equal sign."),
 			Self::InvalidLValue => write!(f, "Invalid l-value."),
 			Self::VariableNotFound => write!(f, "Variable not found."),
+			Self::InvalidToken => write!(f, "Invalid token."),
 		}
 	}
 }

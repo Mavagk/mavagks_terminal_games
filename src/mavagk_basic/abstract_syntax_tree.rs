@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Token, TokenVariant}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, OperatorSymbol, Token, TokenVariant}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -33,7 +33,7 @@ impl Statement {
 			}
 			let equal_sign_end_column = match tokens.get(l_value_length) {
 				None => break 'a,
-				Some(Token { variant: TokenVariant::Operator("="), end_column, .. }) => *end_column,
+				Some(Token { variant: TokenVariant::Operator(OperatorSymbol::Equal), end_column, .. }) => *end_column,
 				_ => break 'a,
 			};
 			// Get l-value
@@ -67,7 +67,7 @@ impl Statement {
 				remaining_tokens = &remaining_tokens[l_value_length..];
 				// Expect equal sign
 				let equal_sign_end_column = match remaining_tokens.get(0) {
-					Some(Token { variant: TokenVariant::Operator("="), end_column, .. }) => *end_column,
+					Some(Token { variant: TokenVariant::Operator(OperatorSymbol::Equal), end_column, .. }) => *end_column,
 					Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(*start_column) }),
 					None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(tokens[l_value_length].end_column) }),
 				};
@@ -343,7 +343,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("↑" | "^"), start_column, .. }) => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Caret), start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -366,8 +366,8 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, is_plus) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("-"), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("+"), start_column, .. }) => (*start_column, true),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Minus), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column, .. }) => (*start_column, true),
 					_ => continue 'b,
 				};
 				match index.checked_sub(1) {
@@ -396,7 +396,7 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, chr) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr), start_column, .. }) if matches!(*chr, "*" | "/" | "\\") => (*start_column, *chr),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr), start_column, .. }) if matches!(*chr, OperatorSymbol::Asterisk | OperatorSymbol::Slash | OperatorSymbol::DoubleSlash) => (*start_column, *chr),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -411,11 +411,34 @@ impl Expression {
 					_ => unreachable!(),
 				};
 				maybe_parsed_tokens[index - 1] = match chr {
-					"*" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
-					"/" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
-					"\\" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::Asterisk => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::Slash => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::DoubleSlash => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
 					_ => unreachable!(),
 				};
+				continue 'a;
+			}
+			// Floored Division
+			'b: for index in 0..maybe_parsed_tokens.len() {
+				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
+					continue 'b;
+				}
+				let column = match maybe_parsed_tokens[index] {
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Backslash), start_column, .. }) => *start_column,
+					_ => continue 'b,
+				};
+				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
+					continue 'b;
+				}
+				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				let right_expression = match maybe_parsed_tokens.remove(index) {
+					MaybeParsedToken::Expression(expression) => expression,
+					_ => unreachable!(),
+				};
+				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column });
 				continue 'a;
 			}
 			// Addition and subtraction
@@ -424,8 +447,8 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, is_subtraction) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("+"), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("-"), start_column, .. }) => (*start_column, true),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Minus), start_column, .. }) => (*start_column, true),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -451,7 +474,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator("&"), start_column, .. }) => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Ampersand), start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -474,7 +497,7 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, operator) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator), start_column, .. }) if matches!(*operator, "<" | "<=" | ">" | ">=" | "=" | "<>" | "=<" | "=>" | "><") => (*start_column, *operator),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator), start_column, .. }) if matches!(*operator, OperatorSymbol::Equal | OperatorSymbol::NotEqual | OperatorSymbol::LessThan | OperatorSymbol::LessThanEqual | OperatorSymbol::GreaterThan | OperatorSymbol::GreaterThanEqual) => (*start_column, *operator),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -489,12 +512,12 @@ impl Expression {
 					_ => unreachable!(),
 				};
 				maybe_parsed_tokens[index - 1] = match operator {
-					"<" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					"<=" | "=<" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					">" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					">=" | "=>" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					"=" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					"<>" | "><" => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::LessThan => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::LessThanEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::GreaterThan => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::GreaterThanEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::Equal => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					OperatorSymbol::NotEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
 					_ => unreachable!(),
 				};
 				continue 'a;

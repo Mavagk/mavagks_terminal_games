@@ -13,7 +13,7 @@ pub struct Token<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum TokenVariant<'a> {
-	Operator(&'a str),
+	Operator(OperatorSymbol),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
 	IntegerLiteral(BigInt),
@@ -31,25 +31,44 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(Self, &'a str)>, Error> {
+	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
 		// Return if we are at the end of the non-comment portion of the line
-		if line_starting_with_token.is_empty() || !line_starting_with_token.get(0..=2).is_none_or(|st| !st.eq_ignore_ascii_case("rem")) {
+		if line_starting_with_token.is_empty() || !line_starting_with_token.get(0..=2).is_none_or(|chars| !chars.eq_ignore_ascii_case("rem")) {
 			return Ok(None);
 		}
 		// Parse token
 		let first_char = line_starting_with_token.chars().next().unwrap();
 		let (variant, rest_of_string_with_token_removed) = match first_char {
-			// Operator
+			// Operators
 			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' | '\\' => {
+				// Get the operator chars
 				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '<' | '=' | '>')) {
 					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
 					None => line_starting_with_token.len(),
 				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
-				(TokenVariant::Operator(token_string), rest_of_string_with_token_removed)
+				// Decide what operator symbol this is
+				let operator_symbol = match token_string {
+					"+" => OperatorSymbol::Plus,
+					"-" => OperatorSymbol::Minus,
+					"*" => OperatorSymbol::Asterisk,
+					"/" => OperatorSymbol::Slash,
+					"//" => OperatorSymbol::DoubleSlash,
+					"^" | "↑" => OperatorSymbol::Caret,
+					"=" => OperatorSymbol::Equal,
+					"<>" | "><" => OperatorSymbol::NotEqual,
+					"<" => OperatorSymbol::LessThan,
+					"<=" | "=<" => OperatorSymbol::LessThanEqual,
+					">" => OperatorSymbol::GreaterThan,
+					">=" | "=>" => OperatorSymbol::GreaterThanEqual,
+					"&" => OperatorSymbol::Ampersand,
+					"\\" => OperatorSymbol::Backslash,
+					_ => return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column) }),
+				};
+				(TokenVariant::Operator(operator_symbol), rest_of_string_with_token_removed)
 			}
 			// Separators
 			'(' => (TokenVariant::LeftParenthesis, &line_starting_with_token[1..]),
@@ -117,7 +136,7 @@ impl<'a> Token<'a> {
 					None => fractional_part,
 				};
 				// Read exrad
-				let mut exponent = None;
+				let mut exponent = BigInt::ZERO;
 				if base != NumericBase::Hexadecimal && line_after_token_read.starts_with(|first_char| matches!(first_char, 'e' | 'E')) {
 					length_of_token_in_bytes += 1;
 					line_after_token_read = &line_after_token_read[1..];
@@ -139,27 +158,22 @@ impl<'a> Token<'a> {
 					let exponent_after_sign;
 					(exponent_after_sign, line_after_token_read) = line_after_token_read.split_at(length_of_exponent_integer);
 					// Convert exponent parts to big int
-					let exrad_being_constructed: BigInt = match BigInt::from_str_radix(exponent_after_sign, base.radix() as u32) {
+					let exponent_being_constructed: BigInt = match BigInt::from_str_radix(exponent_after_sign, base.radix() as u32) {
 						Err(..) => BigInt::ZERO,
 						Ok(exrad_being_constructed) => exrad_being_constructed,
 					};
-					exponent = Some(match exponent_is_negative {
-						true => -exrad_being_constructed,
-						false => exrad_being_constructed,
-					})
+					exponent = match exponent_is_negative {
+						true => -exponent_being_constructed,
+						false => exponent_being_constructed,
+					};
 				}
 				// Read imaginary multiplier
 				let mut is_imaginary = false;
 				if line_after_token_read.starts_with(|first_char| matches!(first_char, 'i' | 'I')) {
 					is_imaginary = true;
 					length_of_token_in_bytes += 1;
-					//line_after_token_read = &line_after_token_read[1..];
 				}
-
-				let exponent = match exponent {
-					Some(exponent) => exponent,
-					None => BigInt::ZERO,
-				};
+				// Convert the parts of the numeric literal we read to a token
 				match !is_imaginary && exponent == BigInt::ZERO && fractional_part.len() == 0 {
 					// If the number should be an integer
 					true => {
@@ -189,43 +203,45 @@ impl<'a> Token<'a> {
 			// Strings
 			'"' => {
 				match line_starting_with_token[1..].find('"') {
-					Some(double_quote_index_in_bytes) => (TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
+					Some(double_quote_index_in_bytes) =>
+						(TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
 					None => (TokenVariant::StringLiteral(&line_starting_with_token[1..]), ""),
 				}
 			}
 			// TODO: Quoteless string literals in DATA statements
-			// TODO
-			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other tokens".into()), line_number: None, column_number: Some(start_column) })
+			_ => return Err(Error { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column) })
 		};
-		// Return
+		// Get the end column of the char
 		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
 		let token_length_in_chars = line_starting_with_token[..token_length_in_bytes].chars().count();
-		Ok(Some((Self { variant, start_column, end_column: start_column.saturating_add(token_length_in_chars) }, rest_of_string_with_token_removed)))
+		let end_column = start_column.saturating_add(token_length_in_chars);
+		// Return
+		Ok(Some((Self { variant, start_column, end_column }, rest_of_string_with_token_removed)))
 	}
 
-	/// Takes in a line of basic code in text form. Converts it into a list of tokens.
-	pub fn tokenize_line(mut line: &'a str) -> Result<(Option<BigInt>, Box<[Self]>), Error> {
+	/// Takes in a line of basic code in text form. Converts it into a (line number, list of tokens) pair.
+	pub fn tokenize_line(mut line_text: &'a str) -> Result<(Option<BigInt>, Box<[Self]>), Error> {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
-		let line_number = match line.chars().next() {
+		let line_number = match line_text.chars().next() {
 			Some('0'..='9' | '-') => {
-				let length_of_line_number = line.find(|chr| !matches!(chr, '0'..='9' | '-')).unwrap_or_else(|| line.len());
+				let length_of_line_number = line_text.find(|chr| !matches!(chr, '0'..='9' | '-')).unwrap_or_else(|| line_text.len());
 				let line_number_string;
-				(line_number_string, line) = line.split_at(length_of_line_number);
+				(line_number_string, line_text) = line_text.split_at(length_of_line_number);
 				column_number = column_number.saturating_add(length_of_line_number);
 				Some(line_number_string.parse::<BigInt>().map_err(|_| Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })?)
 			}
 			_ => None,
 		};
-		// Parse tokens
+		// Parse tokens from line until there are none left
 		let mut tokens = Vec::new();
 		loop {
-			let (token, remaining_string) = match Self::parse_token_from_str(line, column_number)? {
+			let (token, remaining_string) = match Self::parse_token_from_str(line_text, column_number, line_number.as_ref())? {
 				None => break,
 				Some(result) => result,
 			};
 			column_number = token.end_column;
-			line = remaining_string;
+			line_text = remaining_string;
 			tokens.push(token);
 		}
 		// Return
@@ -244,7 +260,7 @@ impl<'a> TokenVariant<'a> {
 
 	pub fn is_unary_operator(&self) -> bool {
 		match self {
-			TokenVariant::Operator("-" | "+") => true,
+			TokenVariant::Operator(OperatorSymbol::Minus | OperatorSymbol::Plus) => true,
 			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } => name.eq_ignore_ascii_case("not"),
 			_ => false,
 		}
@@ -282,4 +298,22 @@ impl NumericBase {
 			NumericBase::Hexadecimal => 16,
 		}
 	}
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum OperatorSymbol {
+	Plus,
+	Minus,
+	Slash,
+	Asterisk,
+	Caret,
+	LessThan,
+	LessThanEqual,
+	GreaterThan,
+	GreaterThanEqual,
+	Equal,
+	NotEqual,
+	Ampersand,
+	Backslash,
+	DoubleSlash,
 }
