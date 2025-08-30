@@ -16,7 +16,6 @@ pub enum TokenVariant<'a> {
 	Operator(&'a str),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
-	//NumericLiteral { base: NumericBase, integer_part: &'a str, fractional_part: &'a str, exponent: BigInt, is_imaginary: bool },
 	IntegerLiteral(BigInt),
 	FloatLiteral { value: f64, is_imaginary: bool },
 	LeftParenthesis,
@@ -226,8 +225,6 @@ impl<'a> Token<'a> {
 				Some(result) => result,
 			};
 			column_number = token.end_column;
-			//let token_length_in_bytes = line.len() - remaining_string.len();
-			//column_number = column_number.saturating_add(line[..token_length_in_bytes].chars().count());
 			line = remaining_string;
 			tokens.push(token);
 		}
