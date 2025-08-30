@@ -4,6 +4,7 @@ use num::BigInt;
 
 use crate::mavagk_basic::machine::Value;
 
+#[derive(Debug)]
 pub struct Error {
 	pub variant: ErrorVariant,
 	pub line_number: Option<BigInt>,
@@ -33,6 +34,7 @@ impl Display for Error {
 	}
 }
 
+#[derive(Debug)]
 pub enum ErrorVariant {
 	InvalidTokenFirstChar(char),
 	InvalidToken,

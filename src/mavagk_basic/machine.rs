@@ -311,7 +311,7 @@ impl Machine {
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum Value {
 	Int(Rc<BigInt>),
 	Float(f64),

@@ -31,7 +31,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	fn parse_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, Error> {
+	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -90,7 +90,7 @@ impl<'a> Token<'a> {
 					_ if string_with_name_removed.starts_with("%") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::Integer, is_optional: false }, &string_with_name_removed[1..]),
 					_ if string_with_name_removed.starts_with("#?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: true }, &string_with_name_removed[2..]),
 					_ if string_with_name_removed.starts_with("#") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::ComplexNumber, is_optional: false }, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: true }, string_with_name_removed),
+					_ if string_with_name_removed.starts_with("?") => (TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: true }, &string_with_name_removed[1..]),
 					_ => (TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, string_with_name_removed),
 				}
 			}
@@ -236,7 +236,7 @@ impl<'a> Token<'a> {
 		// Parse tokens from line until there are none left
 		let mut tokens = Vec::new();
 		loop {
-			let (token, remaining_string) = match Self::parse_token_from_str(line_text, column_number, line_number.as_ref())? {
+			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, line_number.as_ref())? {
 				None => break,
 				Some(result) => result,
 			};
@@ -316,4 +316,90 @@ pub enum OperatorSymbol {
 	Ampersand,
 	Backslash,
 	DoubleSlash,
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_parse_single_token_from_str() {
+		// Empty string
+		assert_eq!(Token::parse_single_token_from_str("", 1.try_into().unwrap(), None).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str(" ", 1.try_into().unwrap(), None).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("rem", 1.try_into().unwrap(), None).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("ReM stuff after REM", 1.try_into().unwrap(), None).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("	ReM stuff after REM", 1.try_into().unwrap(), None).unwrap(), None);
+		// Identifiers
+		assert_eq!(
+			Token::parse_single_token_from_str("a", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false },
+				start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap()
+			}, ""))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("_num = 8.5", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "_num", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false },
+				start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap()
+			}, " = 8.5"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" var$", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "var", identifier_type: IdentifierType::String, is_optional: false },
+				start_column: 2.try_into().unwrap(), end_column: 6.try_into().unwrap()
+			}, ""))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("	my_iNt%0", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "my_iNt", identifier_type: IdentifierType::Integer, is_optional: false },
+				start_column: 2.try_into().unwrap(), end_column: 9.try_into().unwrap()
+			}, "0"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("		 MyComp# = 2i", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "MyComp", identifier_type: IdentifierType::ComplexNumber, is_optional: false },
+				start_column: 4.try_into().unwrap(), end_column: 11.try_into().unwrap()
+			}, " = 2i"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("a?=2E5", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedNumber, is_optional: true },
+				start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap()
+			}, "=2E5"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("a%?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true },
+				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
+			}, "(val)"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("a%?(val)", 10.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true },
+				start_column: 10.try_into().unwrap(), end_column: 13.try_into().unwrap()
+			}, "(val)"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("a$?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::String, is_optional: true },
+				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
+			}, "(val)"))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("a#?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::ComplexNumber, is_optional: true },
+				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
+			}, "(val)"))
+		);
+	}
 }
