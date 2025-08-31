@@ -55,7 +55,7 @@ impl Statement {
 		// Parse depending on keyword
 		match identifier_token.variant {
 			// LET
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } if name.eq_ignore_ascii_case("let") => {
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. } if name.eq_ignore_ascii_case("let") => {
 				let mut remaining_tokens = &tokens[1..];
 				// Get l-value expression
 				let l_value_length = Expression::get_l_value_length(remaining_tokens);
@@ -84,7 +84,7 @@ impl Statement {
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)))
 			}
 			// PRINT
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } if name.eq_ignore_ascii_case("print") => {
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. } if name.eq_ignore_ascii_case("print") => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expressions = Vec::new();
 				while !remaining_tokens.is_empty() {
@@ -112,7 +112,7 @@ impl Statement {
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 			}
 			// RUN / GOTO / GOSUB
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }
+			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }
 				if name.eq_ignore_ascii_case("run") || name.eq_ignore_ascii_case("goto") || name.eq_ignore_ascii_case("gosub") =>
 			{
 				let mut remaining_tokens = &tokens[1..];
@@ -253,7 +253,7 @@ impl Expression {
 						let is_fn_function = match start_parenthesis_index.checked_sub(2) {
 							None => false,
 							Some(token_index) => match &tokens[token_index] {
-								Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. } if name.eq_ignore_ascii_case("fn") => {
+								Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, start_column, .. } if name.eq_ignore_ascii_case("fn") => {
 									function_start_column = *start_column;
 									true
 								}
@@ -280,7 +280,7 @@ impl Expression {
 									}
 								}
 								let (name, identifier_type, is_optional) = match function_identifier {
-									Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional }, .. } => (*name, *identifier_type, *is_optional),
+									Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional, .. }, .. } => (*name, *identifier_type, *is_optional),
 									_ => unreachable!(),
 								};
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: name.into(), identifier_type, is_optional, arguments: function_arguments.into(), uses_fn_keyword: is_fn_function, has_parentheses: true }, column: function_start_column }));
@@ -308,10 +308,10 @@ impl Expression {
 				TokenVariant::IntegerLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: token.start_column})),
 				TokenVariant::FloatLiteral { value, is_imaginary } if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
 				// Identifiers
-				TokenVariant::Identifier { name, identifier_type, is_optional } if parentheses_depth == 0 => {
+				TokenVariant::Identifier { name, identifier_type, is_optional, .. } if parentheses_depth == 0 => {
 					match () {
 						// Ignore fn keywords or throw an error if they are not followed by an identifier.
-						_ if matches!(token, Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. } if name.eq_ignore_ascii_case("fn")) => {
+						_ if matches!(token, Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, .. } if name.eq_ignore_ascii_case("fn")) => {
 							match next_token {
 								Some(Token { variant: TokenVariant::Identifier { name: next_name, .. }, .. }) if !next_name.eq_ignore_ascii_case("fn") => {}
 								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: None, column_number: Some(start_column) }),
@@ -321,7 +321,7 @@ impl Expression {
 						_ if matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
 						_ => match last_token {
 							// If the last token was a "fn" keyword, this is a fn identifier without arguments
-							Some(Token { variant: TokenVariant::Identifier { name: last_token_name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, .. }) if last_token_name.eq_ignore_ascii_case("fn") =>
+							Some(Token { variant: TokenVariant::Identifier { name: last_token_name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, .. }) if last_token_name.eq_ignore_ascii_case("fn") =>
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
 							// Else it is a non-fn identifier
 							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
@@ -528,8 +528,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
-						if name.eq_ignore_ascii_case("not") => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { unary_operator: Some(UnaryOperator::Not), .. }, start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				match index.checked_sub(1) {
@@ -555,8 +554,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
-						if name.eq_ignore_ascii_case("and") => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { binary_operator: Some(BinaryOperator::And), .. }, start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -579,8 +577,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }, start_column, .. })
-						if name.eq_ignore_ascii_case("or") => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { binary_operator: Some(BinaryOperator::Or), .. }, start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -637,7 +634,7 @@ impl Expression {
 				if matches!(last_token, Some(TokenVariant::Identifier { .. } | TokenVariant::IntegerLiteral(..) | TokenVariant::FloatLiteral { .. } | TokenVariant::StringLiteral(..) | TokenVariant::RightParenthesis)) &&
 					matches!(token.variant, TokenVariant::Identifier { .. } | TokenVariant::IntegerLiteral(..) | TokenVariant::FloatLiteral { .. } | TokenVariant::StringLiteral(..)) &&
 					!last_token.unwrap().is_unary_operator() && !token.variant.is_binary_operator() && !last_token.unwrap().is_binary_operator() &&
-					!matches!(last_token, Some(TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false }) if name.eq_ignore_ascii_case("fn"))
+					!matches!(last_token, Some(TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }) if name.eq_ignore_ascii_case("fn"))
 				{
 					return index;
 				}
