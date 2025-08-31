@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, OperatorSymbol, Token, TokenVariant}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Token, TokenVariant}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -33,7 +33,7 @@ impl Statement {
 			}
 			let equal_sign_end_column = match tokens.get(l_value_length) {
 				None => break 'a,
-				Some(Token { variant: TokenVariant::Operator(OperatorSymbol::Equal), end_column, .. }) => *end_column,
+				Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), end_column, .. }) => *end_column,
 				_ => break 'a,
 			};
 			// Get l-value
@@ -67,7 +67,7 @@ impl Statement {
 				remaining_tokens = &remaining_tokens[l_value_length..];
 				// Expect equal sign
 				let equal_sign_end_column = match remaining_tokens.get(0) {
-					Some(Token { variant: TokenVariant::Operator(OperatorSymbol::Equal), end_column, .. }) => *end_column,
+					Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), end_column, .. }) => *end_column,
 					Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(*start_column) }),
 					None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(tokens[l_value_length].end_column) }),
 				};
@@ -343,7 +343,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Caret), start_column, .. }) => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Exponentiation), _), start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -366,8 +366,8 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, is_plus) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Minus), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column, .. }) => (*start_column, true),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(_, Some(UnaryOperator::Negation)), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(_, Some(UnaryOperator::UnaryPlus)), start_column, .. }) => (*start_column, true),
 					_ => continue 'b,
 				};
 				match index.checked_sub(1) {
@@ -396,7 +396,7 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, chr) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr), start_column, .. }) if matches!(*chr, OperatorSymbol::Asterisk | OperatorSymbol::Slash | OperatorSymbol::DoubleSlash) => (*start_column, *chr),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr, _), start_column, .. }) if matches!(*chr, Some(BinaryOperator::Multiplication | BinaryOperator::Division | BinaryOperator::DoubleSlash)) => (*start_column, *chr),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -411,9 +411,9 @@ impl Expression {
 					_ => unreachable!(),
 				};
 				maybe_parsed_tokens[index - 1] = match chr {
-					OperatorSymbol::Asterisk => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::Slash => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::DoubleSlash => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::Multiplication) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::Division) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::DoubleSlash) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
 					_ => unreachable!(),
 				};
 				continue 'a;
@@ -424,7 +424,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Backslash), start_column, .. }) => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::BackSlash), _), start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -447,8 +447,8 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, is_subtraction) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Minus), start_column, .. }) => (*start_column, true),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), _), start_column, .. }) => (*start_column, false),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Subtraction), _), start_column, .. }) => (*start_column, true),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -474,7 +474,7 @@ impl Expression {
 					continue 'b;
 				}
 				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(OperatorSymbol::Ampersand), start_column, .. }) => *start_column,
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Concatenation), _), start_column, .. }) => *start_column,
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -497,7 +497,7 @@ impl Expression {
 					continue 'b;
 				}
 				let (column, operator) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator), start_column, .. }) if matches!(*operator, OperatorSymbol::Equal | OperatorSymbol::NotEqual | OperatorSymbol::LessThan | OperatorSymbol::LessThanEqual | OperatorSymbol::GreaterThan | OperatorSymbol::GreaterThanEqual) => (*start_column, *operator),
+					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator, _), start_column, .. }) if matches!(*operator, Some(BinaryOperator::Equal | BinaryOperator::NotEqualTo | BinaryOperator::LessThan | BinaryOperator::LessThanOrEqualTo | BinaryOperator::GreaterThan | BinaryOperator::GreaterThanOrEqualTo)) => (*start_column, *operator),
 					_ => continue 'b,
 				};
 				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
@@ -512,12 +512,12 @@ impl Expression {
 					_ => unreachable!(),
 				};
 				maybe_parsed_tokens[index - 1] = match operator {
-					OperatorSymbol::LessThan => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::LessThanEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::GreaterThan => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::GreaterThanEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::Equal => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					OperatorSymbol::NotEqual => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::LessThan) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::LessThanOrEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::GreaterThan) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::GreaterThanOrEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::Equal) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
+					Some(BinaryOperator::NotEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
 					_ => unreachable!(),
 				};
 				continue 'a;
@@ -870,4 +870,98 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement]>, Erro
 enum MaybeParsedToken<'a, 'b> {
 	Token(&'b Token<'a>),
 	Expression(Expression),
+}
+
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BinaryOperator {
+	Exponentiation,
+	Multiplication,
+	Division,
+	DoubleSlash,
+	BackSlash,
+	AdditionConcatenation,
+	Subtraction,
+	LessThan,
+	GreaterThan,
+	Equal,
+	NotEqualTo,
+	LessThanOrEqualTo,
+	GreaterThanOrEqualTo,
+	And,
+	Or,
+	Concatenation,
+}
+
+impl BinaryOperator {
+	pub fn get_operator_precedence(self) -> u8 {
+		match self {
+			Self::Exponentiation => 0,
+			Self::Multiplication | Self::Division | Self::DoubleSlash => 2,
+			Self::BackSlash => 3,
+			Self::AdditionConcatenation | Self::Subtraction | Self::Concatenation => 4,
+			Self::LessThan | Self::GreaterThan | Self::LessThanOrEqualTo | Self::GreaterThanOrEqualTo | Self::Equal | Self::NotEqualTo => 5,
+			Self::And => 7,
+			Self::Or => 8,
+		}
+	}
+
+	pub fn from_symbol(symbol: &str) -> Option<Self> {
+		match symbol {
+			"^" | "↑" => Some(Self::Exponentiation),
+			"*" => Some(Self::Multiplication),
+			"/" => Some(Self::Division),
+			"//" => Some(Self::DoubleSlash),
+			"\\" => Some(Self::BackSlash),
+			"+" => Some(Self::AdditionConcatenation),
+			"-" => Some(Self::Subtraction),
+			"<" => Some(Self::LessThan),
+			">" => Some(Self::GreaterThan),
+			"=" => Some(Self::Equal),
+			"<>" | "><" => Some(Self::NotEqualTo),
+			"<=" | "=<" => Some(Self::LessThanOrEqualTo),
+			">=" | "=>" => Some(Self::GreaterThanOrEqualTo),
+			"&" => Some(Self::Concatenation),
+			_ => None,
+		}
+	}
+
+	pub fn from_name(name: &str) -> Option<Self> {
+		match name {
+			_ if name.eq_ignore_ascii_case("AND") => Some(Self::And),
+			_ if name.eq_ignore_ascii_case("OR") => Some(Self::Or),
+			_ => None,
+		}
+	}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnaryOperator {
+	Negation,
+	UnaryPlus,
+	Not,
+}
+
+impl UnaryOperator {
+	pub fn get_operator_precedence(self) -> u8 {
+		match self {
+			Self::UnaryPlus | Self::Negation => 1,
+			Self::Not => 6,
+		}
+	}
+
+	pub fn from_symbol(symbol: &str) -> Option<Self> {
+		match symbol {
+			"-" => Some(Self::Negation),
+			"+" => Some(Self::UnaryPlus),
+			_ => None,
+		}
+	}
+
+	pub fn from_name(name: &str) -> Option<Self> {
+		match name {
+			_ if name.eq_ignore_ascii_case("NOT") => Some(Self::Not),
+			_ => None,
+		}
+	}
 }

@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use num::{BigInt, Num};
 
-use crate::mavagk_basic::error::{Error, ErrorVariant};
+use crate::mavagk_basic::{abstract_syntax_tree::{BinaryOperator, UnaryOperator}, error::{Error, ErrorVariant}};
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
@@ -13,7 +13,7 @@ pub struct Token<'a> {
 
 #[derive(Debug, PartialEq)]
 pub enum TokenVariant<'a> {
-	Operator(OperatorSymbol),
+	Operator(Option<BinaryOperator>, Option<UnaryOperator>),
 	StringLiteral(&'a str),
 	Identifier{ name: &'a str, identifier_type: IdentifierType, is_optional: bool },
 	IntegerLiteral(BigInt),
@@ -51,24 +51,12 @@ impl<'a> Token<'a> {
 				};
 				let (token_string, rest_of_string_with_token_removed) = line_starting_with_token.split_at(length_of_token_in_bytes);
 				// Decide what operator symbol this is
-				let operator_symbol = match token_string {
-					"+" => OperatorSymbol::Plus,
-					"-" => OperatorSymbol::Minus,
-					"*" => OperatorSymbol::Asterisk,
-					"/" => OperatorSymbol::Slash,
-					"//" => OperatorSymbol::DoubleSlash,
-					"^" | "↑" => OperatorSymbol::Caret,
-					"=" => OperatorSymbol::Equal,
-					"<>" | "><" => OperatorSymbol::NotEqual,
-					"<" => OperatorSymbol::LessThan,
-					"<=" | "=<" => OperatorSymbol::LessThanEqual,
-					">" => OperatorSymbol::GreaterThan,
-					">=" | "=>" => OperatorSymbol::GreaterThanEqual,
-					"&" => OperatorSymbol::Ampersand,
-					"\\" => OperatorSymbol::Backslash,
-					_ => return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column) }),
-				};
-				(TokenVariant::Operator(operator_symbol), rest_of_string_with_token_removed)
+				let binary_operator = BinaryOperator::from_symbol(token_string);
+				let unary_operator = UnaryOperator::from_symbol(token_string);
+				if binary_operator.is_none() && unary_operator.is_none() {
+					return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column) });
+				}
+				(TokenVariant::Operator(binary_operator, unary_operator), rest_of_string_with_token_removed)
 			}
 			// Separators
 			'(' => (TokenVariant::LeftParenthesis, &line_starting_with_token[1..]),
@@ -257,7 +245,7 @@ impl<'a> TokenVariant<'a> {
 
 	pub fn is_unary_operator(&self) -> bool {
 		match self {
-			TokenVariant::Operator(OperatorSymbol::Minus | OperatorSymbol::Plus) => true,
+			TokenVariant::Operator(_, Some(UnaryOperator::Negation | UnaryOperator::UnaryPlus)) => true,
 			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false } => name.eq_ignore_ascii_case("not"),
 			_ => false,
 		}
@@ -297,23 +285,23 @@ impl NumericBase {
 	}
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum OperatorSymbol {
-	Plus,
-	Minus,
-	Slash,
-	Asterisk,
-	Caret,
-	LessThan,
-	LessThanEqual,
-	GreaterThan,
-	GreaterThanEqual,
-	Equal,
-	NotEqual,
-	Ampersand,
-	Backslash,
-	DoubleSlash,
-}
+//#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+//pub enum OperatorSymbol {
+//	Plus,
+//	Minus,
+//	Slash,
+//	Asterisk,
+//	Caret,
+//	LessThan,
+//	LessThanEqual,
+//	GreaterThan,
+//	GreaterThanEqual,
+//	Equal,
+//	NotEqual,
+//	Ampersand,
+//	Backslash,
+//	DoubleSlash,
+//}
 
 #[cfg(test)]
 mod tests {
@@ -401,27 +389,27 @@ mod tests {
 		// Operators
 		assert_eq!(
 			Token::parse_single_token_from_str("++", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str(" //+", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::DoubleSlash), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "+"))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::DoubleSlash), None), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("<=-", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::LessThanEqual), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "-"))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::LessThanOrEqualTo), None), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "-"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("&+", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::Ampersand), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::Concatenation), None), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("=<", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::LessThanEqual), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::LessThanOrEqualTo), None), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("/ /", 1.try_into().unwrap(), None).unwrap(),
-			Some((Token { variant: TokenVariant::Operator(OperatorSymbol::Slash), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, " /"))
+			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::Division), None), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, " /"))
 		);
 		// Separators
 		assert_eq!(
@@ -641,7 +629,7 @@ mod tests {
 			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 10.try_into().unwrap(), end_column: 12.try_into().unwrap()
 		});
 		assert_eq!(tokens.1[2], Token {
-			variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column: 13.try_into().unwrap(), end_column: 14.try_into().unwrap()
+			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 13.try_into().unwrap(), end_column: 14.try_into().unwrap()
 		});
 		assert_eq!(tokens.1[3], Token {
 			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 15.try_into().unwrap(), end_column: 16.try_into().unwrap()
@@ -657,7 +645,7 @@ mod tests {
 			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 7.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
 		assert_eq!(tokens.1[2], Token {
-			variant: TokenVariant::Operator(OperatorSymbol::Plus), start_column: 10.try_into().unwrap(), end_column: 11.try_into().unwrap()
+			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 10.try_into().unwrap(), end_column: 11.try_into().unwrap()
 		});
 		assert_eq!(tokens.1[3], Token {
 			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 12.try_into().unwrap(), end_column: 13.try_into().unwrap()
