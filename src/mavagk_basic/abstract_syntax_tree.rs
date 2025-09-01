@@ -2,7 +2,7 @@ use std::{num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Token, TokenVariant}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Keyword, Token, TokenVariant}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -55,7 +55,7 @@ impl Statement {
 		// Parse depending on keyword
 		match identifier_token.variant {
 			// LET
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. } if name.eq_ignore_ascii_case("let") => {
+			TokenVariant::Identifier { keyword: Some(Keyword::Let), .. } => {
 				let mut remaining_tokens = &tokens[1..];
 				// Get l-value expression
 				let l_value_length = Expression::get_l_value_length(remaining_tokens);
@@ -84,7 +84,7 @@ impl Statement {
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)))
 			}
 			// PRINT
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. } if name.eq_ignore_ascii_case("print") => {
+			TokenVariant::Identifier { keyword: Some(Keyword::Print), .. } => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expressions = Vec::new();
 				while !remaining_tokens.is_empty() {
@@ -112,9 +112,7 @@ impl Statement {
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 			}
 			// RUN / GOTO / GOSUB
-			TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }
-				if name.eq_ignore_ascii_case("run") || name.eq_ignore_ascii_case("goto") || name.eq_ignore_ascii_case("gosub") =>
-			{
+			TokenVariant::Identifier { keyword: Some(keyword), .. } if matches!(keyword, Keyword::Run | Keyword::Goto | Keyword::Gosub) => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expression = None;
 				if !remaining_tokens.is_empty() {
@@ -126,15 +124,15 @@ impl Statement {
 						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
 					}
 				}
-				let variant = match name {
-					_ if name.eq_ignore_ascii_case("run") => StatementVariant::Run(expression),
-					_ if name.eq_ignore_ascii_case("goto") => StatementVariant::Goto(expression),
-					_ if name.eq_ignore_ascii_case("gosub") => StatementVariant::Gosub(expression),
+				let variant = match keyword {
+					Keyword::Run => StatementVariant::Run(expression),
+					Keyword::Goto => StatementVariant::Goto(expression),
+					Keyword::Gosub => StatementVariant::Gosub(expression),
 					_ => unreachable!(),
 				};
 				Ok(Some((Self { column: identifier_token.start_column, variant }, rest_of_tokens)))
 			}
-			_ => Err(Error { variant: ErrorVariant::NotYetImplemented("Statements that are not print statements".into()), line_number: None, column_number: Some(identifier_token.start_column) }),
+			_ => Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: None, column_number: Some(identifier_token.start_column) }),
 		}
 	}
 
@@ -235,7 +233,6 @@ impl Expression {
 				}
 				// Right parentheses
 				TokenVariant::RightParenthesis => {
-					//parentheses_depth = parentheses_depth.checked_sub(1).ok_or_else(|| Error::MoreRightParenthesesThanLeftParentheses(token.start_column))?;
 					parentheses_depth = parentheses_depth.checked_sub(1)
 						.ok_or_else(|| Error { variant: ErrorVariant::MoreRightParenthesesThanLeftParentheses, line_number: None, column_number: Some(token.start_column) })?;
 					// Parse the parenthesised area/function that this is closing
@@ -311,9 +308,9 @@ impl Expression {
 				TokenVariant::Identifier { name, identifier_type, is_optional, .. } if parentheses_depth == 0 => {
 					match () {
 						// Ignore fn keywords or throw an error if they are not followed by an identifier.
-						_ if matches!(token, Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, .. } if name.eq_ignore_ascii_case("fn")) => {
+						_ if matches!(token, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Fn), .. }, .. }) => {
 							match next_token {
-								Some(Token { variant: TokenVariant::Identifier { name: next_name, .. }, .. }) if !next_name.eq_ignore_ascii_case("fn") => {}
+								Some(Token { variant: TokenVariant::Identifier { keyword, .. }, .. }) if *keyword != Some(Keyword::Fn) => {}
 								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: None, column_number: Some(start_column) }),
 							}
 						}
@@ -321,7 +318,7 @@ impl Expression {
 						_ if matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
 						_ => match last_token {
 							// If the last token was a "fn" keyword, this is a fn identifier without arguments
-							Some(Token { variant: TokenVariant::Identifier { name: last_token_name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, .. }) if last_token_name.eq_ignore_ascii_case("fn") =>
+							Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Fn), .. }, .. }) =>
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
 							// Else it is a non-fn identifier
 							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
