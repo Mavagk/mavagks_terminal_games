@@ -277,16 +277,69 @@ impl Expression {
 				// Return if there is not a left parenthesis after the identifier
 				let tokens_after_identifier = &tokens_after_fn[1..];
 				let parenthesis_end_column = match tokens_after_identifier.get(0) {
-					Some(Token { variant: TokenVariant::LeftParenthesis, start_column, end_column }) => *end_column,
+					Some(Token { variant: TokenVariant::LeftParenthesis, end_column, .. }) => *end_column,
 					_ => break 'a (Expression { variant: ExpressionVariant::IdentifierOrFunction {
 						name: (*identifier_name).into(), identifier_type: *identifier_type, is_optional: *identifier_is_optional, arguments: Box::default(), uses_fn_keyword, has_parentheses: false
 					}, column: *first_token_start_column }, tokens_after_identifier, *token_after_fn_end_column),
 				};
 				// Get arguments
-				loop {
-					
+				let mut argument_tokens = &tokens_after_identifier[1..];
+				let mut end_column_of_token_before_argument = parenthesis_end_column;
+				let mut arguments = Vec::new();
+				// Make sure there is not a leading comma
+				match argument_tokens.get(0) {
+					Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
+						return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+					_ => {},
 				}
-				todo!()
+				// Parse each argument
+				'b: loop {
+					// Parse argument
+					let argument_parse_result = Expression::parse_expression(argument_tokens, line_number, end_column_of_token_before_argument)?;
+					let (argument_expression, tokens_after_argument, end_column_of_argument) = match argument_parse_result {
+						// If we did not an argument, why?
+						None => {
+							match argument_tokens.get(0) {
+								// If it was because there was a comma
+								Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
+									return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+								// If it was because we reached a right parenthesis
+								Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
+									argument_tokens = &argument_tokens[1..];
+									end_column_of_token_before_argument = *end_column;
+									break 'b;
+								}
+								// If it was because of an invalid separator
+								Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
+									return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+								_ => unreachable!(),
+							};
+						}
+						// If we did get an argument
+						Some((argument_expression, tokens_after_argument, end_column_of_argument)) =>
+							(argument_expression, tokens_after_argument, end_column_of_argument),
+					};
+					arguments.push(argument_expression);
+					argument_tokens = tokens_after_argument;
+					end_column_of_token_before_argument = end_column_of_argument;
+					// Parse comma or right parentheses
+					match argument_tokens.get(0) {
+						Some(Token { variant: TokenVariant::Comma, end_column , ..}) => {
+							argument_tokens = &argument_tokens[1..];
+							end_column_of_token_before_argument = *end_column;
+						}
+						Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
+							argument_tokens = &argument_tokens[1..];
+							end_column_of_token_before_argument = *end_column;
+							break 'b;
+						}
+						_ => {}
+					};
+				}
+				// Return
+				(Expression { variant: ExpressionVariant::IdentifierOrFunction {
+					name: (*identifier_name).into(), identifier_type: *identifier_type, is_optional: *identifier_is_optional, arguments: arguments.into(), uses_fn_keyword, has_parentheses: true
+				}, column: *first_token_start_column }, argument_tokens, end_column_of_token_before_argument)
 			}
 			// End of expression
 			TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),

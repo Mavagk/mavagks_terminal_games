@@ -65,6 +65,11 @@ pub enum ErrorVariant {
 	ExpectedRightParenthesis,
 	UnexpectedOperator,
 	ExpectedFunctionNameAfterFn,
+	LeadingCommaInFunctionArguments,
+	TrailingCommaInFunctionArguments,
+	TwoSequentialCommasTogetherInFunctionArguments,
+	NoCommaBetweenFunctionArguments,
+	InvalidSeparatorInFunctionArguments,
 }
 
 impl Display for ErrorVariant {
@@ -99,6 +104,11 @@ impl Display for ErrorVariant {
 			Self::ExpectedRightParenthesis => write!(f, "Expected right parenthesis."),
 			Self::UnexpectedOperator => write!(f, "Unexpected operator."),
 			Self::ExpectedFunctionNameAfterFn => write!(f, "Expected function name after FN keyword."),
+			Self::LeadingCommaInFunctionArguments => write!(f, "Leading comma in function arguments."),
+			Self::TrailingCommaInFunctionArguments => write!(f, "Trailing comma in function arguments."),
+			Self::TwoSequentialCommasTogetherInFunctionArguments => write!(f, "Two sequential commas in function arguments."),
+			Self::NoCommaBetweenFunctionArguments => write!(f, "No comma between function arguments."),
+			Self::InvalidSeparatorInFunctionArguments => write!(f, "Invalid separator in function arguments."),
 		}
 	}
 }
