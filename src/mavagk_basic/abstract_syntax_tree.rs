@@ -38,11 +38,11 @@ impl Statement {
 			};
 			// Get l-value
 			let l_value_expression;
-			(l_value_expression, _) = Expression::parse(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
+			(l_value_expression, _) = Expression::parse_old(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
 			// Get r-value expression
 				let r_value_expression;
 				let remaining_tokens;
-				(r_value_expression, remaining_tokens) = match Expression::parse(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
+				(r_value_expression, remaining_tokens) = match Expression::parse_old(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
@@ -66,7 +66,7 @@ impl Statement {
 				// Get l-value expression
 				let l_value_length = Expression::get_l_value_length(remaining_tokens);
 				let l_value_expression;
-				(l_value_expression, _) = match Expression::parse(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
+				(l_value_expression, _) = match Expression::parse_old(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
@@ -79,7 +79,7 @@ impl Statement {
 				};
 				// Get r-value expression
 				let r_value_expression;
-				(r_value_expression, remaining_tokens) = match Expression::parse(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
+				(r_value_expression, remaining_tokens) = match Expression::parse_old(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
@@ -108,7 +108,7 @@ impl Statement {
 						_ => {}
 					}
 					let expression;
-					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, line_number, identifier_token.end_column)? {
+					(expression, remaining_tokens) = match Expression::parse_old(remaining_tokens, line_number, identifier_token.end_column)? {
 						None => break,
 						Some(result) => result,
 					};
@@ -122,7 +122,7 @@ impl Statement {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expression = None;
 				if !remaining_tokens.is_empty() {
-					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, line_number, identifier_token.end_column)? {
+					(expression, remaining_tokens) = match Expression::parse_old(remaining_tokens, line_number, identifier_token.end_column)? {
 						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) }),
 						Some((result, remaining_tokens)) => (Some(result), remaining_tokens),
 					};
@@ -215,9 +215,89 @@ pub struct Expression {
 }
 
 impl Expression {
-	pub fn parse<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+	pub fn parse_expression<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize)-> Result<Option<(Self, &'b [Token<'a>], NonZeroUsize)>, Error> {
+		todo!()
+	}
+
+	pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, _start_column: NonZeroUsize)-> Result<Option<(Self, &'b [Token<'a>], NonZeroUsize)>, Error> {
+		// Get the first token or return if there are no more tokens to parse
+		let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.first() {
+			Some(first_token) => first_token,
+			None => return Ok(None),
+		};
+		// Parse the expression primary
+		Ok(Some(match first_token_variant {
+			// Literals
+			TokenVariant::IntegerLiteral(value) =>
+				(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: *first_token_start_column }, &tokens[1..], *first_token_end_column),
+			TokenVariant::FloatLiteral { value, is_imaginary } =>
+				(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: *first_token_start_column }, &tokens[1..], *first_token_end_column),
+			TokenVariant::StringLiteral(value) =>
+				(Expression { variant: ExpressionVariant::StringLiteral(Rc::new((*value).into())), column: *first_token_start_column }, &tokens[1..], *first_token_end_column),
+			// An expression in parentheses
+			TokenVariant::LeftParenthesis => {
+				// Get the sub-expression
+				let (sub_expression, tokens_after_sub_expression, sub_expression_end_column)
+					= match Self::parse_expression(&tokens[1..], line_number, *first_token_end_column)?
+				{
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+					Some((expression, tokens_after_sub_expression, sub_expression_end_column)) => (expression, tokens_after_sub_expression, sub_expression_end_column),
+				};
+				// Make sure that there is a closing parenthesis after the sub-expression
+				let (tokens_after_expression_primary, expression_primary_end_column) = match tokens_after_sub_expression.first() {
+					Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => (&tokens_after_sub_expression[1..], end_column),
+					Some(Token { variant: _, start_column, .. }) =>
+						return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(*start_column), line_number: line_number.cloned() }),
+					None => return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(sub_expression_end_column), line_number: line_number.cloned() }),
+				};
+				// Return
+				(sub_expression, tokens_after_expression_primary, *expression_primary_end_column)
+			}
+			// There should not be operators
+			TokenVariant::Operator(..) => return Err(Error { variant: ErrorVariant::UnexpectedOperator, column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+			// Identifiers
+			TokenVariant::Identifier { keyword, .. } => 'a: {
+				// Get if this is a FN function
+				let uses_fn_keyword = *keyword == Some(Keyword::Fn);
+				let tokens_after_fn = match uses_fn_keyword {
+					false => tokens,
+					true => &tokens[1..],
+				};
+				let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: token_after_fn_end_column }
+					= match tokens_after_fn.get(0)
+				{
+					Some(token_after_fn) => token_after_fn,
+					None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned() }),
+				};
+				// Get identifier name
+				let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
+					TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
+					_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned() }),
+				};
+				// Return if there is not a left parenthesis after the identifier
+				let tokens_after_identifier = &tokens_after_fn[1..];
+				let parenthesis_end_column = match tokens_after_identifier.get(0) {
+					Some(Token { variant: TokenVariant::LeftParenthesis, start_column, end_column }) => *end_column,
+					_ => break 'a (Expression { variant: ExpressionVariant::IdentifierOrFunction {
+						name: (*identifier_name).into(), identifier_type: *identifier_type, is_optional: *identifier_is_optional, arguments: Box::default(), uses_fn_keyword, has_parentheses: false
+					}, column: *first_token_start_column }, tokens_after_identifier, *token_after_fn_end_column),
+				};
+				// Get arguments
+				loop {
+					
+				}
+				todo!()
+			}
+			// End of expression
+			TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
+			TokenVariant::SingleQuestionMark =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("Question mark not as type".into()), column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+		}))
+	}
+
+	pub fn parse_old<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Get the tokens for this expression or return if no tokens where passed in
-		let expression_length = Self::get_expression_length(tokens);
+		let expression_length = Self::get_expression_length_old(tokens);
 		if expression_length == 0 {
 			return Ok(None);
 		}
@@ -269,11 +349,11 @@ impl Expression {
 								let mut parentheses_content_tokens_left = parentheses_content_tokens;
 								let mut function_arguments = Vec::new();
 								while !parentheses_content_tokens_left.is_empty() {
-									if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
+									if Self::get_expression_length_old(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
 										return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 									}
 									let parsed_argument_expression;
-									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, line_number, parentheses_content_tokens_left[0].start_column)?.unwrap();
+									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse_old(parentheses_content_tokens_left, line_number, parentheses_content_tokens_left[0].start_column)?.unwrap();
 									function_arguments.push(parsed_argument_expression);
 									match parentheses_content_tokens_left.get(0) {
 										Some(Token { variant: TokenVariant::Comma, .. }) => parentheses_content_tokens_left = &parentheses_content_tokens_left[1..],
@@ -293,10 +373,10 @@ impl Expression {
 								if parentheses_content_tokens.len() == 0 {
 									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 								}
-								if Self::get_expression_length(parentheses_content_tokens) != parentheses_content_tokens.len() {
+								if Self::get_expression_length_old(parentheses_content_tokens) != parentheses_content_tokens.len() {
 									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 								}
-								let content_parsed = Self::parse(parentheses_content_tokens, line_number, tokens[start_parenthesis_index].end_column)?.unwrap().0;
+								let content_parsed = Self::parse_old(parentheses_content_tokens, line_number, tokens[start_parenthesis_index].end_column)?.unwrap().0;
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
 							}
 						}
@@ -619,7 +699,7 @@ impl Expression {
 	/// `expression = operand (binary-operator operand)*`
 	///
 	/// `operand = unary-operator operand / (fn-keyword? identifier)? left-parenthesis parentheses-content right-parenthesis`
-	pub fn get_expression_length<'a>(tokens: &[Token<'a>]) -> usize {
+	pub fn get_expression_length_old<'a>(tokens: &[Token<'a>]) -> usize {
 		let mut last_token: Option<&TokenVariant<'_>> = None;
 		let mut parenthesis_depth = 0usize;
 		for (index, token) in tokens.iter().enumerate() {

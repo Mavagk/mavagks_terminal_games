@@ -62,6 +62,9 @@ pub enum ErrorVariant {
 	InvalidLValue,
 	VariableNotFound,
 	ExpectedStatementKeyword,
+	ExpectedRightParenthesis,
+	UnexpectedOperator,
+	ExpectedFunctionNameAfterFn,
 }
 
 impl Display for ErrorVariant {
@@ -93,6 +96,9 @@ impl Display for ErrorVariant {
 			Self::VariableNotFound => write!(f, "Variable not found."),
 			Self::InvalidToken => write!(f, "Invalid token."),
 			Self::ExpectedStatementKeyword => write!(f, "Expected statement keyword."),
+			Self::ExpectedRightParenthesis => write!(f, "Expected right parenthesis."),
+			Self::UnexpectedOperator => write!(f, "Unexpected operator."),
+			Self::ExpectedFunctionNameAfterFn => write!(f, "Expected function name after FN keyword."),
 		}
 	}
 }
