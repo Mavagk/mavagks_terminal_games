@@ -30,7 +30,7 @@ impl Game for MavagkBasicTerminal {
 					Some(tokens) => tokens,
 					None => return Ok(()),
 				};
-				let trees = match handle_error(parse_line(&*tokens)) {
+				let trees = match handle_error(parse_line(&*tokens, line.as_ref())) {
 					Some(trees) => trees,
 					None => return Ok(()),
 				};

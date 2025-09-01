@@ -61,6 +61,7 @@ pub enum ErrorVariant {
 	ExpectedEqualSign,
 	InvalidLValue,
 	VariableNotFound,
+	ExpectedStatementKeyword,
 }
 
 impl Display for ErrorVariant {
@@ -91,6 +92,7 @@ impl Display for ErrorVariant {
 			Self::InvalidLValue => write!(f, "Invalid l-value."),
 			Self::VariableNotFound => write!(f, "Variable not found."),
 			Self::InvalidToken => write!(f, "Invalid token."),
+			Self::ExpectedStatementKeyword => write!(f, "Expected statement keyword."),
 		}
 	}
 }

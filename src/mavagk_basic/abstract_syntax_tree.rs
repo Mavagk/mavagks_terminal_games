@@ -11,7 +11,7 @@ pub struct Statement {
 }
 
 impl Statement {
-	pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>]) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+	pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Strip leading colons
 		while matches!(tokens.first(), Some(Token { variant: TokenVariant::Colon, .. })) {
 			tokens = &tokens[1..];
@@ -38,53 +38,59 @@ impl Statement {
 			};
 			// Get l-value
 			let l_value_expression;
-			(l_value_expression, _) = Expression::parse(&tokens[..l_value_length], identifier_token.end_column)?.unwrap();
+			(l_value_expression, _) = Expression::parse(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
 			// Get r-value expression
 				let r_value_expression;
 				let remaining_tokens;
-				(r_value_expression, remaining_tokens) = match Expression::parse(&tokens[l_value_length + 1..], equal_sign_end_column)? {
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(equal_sign_end_column) }),
+				(r_value_expression, remaining_tokens) = match Expression::parse(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
 				if remaining_tokens.len() != 0 {
-					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
 				}
 
 				return Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)));
 		}
 		// Parse depending on keyword
-		match identifier_token.variant {
+		let keyword = match identifier_token.variant {
+			TokenVariant::Identifier { keyword: Some(keyword), .. } => keyword,
+			TokenVariant::Identifier { keyword: None, .. } =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
+			_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
+		};
+		match keyword {
 			// LET
-			TokenVariant::Identifier { keyword: Some(Keyword::Let), .. } => {
+			Keyword::Let => {
 				let mut remaining_tokens = &tokens[1..];
 				// Get l-value expression
 				let l_value_length = Expression::get_l_value_length(remaining_tokens);
 				let l_value_expression;
-				(l_value_expression, _) = match Expression::parse(&remaining_tokens[..l_value_length], identifier_token.end_column)? {
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(tokens[0].end_column) }),
+				(l_value_expression, _) = match Expression::parse(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
 				remaining_tokens = &remaining_tokens[l_value_length..];
 				// Expect equal sign
 				let equal_sign_end_column = match remaining_tokens.get(0) {
 					Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), end_column, .. }) => *end_column,
-					Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(*start_column) }),
-					None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: None, column_number: Some(tokens[l_value_length].end_column) }),
+					Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(*start_column) }),
+					None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(tokens[l_value_length].end_column) }),
 				};
 				// Get r-value expression
 				let r_value_expression;
-				(r_value_expression, remaining_tokens) = match Expression::parse(&remaining_tokens[1..], equal_sign_end_column)? {
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(equal_sign_end_column) }),
+				(r_value_expression, remaining_tokens) = match Expression::parse(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
 					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
 				};
 				if remaining_tokens.len() != 0 {
-					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
 				}
 
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Assign(l_value_expression, r_value_expression) }, rest_of_tokens)))
 			}
 			// PRINT
-			TokenVariant::Identifier { keyword: Some(Keyword::Print), .. } => {
+			Keyword::Print => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expressions = Vec::new();
 				while !remaining_tokens.is_empty() {
@@ -102,7 +108,7 @@ impl Statement {
 						_ => {}
 					}
 					let expression;
-					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, identifier_token.end_column)? {
+					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, line_number, identifier_token.end_column)? {
 						None => break,
 						Some(result) => result,
 					};
@@ -112,16 +118,16 @@ impl Statement {
 				Ok(Some((Self { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 			}
 			// RUN / GOTO / GOSUB
-			TokenVariant::Identifier { keyword: Some(keyword), .. } if matches!(keyword, Keyword::Run | Keyword::Goto | Keyword::Gosub) => {
+			Keyword::Goto | Keyword::Run | Keyword::Gosub => {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expression = None;
 				if !remaining_tokens.is_empty() {
-					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, identifier_token.end_column)? {
-						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: None, column_number: Some(remaining_tokens[0].start_column) }),
+					(expression, remaining_tokens) = match Expression::parse(remaining_tokens, line_number, identifier_token.end_column)? {
+						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) }),
 						Some((result, remaining_tokens)) => (Some(result), remaining_tokens),
 					};
 					if !remaining_tokens.is_empty() {
-						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: None, column_number: Some(remaining_tokens[0].start_column) });
+						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
 					}
 				}
 				let variant = match keyword {
@@ -132,7 +138,7 @@ impl Statement {
 				};
 				Ok(Some((Self { column: identifier_token.start_column, variant }, rest_of_tokens)))
 			}
-			_ => Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: None, column_number: Some(identifier_token.start_column) }),
+			Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
 		}
 	}
 
@@ -209,7 +215,7 @@ pub struct Expression {
 }
 
 impl Expression {
-	pub fn parse<'a, 'b>(tokens: &'b [Token<'a>], start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+	pub fn parse<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Get the tokens for this expression or return if no tokens where passed in
 		let expression_length = Self::get_expression_length(tokens);
 		if expression_length == 0 {
@@ -234,7 +240,7 @@ impl Expression {
 				// Right parentheses
 				TokenVariant::RightParenthesis => {
 					parentheses_depth = parentheses_depth.checked_sub(1)
-						.ok_or_else(|| Error { variant: ErrorVariant::MoreRightParenthesesThanLeftParentheses, line_number: None, column_number: Some(token.start_column) })?;
+						.ok_or_else(|| Error { variant: ErrorVariant::MoreRightParenthesesThanLeftParentheses, line_number: line_number.cloned(), column_number: Some(token.start_column) })?;
 					// Parse the parenthesised area/function that this is closing
 					if parentheses_depth == 0 {
 						let parentheses_content_tokens = &tokens[start_parenthesis_index + 1..index];
@@ -264,16 +270,16 @@ impl Expression {
 								let mut function_arguments = Vec::new();
 								while !parentheses_content_tokens_left.is_empty() {
 									if Self::get_expression_length(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
-										return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
+										return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 									}
 									let parsed_argument_expression;
-									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, parentheses_content_tokens_left[0].start_column)?.unwrap();
+									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse(parentheses_content_tokens_left, line_number, parentheses_content_tokens_left[0].start_column)?.unwrap();
 									function_arguments.push(parsed_argument_expression);
 									match parentheses_content_tokens_left.get(0) {
 										Some(Token { variant: TokenVariant::Comma, .. }) => parentheses_content_tokens_left = &parentheses_content_tokens_left[1..],
 										None => {}
 										Some(Token { variant: _, start_column, .. }) =>
-											return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: None, column_number: Some(*start_column) }),
+											return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: line_number.cloned(), column_number: Some(*start_column) }),
 									}
 								}
 								let (name, identifier_type, is_optional) = match function_identifier {
@@ -285,12 +291,12 @@ impl Expression {
 							// If we are just parsing some brackets that are not part of a function
 							None => {
 								if parentheses_content_tokens.len() == 0 {
-									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
+									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 								}
 								if Self::get_expression_length(parentheses_content_tokens) != parentheses_content_tokens.len() {
-									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: None, column_number: Some(tokens[start_parenthesis_index].end_column) });
+									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
 								}
-								let content_parsed = Self::parse(parentheses_content_tokens, tokens[start_parenthesis_index].end_column)?.unwrap().0;
+								let content_parsed = Self::parse(parentheses_content_tokens, line_number, tokens[start_parenthesis_index].end_column)?.unwrap().0;
 								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
 							}
 						}
@@ -311,7 +317,7 @@ impl Expression {
 						_ if matches!(token, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Fn), .. }, .. }) => {
 							match next_token {
 								Some(Token { variant: TokenVariant::Identifier { keyword, .. }, .. }) if *keyword != Some(Keyword::Fn) => {}
-								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: None, column_number: Some(start_column) }),
+								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: line_number.cloned(), column_number: Some(start_column) }),
 							}
 						}
 						// If the identifier has a open parenthesis to the right, do nothing, we will parse it once we get to the matching closing parenthesis
@@ -330,7 +336,7 @@ impl Expression {
 			last_token = Some(token);
 		}
 		if parentheses_depth > 0 {
-			return Err(Error { variant: ErrorVariant::MoreLeftParenthesesThanRightParentheses, line_number: None, column_number: Some(last_token.unwrap().end_column) });
+			return Err(Error { variant: ErrorVariant::MoreLeftParenthesesThanRightParentheses, line_number: line_number.cloned(), column_number: Some(last_token.unwrap().end_column) });
 		}
 		// Parse operators
 		'a: loop {
@@ -595,8 +601,7 @@ impl Expression {
 		}
 		for maybe_parsed_token in maybe_parsed_tokens.iter() {
 			match maybe_parsed_token {
-				//MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error::InvalidOperator(*start_column)),
-				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::InvalidOperator, line_number: None, column_number: Some(*start_column) }),
+				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::InvalidOperator, line_number: line_number.cloned(), column_number: Some(*start_column) }),
 				_ => {}
 			}
 		}
@@ -846,10 +851,10 @@ pub enum ExpressionVariant {
 	Concatenation(Box<Expression>, Box<Expression>),
 }
 
-pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> Result<Box<[Statement]>, Error> {
+pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> Result<Box<[Statement]>, Error> {
 	let mut out = Vec::new();
 	loop {
-		match Statement::parse(tokens)? {
+		match Statement::parse(tokens, line_number)? {
 			Some((ast, rest_of_tokens)) => {
 				tokens = rest_of_tokens;
 				out.push(ast);
