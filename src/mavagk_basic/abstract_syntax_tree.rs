@@ -1,4 +1,4 @@
-use std::{mem::take, num::NonZeroUsize, rc::Rc};
+use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
@@ -275,7 +275,44 @@ impl Expression {
 	}
 
 	pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(Expression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) {
-		todo!()
+		loop {
+			// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
+			let (binary_operator, binary_operator_start_column) = match operator_stack.get(0) {
+				Some((operator, operator_start_column)) => {
+					if let Some(precedence) = precedence && precedence < operator.get_operator_precedence()  {
+						return;
+					}
+					(*operator, *operator_start_column)
+				}
+				None => break,
+			};
+			// Pop the rhs operator operand and parse wrap it in its unary operators
+			let (mut rhs_expression, mut rhs_unary_operators) = expression_stack.pop().unwrap();
+			while !rhs_unary_operators.is_empty() {
+				let unary_operator = rhs_unary_operators.pop().unwrap();
+				rhs_expression = unary_operator.0.to_expression(unary_operator.1, rhs_expression);
+			}
+			// Pop the lhs operator operand and parse wrap it in its unary operators that have a lower than or equal precedence to the binary operator
+			let (mut lhs_expression, mut lhs_unary_operators) = expression_stack.pop().unwrap();
+			while !lhs_unary_operators.is_empty() {
+				let unary_operator = lhs_unary_operators.pop().unwrap();
+				if unary_operator.0.get_operator_precedence() > binary_operator.get_operator_precedence() {
+					break;
+				}
+				lhs_expression = unary_operator.0.to_expression(unary_operator.1, lhs_expression);
+			}
+			// Push parsed expressions and unparsed unary operators
+			expression_stack.push((binary_operator.to_expression(binary_operator_start_column, lhs_expression, rhs_expression), lhs_unary_operators));
+		}
+
+		if precedence != None {
+			return;
+		}
+		let (expression, unary_operators) = &mut expression_stack[0];
+		while !unary_operators.is_empty() {
+			let unary_operator = unary_operators.pop().unwrap();
+			*expression = unary_operator.0.to_expression(unary_operator.1, replace(expression, Expression { variant: ExpressionVariant::PrintComma, column: 1.try_into().unwrap() }));
+		}
 	}
 
 	pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, _start_column: NonZeroUsize)-> Result<Option<(Self, &'b [Token<'a>], NonZeroUsize)>, Error> {
@@ -1124,6 +1161,27 @@ impl BinaryOperator {
 			_ => None,
 		}
 	}
+
+	pub fn to_expression(self, start_column: NonZeroUsize, lhs: Expression, rhs: Expression) -> Expression {
+		match self {
+			Self::AdditionConcatenation => Expression { variant: ExpressionVariant::AdditionConcatenation(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Subtraction => Expression { variant: ExpressionVariant::Subtraction(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Multiplication => Expression { variant: ExpressionVariant::Multiplication(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Division => Expression { variant: ExpressionVariant::Division(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Exponentiation => Expression { variant: ExpressionVariant::Exponentiation(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Concatenation => Expression { variant: ExpressionVariant::Concatenation(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::DoubleSlash => Expression { variant: ExpressionVariant::FlooredDivision(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::BackSlash => Expression { variant: ExpressionVariant::FlooredDivision(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::GreaterThan => Expression { variant: ExpressionVariant::GreaterThan(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::GreaterThanOrEqualTo => Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::LessThan => Expression { variant: ExpressionVariant::LessThan(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::LessThanOrEqualTo => Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::NotEqualTo => Expression { variant: ExpressionVariant::NotEqualTo(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Equal => Expression { variant: ExpressionVariant::EqualTo(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::And => Expression { variant: ExpressionVariant::And(Box::new(lhs), Box::new(rhs)), column: start_column },
+			Self::Or => Expression { variant: ExpressionVariant::Or(Box::new(lhs), Box::new(rhs)), column: start_column },
+		}
+	}
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1153,6 +1211,14 @@ impl UnaryOperator {
 		match name {
 			_ if name.eq_ignore_ascii_case("NOT") => Some(Self::Not),
 			_ => None,
+		}
+	}
+
+	pub fn to_expression(self, start_column: NonZeroUsize, operand: Expression) -> Expression {
+		match self {
+			UnaryOperator::Negation => Expression { variant: ExpressionVariant::Negation(Box::new(operand)), column: start_column },
+			UnaryOperator::UnaryPlus => Expression { variant: ExpressionVariant::UnaryPlus(Box::new(operand)), column: start_column },
+			UnaryOperator::Not => Expression { variant: ExpressionVariant::Not(Box::new(operand)), column: start_column },
 		}
 	}
 }
