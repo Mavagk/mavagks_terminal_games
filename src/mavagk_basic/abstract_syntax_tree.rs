@@ -248,6 +248,7 @@ impl Expression {
 					break 'a;
 				}
 			};
+			println!("{expression_primary:?}");
 			remaining_tokens = tokens_after_expression_primary;
 			end_column_of_last_token = end_column_of_expression_primary;
 			// Get binary operator or break
@@ -258,7 +259,10 @@ impl Expression {
 					remaining_tokens = &remaining_tokens[1..];
 					(*binary_operator, *start_column)
 				}
-				_ => break 'a,
+				_ => {
+					expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
+					break 'a;
+				}
 			};
 			// Solve and push
 			Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, Some(binary_operator.get_operator_precedence()));
@@ -277,7 +281,7 @@ impl Expression {
 	pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(Expression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) {
 		loop {
 			// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
-			let (binary_operator, binary_operator_start_column) = match operator_stack.get(0) {
+			let (binary_operator, binary_operator_start_column) = match operator_stack.last() {
 				Some((operator, operator_start_column)) => {
 					if let Some(precedence) = precedence && precedence < operator.get_operator_precedence()  {
 						return;
@@ -303,12 +307,16 @@ impl Expression {
 			}
 			// Push parsed expressions and unparsed unary operators
 			expression_stack.push((binary_operator.to_expression(binary_operator_start_column, lhs_expression, rhs_expression), lhs_unary_operators));
+			operator_stack.pop();
 		}
 
 		if precedence != None {
 			return;
 		}
-		let (expression, unary_operators) = &mut expression_stack[0];
+		let (expression, unary_operators) = match expression_stack.get_mut(0) {
+			Some((expression, unary_operators)) => (expression, unary_operators),
+			None => return,
+		};
 		while !unary_operators.is_empty() {
 			let unary_operator = unary_operators.pop().unwrap();
 			*expression = unary_operator.0.to_expression(unary_operator.1, replace(expression, Expression { variant: ExpressionVariant::PrintComma, column: 1.try_into().unwrap() }));
