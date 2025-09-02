@@ -1,4 +1,4 @@
-use std::{num::NonZeroUsize, rc::Rc};
+use std::{mem::take, num::NonZeroUsize, rc::Rc};
 
 use num::BigInt;
 
@@ -216,6 +216,65 @@ pub struct Expression {
 
 impl Expression {
 	pub fn parse_expression<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize)-> Result<Option<(Self, &'b [Token<'a>], NonZeroUsize)>, Error> {
+		let mut remaining_tokens = tokens;
+		let mut end_column_of_last_token = start_column;
+		let mut expression_primaries_and_their_unary_operators = Vec::new();
+		let mut operators = Vec::new();
+		'a: loop {
+			// Get any unary operators before the expression primary
+			let mut unary_operators_before_expression_primary = Vec::new();
+			'b: loop {
+				match remaining_tokens.get(0) {
+					Some(Token { variant: TokenVariant::Operator(_, Some(unary_operator)), start_column, end_column }) |
+					Some(Token { variant: TokenVariant::Identifier { unary_operator: Some(unary_operator), .. }, start_column, end_column, .. }) => {
+						unary_operators_before_expression_primary.push((*unary_operator, *start_column));
+						end_column_of_last_token = *end_column;
+						remaining_tokens = &remaining_tokens[1..];
+					}
+					_ => break 'b,
+				}
+			}
+			// Get expression primary
+			let (expression_primary, tokens_after_expression_primary, end_column_of_expression_primary) = match Self::parse_expression_primary(remaining_tokens, line_number, start_column)? {
+				Some((expression_primary, tokens_after_expression_primary, end_column_of_expression_primary)) =>
+					(expression_primary, tokens_after_expression_primary, end_column_of_expression_primary),
+				None => {
+					if !expression_primaries_and_their_unary_operators.is_empty() {
+						return Err(Error { variant: ErrorVariant::ExpectedExpressionPrimary, column_number: Some(end_column_of_last_token), line_number: line_number.cloned() });
+					}
+					if !unary_operators_before_expression_primary.is_empty() {
+						return Err(Error { variant: ErrorVariant::UnaryOperatorsAtEndOfExpression, column_number: Some(end_column_of_last_token), line_number: line_number.cloned() });
+					}
+					break 'a;
+				}
+			};
+			remaining_tokens = tokens_after_expression_primary;
+			end_column_of_last_token = end_column_of_expression_primary;
+			expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
+			// Get binary operator or break
+			let (binary_operator, binary_operator_start_column) = match remaining_tokens.get(0) {
+				Some(Token { variant: TokenVariant::Operator(Some(binary_operator), _), start_column, end_column }) |
+				Some(Token { variant: TokenVariant::Identifier { binary_operator: Some(binary_operator), .. }, start_column, end_column, .. }) => {
+					end_column_of_last_token = *end_column;
+					remaining_tokens = &remaining_tokens[1..];
+					(*binary_operator, *start_column)
+				}
+				_ => break 'a,
+			};
+			// Solve and push
+			Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, Some(binary_operator.get_operator_precedence()));
+			operators.push((binary_operator, binary_operator_start_column));
+		}
+		// Solve
+		Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, None);
+		// Return
+		debug_assert_eq!(expression_primaries_and_their_unary_operators.len(), 1);
+		debug_assert_eq!(operators.len(), 0);
+		debug_assert_eq!(expression_primaries_and_their_unary_operators[0].1.len(), 0);
+		Ok(Some((expression_primaries_and_their_unary_operators.pop().unwrap().0, remaining_tokens, end_column_of_last_token)))
+	}
+
+	pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(Expression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) {
 		todo!()
 	}
 

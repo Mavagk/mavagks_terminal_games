@@ -70,6 +70,8 @@ pub enum ErrorVariant {
 	TwoSequentialCommasTogetherInFunctionArguments,
 	NoCommaBetweenFunctionArguments,
 	InvalidSeparatorInFunctionArguments,
+	UnaryOperatorsAtEndOfExpression,
+	ExpectedExpressionPrimary,
 }
 
 impl Display for ErrorVariant {
@@ -109,6 +111,8 @@ impl Display for ErrorVariant {
 			Self::TwoSequentialCommasTogetherInFunctionArguments => write!(f, "Two sequential commas in function arguments."),
 			Self::NoCommaBetweenFunctionArguments => write!(f, "No comma between function arguments."),
 			Self::InvalidSeparatorInFunctionArguments => write!(f, "Invalid separator in function arguments."),
+			Self::UnaryOperatorsAtEndOfExpression => write!(f, "Unary operators at end of expression."),
+			Self::ExpectedExpressionPrimary => write!(f, "Expected expression primary."),
 		}
 	}
 }
