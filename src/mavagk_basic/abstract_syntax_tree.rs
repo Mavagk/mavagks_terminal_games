@@ -208,7 +208,7 @@ pub enum StatementVariant {
 	Assign(Expression, Expression),
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct Expression {
 	pub variant: ExpressionVariant,
 	pub column: NonZeroUsize,
@@ -451,405 +451,6 @@ impl Expression {
 		}))
 	}
 
-	/*pub fn parse_old<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
-		// Get the tokens for this expression or return if no tokens where passed in
-		let expression_length = Self::get_expression_length_old(tokens);
-		if expression_length == 0 {
-			return Ok(None);
-		}
-		let (expression_tokens, tokens_after_expression_tokens) = tokens.split_at(expression_length);
-		// First parse run
-		let mut last_token: Option<&Token<'_>> = None;
-		let mut parentheses_depth = 0usize;
-		let mut maybe_parsed_tokens = Vec::new();
-		let mut start_parenthesis_index = 0;
-		for (index, token) in expression_tokens.iter().enumerate() {
-			let next_token = expression_tokens.get(index + 1);
-			match &token.variant {
-				// Left parentheses
-				TokenVariant::LeftParenthesis => {
-					if parentheses_depth == 0 {
-						start_parenthesis_index = index;
-					}
-					parentheses_depth += 1;
-				}
-				// Right parentheses
-				TokenVariant::RightParenthesis => {
-					parentheses_depth = parentheses_depth.checked_sub(1)
-						.ok_or_else(|| Error { variant: ErrorVariant::MoreRightParenthesesThanLeftParentheses, line_number: line_number.cloned(), column_number: Some(token.start_column) })?;
-					// Parse the parenthesised area/function that this is closing
-					if parentheses_depth == 0 {
-						let parentheses_content_tokens = &tokens[start_parenthesis_index + 1..index];
-						let mut function_start_column;
-						let function_identifier;
-						(function_identifier, function_start_column) = match start_parenthesis_index.checked_sub(1) {
-							Some(function_identifier_index) => match &tokens[function_identifier_index] {
-								Token { variant: TokenVariant::Identifier { .. }, start_column, .. } => (Some(&tokens[function_identifier_index]), *start_column),
-								_ => (None, 1.try_into().unwrap()),
-							},
-							None => (None, 1.try_into().unwrap()),
-						};
-						let is_fn_function = match start_parenthesis_index.checked_sub(2) {
-							None => false,
-							Some(token_index) => match &tokens[token_index] {
-								Token { variant: TokenVariant::Identifier { name, identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, .. }, start_column, .. } if name.eq_ignore_ascii_case("fn") => {
-									function_start_column = *start_column;
-									true
-								}
-								_ => false,
-							},
-						};
-						match function_identifier {
-							// If we are parsing a function
-							Some(function_identifier) => {
-								let mut parentheses_content_tokens_left = parentheses_content_tokens;
-								let mut function_arguments = Vec::new();
-								while !parentheses_content_tokens_left.is_empty() {
-									if Self::get_expression_length_old(parentheses_content_tokens_left) == 0 && parentheses_content_tokens_left.len() != 0 {
-										return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
-									}
-									let parsed_argument_expression;
-									(parsed_argument_expression, parentheses_content_tokens_left) = Self::parse_old(parentheses_content_tokens_left, line_number, parentheses_content_tokens_left[0].start_column)?.unwrap();
-									function_arguments.push(parsed_argument_expression);
-									match parentheses_content_tokens_left.get(0) {
-										Some(Token { variant: TokenVariant::Comma, .. }) => parentheses_content_tokens_left = &parentheses_content_tokens_left[1..],
-										None => {}
-										Some(Token { variant: _, start_column, .. }) =>
-											return Err(Error { variant: ErrorVariant::FunctionArgumentsNotCommaSeparated, line_number: line_number.cloned(), column_number: Some(*start_column) }),
-									}
-								}
-								let (name, identifier_type, is_optional) = match function_identifier {
-									Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional, .. }, .. } => (*name, *identifier_type, *is_optional),
-									_ => unreachable!(),
-								};
-								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: name.into(), identifier_type, is_optional, arguments: function_arguments.into(), uses_fn_keyword: is_fn_function, has_parentheses: true }, column: function_start_column }));
-							}
-							// If we are just parsing some brackets that are not part of a function
-							None => {
-								if parentheses_content_tokens.len() == 0 {
-									return Err(Error { variant: ErrorVariant::NothingInParentheses, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
-								}
-								if Self::get_expression_length_old(parentheses_content_tokens) != parentheses_content_tokens.len() {
-									return Err(Error { variant: ErrorVariant::ParenthesesDoNotContainOneExpression, line_number: line_number.cloned(), column_number: Some(tokens[start_parenthesis_index].end_column) });
-								}
-								let content_parsed = Self::parse_old(parentheses_content_tokens, line_number, tokens[start_parenthesis_index].end_column)?.unwrap().0;
-								maybe_parsed_tokens.push(MaybeParsedToken::Expression(content_parsed));
-							}
-						}
-					}
-				}
-				// Operators
-				_ if (token.variant.is_binary_operator() || token.variant.is_unary_operator()) && parentheses_depth == 0 => {
-					maybe_parsed_tokens.push(MaybeParsedToken::Token(token));
-				}
-				// Literals should be copied across
-				TokenVariant::StringLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::StringLiteral(Rc::new((*value).into())), column: token.start_column })),
-				TokenVariant::IntegerLiteral(value) if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(value.clone())), column: token.start_column})),
-				TokenVariant::FloatLiteral { value, is_imaginary } if parentheses_depth == 0 => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FloatLiteral { value: *value, is_imaginary: *is_imaginary }, column: token.start_column})),
-				// Identifiers
-				TokenVariant::Identifier { name, identifier_type, is_optional, .. } if parentheses_depth == 0 => {
-					match () {
-						// Ignore fn keywords or throw an error if they are not followed by an identifier.
-						_ if matches!(token, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Fn), .. }, .. }) => {
-							match next_token {
-								Some(Token { variant: TokenVariant::Identifier { keyword, .. }, .. }) if *keyword != Some(Keyword::Fn) => {}
-								_ => return Err(Error { variant: ErrorVariant::FnWithoutIdentifier, line_number: line_number.cloned(), column_number: Some(start_column) }),
-							}
-						}
-						// If the identifier has a open parenthesis to the right, do nothing, we will parse it once we get to the matching closing parenthesis
-						_ if matches!(next_token, Some(Token { variant: TokenVariant::LeftParenthesis, .. })) => {}
-						_ => match last_token {
-							// If the last token was a "fn" keyword, this is a fn identifier without arguments
-							Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Fn), .. }, .. }) =>
-								maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: true, has_parentheses: false }, column: last_token.unwrap().start_column })),
-							// Else it is a non-fn identifier
-							_ => maybe_parsed_tokens.push(MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::IdentifierOrFunction { name: (*name).into(), identifier_type: *identifier_type, is_optional: *is_optional, arguments: Box::default(), uses_fn_keyword: false, has_parentheses: false }, column: token.start_column })),
-						}
-					}
-				}
-				_ => {}
-			}
-			last_token = Some(token);
-		}
-		if parentheses_depth > 0 {
-			return Err(Error { variant: ErrorVariant::MoreLeftParenthesesThanRightParentheses, line_number: line_number.cloned(), column_number: Some(last_token.unwrap().end_column) });
-		}
-		// Parse operators
-		'a: loop {
-			// Exponentiation
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Exponentiation), _), start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Exponentiation(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
-			// Unary negation and plus
-			'b: for index in (0..maybe_parsed_tokens.len()).rev() {
-				if index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let (column, is_plus) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(_, Some(UnaryOperator::Negation)), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(_, Some(UnaryOperator::UnaryPlus)), start_column, .. }) => (*start_column, true),
-					_ => continue 'b,
-				};
-				match index.checked_sub(1) {
-					Some(left_index) => match &maybe_parsed_tokens[left_index] {
-						MaybeParsedToken::Expression(..) => continue 'b,
-						MaybeParsedToken::Token(..) => {}
-					}
-					None => {}
-				}
-				if !matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_)) {
-					continue 'b;
-				}
-				let right_expression = match maybe_parsed_tokens.remove(index + 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index] = match is_plus {
-					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Negation(Box::new(right_expression)), column }),
-					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::UnaryPlus(Box::new(right_expression)), column }),
-				};
-				continue 'a;
-			}
-			// Multiplication and division
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let (column, chr) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(chr, _), start_column, .. }) if matches!(*chr, Some(BinaryOperator::Multiplication | BinaryOperator::Division | BinaryOperator::DoubleSlash)) => (*start_column, *chr),
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = match chr {
-					Some(BinaryOperator::Multiplication) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Multiplication(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::Division) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Division(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::DoubleSlash) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column }),
-					_ => unreachable!(),
-				};
-				continue 'a;
-			}
-			// Floored Division
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::BackSlash), _), start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::FlooredDivision(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
-			// Addition and subtraction
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let (column, is_subtraction) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), _), start_column, .. }) => (*start_column, false),
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Subtraction), _), start_column, .. }) => (*start_column, true),
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = match is_subtraction {
-					false => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::AdditionConcatenation(Box::new(left_expression), Box::new(right_expression)), column }),
-					true => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Subtraction(Box::new(left_expression), Box::new(right_expression)), column }),
-				};
-				continue 'a;
-			}
-			// Concatenation
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Concatenation), _), start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Concatenation(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
-			// Comparison
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let (column, operator) = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Operator(operator, _), start_column, .. }) if matches!(*operator, Some(BinaryOperator::Equal | BinaryOperator::NotEqualTo | BinaryOperator::LessThan | BinaryOperator::LessThanOrEqualTo | BinaryOperator::GreaterThan | BinaryOperator::GreaterThanOrEqualTo)) => (*start_column, *operator),
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = match operator {
-					Some(BinaryOperator::LessThan) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::LessThanOrEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::LessThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::GreaterThan) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThan(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::GreaterThanOrEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::GreaterThanOrEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::Equal) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::EqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					Some(BinaryOperator::NotEqualTo) => MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::NotEqualTo(Box::new(left_expression), Box::new(right_expression)), column }),
-					_ => unreachable!(),
-				};
-				continue 'a;
-			}
-			// Not
-			'b: for index in (0..maybe_parsed_tokens.len()).rev() {
-				if index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { unary_operator: Some(UnaryOperator::Not), .. }, start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				match index.checked_sub(1) {
-					Some(left_index) => match &maybe_parsed_tokens[left_index] {
-						MaybeParsedToken::Expression(..) => continue 'b,
-						MaybeParsedToken::Token(..) => {}
-					}
-					None => {}
-				}
-				if !matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_)) {
-					continue 'b;
-				}
-				let right_expression = match maybe_parsed_tokens.remove(index + 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Not(Box::new(right_expression)), column });
-				continue 'a;
-			}
-			// And
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { binary_operator: Some(BinaryOperator::And), .. }, start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::And(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
-			// Or
-			'b: for index in 0..maybe_parsed_tokens.len() {
-				if index == 0 || index == maybe_parsed_tokens.len() - 1 {
-					continue 'b;
-				}
-				let column = match maybe_parsed_tokens[index] {
-					MaybeParsedToken::Token(Token { variant: TokenVariant::Identifier { binary_operator: Some(BinaryOperator::Or), .. }, start_column, .. }) => *start_column,
-					_ => continue 'b,
-				};
-				if !(matches!(&maybe_parsed_tokens[index - 1], MaybeParsedToken::Expression(_)) && matches!(&maybe_parsed_tokens[index + 1], MaybeParsedToken::Expression(_))) {
-					continue 'b;
-				}
-				let left_expression = match maybe_parsed_tokens.remove(index - 1) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				let right_expression = match maybe_parsed_tokens.remove(index) {
-					MaybeParsedToken::Expression(expression) => expression,
-					_ => unreachable!(),
-				};
-				maybe_parsed_tokens[index - 1] = MaybeParsedToken::Expression(Expression { variant: ExpressionVariant::Or(Box::new(left_expression), Box::new(right_expression)), column });
-				continue 'a;
-			}
-			break 'a;
-		}
-		for maybe_parsed_token in maybe_parsed_tokens.iter() {
-			match maybe_parsed_token {
-				MaybeParsedToken::Token(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::InvalidOperator, line_number: line_number.cloned(), column_number: Some(*start_column) }),
-				_ => {}
-			}
-		}
-		// Return
-		debug_assert!(maybe_parsed_tokens.len() == 1);
-		let expression = match maybe_parsed_tokens.into_iter().next() {
-			Some(MaybeParsedToken::Expression(expression)) => expression,
-			_ => panic!()
-		};
-		Ok(Some((expression, tokens_after_expression_tokens)))
-	}*/
-
 	/// Takes in a list of tokens and returns how many form one expression given the following productions:
 	///
 	/// `expression = operand (binary-operator operand)*`
@@ -1059,7 +660,7 @@ impl Expression {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum ExpressionVariant {
 	StringLiteral(Rc<String>),
 	IntegerLiteral(Rc<BigInt>),
@@ -1100,13 +701,6 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) ->
 	}
 	Ok(out.into())
 }
-
-//#[derive(Debug)]
-//enum MaybeParsedToken<'a, 'b> {
-//	Token(&'b Token<'a>),
-//	Expression(Expression),
-//}
-
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum BinaryOperator {
@@ -1227,5 +821,43 @@ impl UnaryOperator {
 			UnaryOperator::UnaryPlus => Expression { variant: ExpressionVariant::UnaryPlus(Box::new(operand)), column: start_column },
 			UnaryOperator::Not => Expression { variant: ExpressionVariant::Not(Box::new(operand)), column: start_column },
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn test_parse_expression() {
+		assert_eq!(
+			Expression::parse_expression(&*(Token::tokenize_line("1 1").unwrap().1), None, 1.try_into().unwrap()).unwrap().unwrap(),
+			(
+				Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(1.try_into().unwrap())), column: 3.try_into().unwrap() },
+				[].as_slice(),
+				4.try_into().unwrap(),
+			)
+		);
+
+		assert_eq!(
+			Expression::parse_expression(&*(Token::tokenize_line("1 2 3").unwrap().1), None, 2.try_into().unwrap()).unwrap().unwrap(),
+			(
+				Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(2.try_into().unwrap())), column: 3.try_into().unwrap() },
+				[Token { variant: TokenVariant::IntegerLiteral(3.try_into().unwrap()), start_column: 5.try_into().unwrap(), end_column: 6.try_into().unwrap() }].as_slice(),
+				4.try_into().unwrap(),
+			)
+		);
+
+		assert_eq!(
+			Expression::parse_expression(&*(Token::tokenize_line("1 2 + 3").unwrap().1), None, 2.try_into().unwrap()).unwrap().unwrap(),
+			(
+				Expression { variant: ExpressionVariant::AdditionConcatenation(
+					Box::new(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(2.try_into().unwrap())), column: 3.try_into().unwrap() }),
+					Box::new(Expression { variant: ExpressionVariant::IntegerLiteral(Rc::new(3.try_into().unwrap())), column: 7.try_into().unwrap() }),
+				), column: 5.try_into().unwrap() },
+				[].as_slice(),
+				8.try_into().unwrap(),
+			)
+		);
 	}
 }
