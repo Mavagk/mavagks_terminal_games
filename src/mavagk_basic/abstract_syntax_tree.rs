@@ -265,9 +265,9 @@ impl Expression {
 				}
 			};
 			// Solve and push
+			expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
 			Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, Some(binary_operator.get_operator_precedence()));
 			operators.push((binary_operator, binary_operator_start_column));
-			expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
 		}
 		// Solve
 		Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, None);
@@ -280,6 +280,9 @@ impl Expression {
 
 	pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(Expression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) {
 		loop {
+			println!("A {expression_stack:?}");
+			println!("B {operator_stack:?}");
+			println!("C {precedence:?}");
 			// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
 			let (binary_operator, binary_operator_start_column) = match operator_stack.last() {
 				Some((operator, operator_start_column)) => {
