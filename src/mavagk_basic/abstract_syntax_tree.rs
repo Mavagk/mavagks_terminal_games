@@ -250,7 +250,6 @@ impl Expression {
 			};
 			remaining_tokens = tokens_after_expression_primary;
 			end_column_of_last_token = end_column_of_expression_primary;
-			expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
 			// Get binary operator or break
 			let (binary_operator, binary_operator_start_column) = match remaining_tokens.get(0) {
 				Some(Token { variant: TokenVariant::Operator(Some(binary_operator), _), start_column, end_column }) |
@@ -264,6 +263,7 @@ impl Expression {
 			// Solve and push
 			Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, Some(binary_operator.get_operator_precedence()));
 			operators.push((binary_operator, binary_operator_start_column));
+			expression_primaries_and_their_unary_operators.push((expression_primary, unary_operators_before_expression_primary));
 		}
 		// Solve
 		Self::solve_operators_by_precedence(&mut expression_primaries_and_their_unary_operators, &mut operators, None);
