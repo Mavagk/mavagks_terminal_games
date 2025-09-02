@@ -84,6 +84,9 @@ impl Machine {
 				match variant {
 					StatementVariant::Print(sub_expressions) => {
 						for sub_expression in sub_expressions {
+							if let Expression { variant: ExpressionVariant::PrintSemicolon | ExpressionVariant::PrintComma, column } = sub_expression {
+								return Err(Error { variant: ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()), line_number: line_number.cloned(), column_number: Some(*column) })
+							}
 							let value = self.execute_expression(sub_expression, line_number)?;
 							print!("{value}");
 						}
@@ -379,6 +382,44 @@ impl Machine {
 					_ => unreachable!(),
 				}
 			}
+			ExpressionVariant::And(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs && rhs),
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) &= &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) =>
+						Value::Int(Rc::new((&*Value::Float(lhs).cast_to_int(line, *column).unwrap().unwrap_int()) & (&*Value::Float(rhs).cast_to_int(line, *column).unwrap().unwrap_int()))),
+					(Value::Complex(lhs), Value::Complex(rhs)) =>
+						Value::Int(Rc::new((&*Value::Complex(lhs).cast_to_int(line, *column)?.unwrap_int()) & (&*Value::Complex(rhs).cast_to_int(line, *column)?.unwrap_int()))),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::Or(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs || rhs),
+					(Value::Int(mut lhs), Value::Int(rhs)) => {
+						let int = Rc::<BigInt>::make_mut(&mut lhs);
+						(*int) |= &*rhs;
+						Value::Int(lhs)
+					}
+					(Value::Float(lhs), Value::Float(rhs)) =>
+						Value::Int(Rc::new((&*Value::Float(lhs).cast_to_int(line, *column).unwrap().unwrap_int()) | (&*Value::Float(rhs).cast_to_int(line, *column).unwrap().unwrap_int()))),
+					(Value::Complex(lhs), Value::Complex(rhs)) =>
+						Value::Int(Rc::new((&*Value::Complex(lhs).cast_to_int(line, *column)?.unwrap_int()) | (&*Value::Complex(rhs).cast_to_int(line, *column)?.unwrap_int()))),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
 			ExpressionVariant::Negation(sub_expression) => {
 				let sub_expression = self.execute_expression(&sub_expression, line)?;
 				match sub_expression {
@@ -397,6 +438,23 @@ impl Machine {
 				}
 			}
 			ExpressionVariant::UnaryPlus(sub_expression) => self.execute_expression(&sub_expression, line)?,
+			ExpressionVariant::Not(sub_expression) => {
+				let sub_expression = self.execute_expression(&sub_expression, line)?;
+				match sub_expression {
+					Value::Bool(sub_expression) => match sub_expression {
+						true => Value::Int(Rc::new(BigInt::from_i8(-2).unwrap())),
+						false => Value::Int(Rc::new(BigInt::from_i8(-1).unwrap())),
+					}
+					Value::Int(mut sub_expression) => {
+						let int = Rc::<BigInt>::make_mut(&mut sub_expression);
+						let int = !(int.clone());
+						Value::Int(Rc::new(int))
+					}
+					Value::Float(sub_expression) => Value::Int(Rc::new(!(&*Value::Float(sub_expression).cast_to_int(line, *column).unwrap().unwrap_int()))),
+					Value::Complex(sub_expression) => Value::Int(Rc::new(!(&*Value::Complex(sub_expression).cast_to_int(line, *column)?.unwrap_int()))),
+					Value::String(_) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+				}
+			}
 			ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments: _, uses_fn_keyword, has_parentheses } => {
 				if *has_parentheses || *uses_fn_keyword {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line.cloned(), column_number: Some(*column) });
@@ -423,8 +481,10 @@ impl Machine {
 					}
 				}
 			}
-			_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
+			ExpressionVariant::PrintComma | ExpressionVariant::PrintSemicolon => unreachable!(),
+			//_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
 		})
+		
 	}
 }
 

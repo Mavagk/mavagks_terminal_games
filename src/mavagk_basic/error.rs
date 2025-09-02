@@ -124,7 +124,7 @@ pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
 	match maybe_error {
 		Ok(not_error) => Some(not_error),
 		Err(error) => {
-			println!("Basic error{error}");
+			println!("\nBasic error{error}");
 			None
 		}
 	}
