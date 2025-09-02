@@ -262,6 +262,123 @@ impl Machine {
 				(*int) /= &*rhs;
 				Value::Int(lhs)
 			}
+			ExpressionVariant::EqualTo(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs == rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs == rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs == rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Bool(lhs == rhs),
+					(Value::String(lhs), Value::String(rhs)) => Value::Bool(lhs == rhs),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::Exponentiation(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => match (lhs, rhs) {
+						(true, true) => Value::Bool(true),
+						(true, false) => Value::Bool(true),
+						(false, true) => Value::Bool(false),
+						(false, false) => Value::Bool(true),
+					}
+					(Value::Int(lhs), Value::Int(rhs)) => {
+						match rhs.to_u32() {
+							Some(rhs_as_u32) => Value::Int(Rc::new(lhs.pow(rhs_as_u32))),
+							None => Value::Float(Value::Int(lhs).cast_to_float(line, *column).unwrap().unwrap_float().powf(Value::Int(rhs).cast_to_float(line, *column).unwrap().unwrap_float())),
+						}
+					}
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Float(lhs.powf(rhs)),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Complex(lhs.powc(rhs)),
+					(Value::String(_), Value::String(_)) => return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::NotEqualTo(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs != rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs != rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs != rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => Value::Bool(lhs != rhs),
+					(Value::String(lhs), Value::String(rhs)) => Value::Bool(lhs != rhs),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::LessThan(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs < rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs < rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs < rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => match lhs.im != 0. || rhs.im != 0. {
+						false => Value::Bool(lhs.re < rhs.re),
+						true => return Err(Error { variant: ErrorVariant::NonRealComparison(lhs, rhs), line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					(Value::String(_), Value::String(_))=>
+						return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >=".into()), line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::LessThanOrEqualTo(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs <= rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs <= rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs <= rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => match lhs.im != 0. || rhs.im != 0. {
+						false => Value::Bool(lhs.re <= rhs.re),
+						true => return Err(Error { variant: ErrorVariant::NonRealComparison(lhs, rhs), line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					(Value::String(_), Value::String(_))=>
+						return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >=".into()), line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::GreaterThan(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs > rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs > rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs > rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => match lhs.im != 0. || rhs.im != 0. {
+						false => Value::Bool(lhs.re > rhs.re),
+						true => return Err(Error { variant: ErrorVariant::NonRealComparison(lhs, rhs), line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					(Value::String(_), Value::String(_))=>
+						return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >=".into()), line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
+			ExpressionVariant::GreaterThanOrEqualTo(lhs_expression, rhs_expression) => {
+				let lhs = self.execute_expression(&lhs_expression, line)?;
+				let rhs = self.execute_expression(&rhs_expression, line)?;
+				let (lhs, rhs) = lhs.upcast(rhs, line, *column)?;
+				match (lhs, rhs) {
+					(Value::Bool(lhs), Value::Bool(rhs)) => Value::Bool(lhs >= rhs),
+					(Value::Int(lhs), Value::Int(rhs)) => Value::Bool(lhs >= rhs),
+					(Value::Float(lhs), Value::Float(rhs)) => Value::Bool(lhs >= rhs),
+					(Value::Complex(lhs), Value::Complex(rhs)) => match lhs.im != 0. || rhs.im != 0. {
+						false => Value::Bool(lhs.re >= rhs.re),
+						true => return Err(Error { variant: ErrorVariant::NonRealComparison(lhs, rhs), line_number: line.cloned(), column_number: Some(*column) }),
+					}
+					(Value::String(_), Value::String(_))=>
+						return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >=".into()), line_number: line.cloned(), column_number: Some(*column) }),
+					_ => unreachable!(),
+				}
+			}
 			ExpressionVariant::Negation(sub_expression) => {
 				let sub_expression = self.execute_expression(&sub_expression, line)?;
 				match sub_expression {

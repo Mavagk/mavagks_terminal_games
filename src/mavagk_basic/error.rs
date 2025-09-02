@@ -1,6 +1,6 @@
 use std::{fmt::{self, Display, Formatter}, num::NonZeroUsize};
 
-use num::BigInt;
+use num::{complex::Complex64, BigInt};
 
 use crate::mavagk_basic::machine::Value;
 
@@ -72,6 +72,7 @@ pub enum ErrorVariant {
 	InvalidSeparatorInFunctionArguments,
 	UnaryOperatorsAtEndOfExpression,
 	ExpectedExpressionPrimary,
+	NonRealComparison(Complex64, Complex64),
 }
 
 impl Display for ErrorVariant {
@@ -113,6 +114,7 @@ impl Display for ErrorVariant {
 			Self::InvalidSeparatorInFunctionArguments => write!(f, "Invalid separator in function arguments."),
 			Self::UnaryOperatorsAtEndOfExpression => write!(f, "Unary operators at end of expression."),
 			Self::ExpectedExpressionPrimary => write!(f, "Expected expression primary."),
+			Self::NonRealComparison(lhs, rhs) => write!(f, "Comparison between non-real numbers {lhs} and {rhs}."),
 		}
 	}
 }
