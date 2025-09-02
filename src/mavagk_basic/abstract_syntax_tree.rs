@@ -38,13 +38,13 @@ impl Statement {
 			};
 			// Get l-value
 			let l_value_expression;
-			(l_value_expression, _) = Expression::parse_old(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
+			(l_value_expression, _, _) = Expression::parse_expression_primary(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
 			// Get r-value expression
 				let r_value_expression;
 				let remaining_tokens;
-				(r_value_expression, remaining_tokens) = match Expression::parse_old(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
+				(r_value_expression, remaining_tokens, _) = match Expression::parse_expression(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
-					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+					Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 				};
 				if remaining_tokens.len() != 0 {
 					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
@@ -66,9 +66,9 @@ impl Statement {
 				// Get l-value expression
 				let l_value_length = Expression::get_l_value_length(remaining_tokens);
 				let l_value_expression;
-				(l_value_expression, _) = match Expression::parse_old(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
+				(l_value_expression, _, _) = match Expression::parse_expression_primary(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column) }),
-					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+					Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 				};
 				remaining_tokens = &remaining_tokens[l_value_length..];
 				// Expect equal sign
@@ -79,9 +79,9 @@ impl Statement {
 				};
 				// Get r-value expression
 				let r_value_expression;
-				(r_value_expression, remaining_tokens) = match Expression::parse_old(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
+				(r_value_expression, remaining_tokens, _) = match Expression::parse_expression(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
-					Some((l_value_expression, remaining_tokens)) => (l_value_expression, remaining_tokens),
+					Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 				};
 				if remaining_tokens.len() != 0 {
 					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
@@ -108,7 +108,7 @@ impl Statement {
 						_ => {}
 					}
 					let expression;
-					(expression, remaining_tokens) = match Expression::parse_old(remaining_tokens, line_number, identifier_token.end_column)? {
+					(expression, remaining_tokens, _) = match Expression::parse_expression(remaining_tokens, line_number, identifier_token.end_column)? {
 						None => break,
 						Some(result) => result,
 					};
@@ -122,9 +122,9 @@ impl Statement {
 				let mut remaining_tokens = &tokens[1..];
 				let mut expression = None;
 				if !remaining_tokens.is_empty() {
-					(expression, remaining_tokens) = match Expression::parse_old(remaining_tokens, line_number, identifier_token.end_column)? {
+					(expression, remaining_tokens, _) = match Expression::parse_expression(remaining_tokens, line_number, identifier_token.end_column)? {
 						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) }),
-						Some((result, remaining_tokens)) => (Some(result), remaining_tokens),
+						Some((result, remaining_tokens, expression_end_column)) => (Some(result), remaining_tokens, expression_end_column),
 					};
 					if !remaining_tokens.is_empty() {
 						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
@@ -444,7 +444,7 @@ impl Expression {
 		}))
 	}
 
-	pub fn parse_old<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
+	/*pub fn parse_old<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<Option<(Self, &'b [Token<'a>])>, Error> {
 		// Get the tokens for this expression or return if no tokens where passed in
 		let expression_length = Self::get_expression_length_old(tokens);
 		if expression_length == 0 {
@@ -841,7 +841,7 @@ impl Expression {
 			_ => panic!()
 		};
 		Ok(Some((expression, tokens_after_expression_tokens)))
-	}
+	}*/
 
 	/// Takes in a list of tokens and returns how many form one expression given the following productions:
 	///
@@ -1094,11 +1094,11 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) ->
 	Ok(out.into())
 }
 
-#[derive(Debug)]
-enum MaybeParsedToken<'a, 'b> {
-	Token(&'b Token<'a>),
-	Expression(Expression),
-}
+//#[derive(Debug)]
+//enum MaybeParsedToken<'a, 'b> {
+//	Token(&'b Token<'a>),
+//	Expression(Expression),
+//}
 
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
