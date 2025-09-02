@@ -248,7 +248,6 @@ impl Expression {
 					break 'a;
 				}
 			};
-			println!("{expression_primary:?}");
 			remaining_tokens = tokens_after_expression_primary;
 			end_column_of_last_token = end_column_of_expression_primary;
 			// Get binary operator or break
@@ -280,9 +279,6 @@ impl Expression {
 
 	pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(Expression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) {
 		loop {
-			println!("A {expression_stack:?}");
-			println!("B {operator_stack:?}");
-			println!("C {precedence:?}");
 			// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
 			let (binary_operator, binary_operator_start_column) = match operator_stack.last() {
 				Some((operator, operator_start_column)) => {
@@ -302,10 +298,10 @@ impl Expression {
 			// Pop the lhs operator operand and parse wrap it in its unary operators that have a lower than or equal precedence to the binary operator
 			let (mut lhs_expression, mut lhs_unary_operators) = expression_stack.pop().unwrap();
 			while !lhs_unary_operators.is_empty() {
-				let unary_operator = lhs_unary_operators.pop().unwrap();
-				if unary_operator.0.get_operator_precedence() > binary_operator.get_operator_precedence() {
+				if lhs_unary_operators.last().unwrap().0.get_operator_precedence() > binary_operator.get_operator_precedence() {
 					break;
 				}
+				let unary_operator = lhs_unary_operators.pop().unwrap();
 				lhs_expression = unary_operator.0.to_expression(unary_operator.1, lhs_expression);
 			}
 			// Push parsed expressions and unparsed unary operators
