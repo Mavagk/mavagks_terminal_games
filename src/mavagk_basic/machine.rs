@@ -2,9 +2,9 @@ use std::{collections::HashMap, f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Expression, ExpressionVariant, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
+use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
 
-pub struct Machine {
+/*pub struct Machine {
 	is_executing_unnumbered_line: bool,
 	line_executing: BigInt,
 	float_variables: HashMap<Box<str>, f64>,
@@ -632,4 +632,4 @@ impl Display for Value {
 			Self::Bool(value) => write!(f, "{}", *value as u8),
 		}
 	}
-}
+}*/

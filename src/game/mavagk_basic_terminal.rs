@@ -1,11 +1,11 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, error::handle_error, machine::Machine, program::Program, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, error::handle_error, /*machine::Machine*/ program::Program, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
-	machine: Machine,
+	//machine: Machine,
 	program: Program,
 }
 
@@ -43,7 +43,8 @@ impl Game for MavagkBasicTerminal {
 			}
 			// If a terminal command was not entered, enter the line of text into the MavagkBasic virtual machine
 			None => {
-				handle_error(self.machine.line_of_text_entered(input, &mut self.program));
+				todo!()
+				//handle_error(self.machine.line_of_text_entered(input, &mut self.program));
 			}
 		}
 		Ok(())
@@ -58,7 +59,7 @@ impl MavagkBasicTerminal {
 	pub fn new() -> Self {
 		Self {
 			should_exit: false,
-			machine: Machine::new(),
+			//machine: Machine::new(),
 			program: Program::new(),
 		}
 	}
