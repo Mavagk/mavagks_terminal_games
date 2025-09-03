@@ -1,6 +1,6 @@
 use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
-use num::BigInt;
+use num::{complex::Complex64, BigInt};
 
 use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::{IdentifierType, Keyword, Token, TokenVariant}};
 
@@ -686,6 +686,167 @@ pub enum ExpressionVariant {
 	And(Box<Expression>, Box<Expression>),
 	Or(Box<Expression>, Box<Expression>),
 	Concatenation(Box<Expression>, Box<Expression>),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct IntExpression {
+	pub variant: IntExpressionVariant,
+	pub column: NonZeroUsize,
+}
+
+impl IntExpression {
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum IntExpressionVariant {
+	ConstantValue(IntValue),
+	IntIdentifierOrFunction { name: Box<str>, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	BitwiseAnd(Box<IntExpression>, Box<IntExpression>),
+	BitwiseOr(Box<IntExpression>, Box<IntExpression>),
+	BitwiseNot(Box<IntExpression>),
+	CastFromReal(Box<RealExpression>),
+	CastFromBool(Box<BoolExpression>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct IntValue {
+	value: Rc<BigInt>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct RealExpression {
+	pub variant: RealExpressionVariant,
+	pub column: NonZeroUsize,
+}
+
+impl IntExpression {
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RealExpressionVariant {
+	ConstantValue(RealValue),
+	RealIdentifierOrFunction { name: Box<str>, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	Exponentiation(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	Negation(Box<RealExpressionVariant>),
+	UnaryPlus(Box<RealExpressionVariant>),
+	Multiplication(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	Division(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	FlooredDivision(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	Addition(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	Subtraction(Box<RealExpressionVariant>, Box<RealExpressionVariant>),
+	CastFromInt(Box<IntExpression>),
+	CastFromComplex(Box<ComplexExpression>),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum RealValue {
+	IntValue(Rc<BigInt>),
+	FloatValue(f64),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ComplexExpression {
+	pub variant: ComplexExpressionVariant,
+	pub column: NonZeroUsize,
+}
+
+impl ComplexExpression {
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum ComplexExpressionVariant {
+	ConstantValue(ComplexValue),
+	ComplexIdentifierOrFunction { name: Box<str>, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	Exponentiation(Box<ComplexExpression>, Box<ComplexExpression>),
+	Negation(Box<ComplexExpression>),
+	UnaryPlus(Box<ComplexExpression>),
+	Multiplication(Box<ComplexExpression>, Box<ComplexExpression>),
+	Division(Box<ComplexExpression>, Box<ComplexExpression>),
+	Addition(Box<ComplexExpression>, Box<ComplexExpression>),
+	Subtraction(Box<ComplexExpression>, Box<ComplexExpression>),
+	CastFromReal(Box<RealExpression>),
+}
+
+#[derive(Debug, PartialEq)]
+pub struct ComplexValue {
+	value: Complex64,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StringExpression {
+	pub variant: StringExpressionVariant,
+	pub column: NonZeroUsize,
+}
+
+impl StringExpression {
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum StringExpressionVariant {
+	ConstantValue(StringValue),
+	StringIdentifierOrFunction { name: Box<str>, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	Concatenation(Box<StringExpression>, Box<StringExpression>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct StringValue {
+	value: Rc<String>,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct BoolExpression {
+	pub variant: BoolExpressionVariant,
+	pub column: NonZeroUsize,
+}
+
+impl BoolExpression {
+
+}
+
+#[derive(Debug, PartialEq)]
+pub enum BoolExpressionVariant {
+	ConstantValue(BoolValue),
+	BoolIdentifierOrFunction { name: Box<str>, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
+	And(Box<BoolExpression>, Box<BoolExpression>),
+	Or(Box<BoolExpression>, Box<BoolExpression>),
+	Not(Box<BoolExpression>),
+	IntLessThan(Box<IntExpression>, Box<IntExpression>),
+	IntGreaterThan(Box<IntExpression>, Box<IntExpression>),
+	IntEqualTo(Box<IntExpression>, Box<IntExpression>),
+	IntNotEqualTo(Box<IntExpression>, Box<IntExpression>),
+	IntLessThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
+	IntGreaterThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
+	RealLessThan(Box<RealExpression>, Box<RealExpression>),
+	RealGreaterThan(Box<RealExpression>, Box<RealExpression>),
+	RealEqualTo(Box<RealExpression>, Box<RealExpression>),
+	RealNotEqualTo(Box<RealExpression>, Box<RealExpression>),
+	RealLessThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
+	RealGreaterThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
+	StringLessThan(Box<StringExpression>, Box<StringExpression>),
+	StringGreaterThan(Box<StringExpression>, Box<StringExpression>),
+	StringEqualTo(Box<StringExpression>, Box<StringExpression>),
+	StringNotEqualTo(Box<StringExpression>, Box<StringExpression>),
+	StringLessThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
+	StringGreaterThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
+	ComplexEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
+	ComplexNotEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct BoolValue {
+	value: bool,
+}
+
+#[derive(Debug, PartialEq)]
+pub enum AnyTypeExpression {
+	Int(IntExpression),
+	Real(RealExpression),
+	Complex(ComplexExpression),
+	String(StringExpression),
 }
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> Result<Box<[Statement]>, Error> {
