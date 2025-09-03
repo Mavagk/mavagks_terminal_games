@@ -928,34 +928,6 @@ pub fn get_l_value_length_old<'a>(tokens: &[Token<'a>]) -> usize {
 	//}
 //}
 
-//#[derive(Debug, PartialEq)]
-//pub enum ExpressionVariant {
-//	StringLiteral(Rc<String>),
-//	IntegerLiteral(Rc<BigInt>),
-//	FloatLiteral { value: f64, is_imaginary: bool },
-//	PrintComma,
-//	PrintSemicolon,
-//	IdentifierOrFunction { name: Box<str>, identifier_type: IdentifierType, is_optional: bool, arguments: Box<[Expression]>, uses_fn_keyword: bool, has_parentheses: bool },
-//	Exponentiation(Box<Expression>, Box<Expression>),
-//	Negation(Box<Expression>),
-//	UnaryPlus(Box<Expression>),
-//	Multiplication(Box<Expression>, Box<Expression>),
-//	Division(Box<Expression>, Box<Expression>),
-//	FlooredDivision(Box<Expression>, Box<Expression>),
-//	AdditionConcatenation(Box<Expression>, Box<Expression>),
-//	Subtraction(Box<Expression>, Box<Expression>),
-//	LessThan(Box<Expression>, Box<Expression>),
-//	GreaterThan(Box<Expression>, Box<Expression>),
-//	EqualTo(Box<Expression>, Box<Expression>),
-//	NotEqualTo(Box<Expression>, Box<Expression>),
-//	LessThanOrEqualTo(Box<Expression>, Box<Expression>),
-//	GreaterThanOrEqualTo(Box<Expression>, Box<Expression>),
-//	Not(Box<Expression>),
-//	And(Box<Expression>, Box<Expression>),
-//	Or(Box<Expression>, Box<Expression>),
-//	Concatenation(Box<Expression>, Box<Expression>),
-//}
-
 #[derive(Debug, PartialEq)]
 pub struct IntExpression {
 	pub variant: IntExpressionVariant,
@@ -970,150 +942,42 @@ impl IntExpression {
 		print!(" {:03}: Int ", self.column);
 		match &self.variant {
 			IntExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			_ => todo!(),
+			IntExpressionVariant::BitwiseAnd(lhs, rhs) => {
+				println!("Bitwise AND");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			IntExpressionVariant::BitwiseOr(lhs, rhs) => {
+				println!("Bitwise OR");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			IntExpressionVariant::BitwiseNot(operand) => {
+				println!("Bitwise NOT");
+				operand.print(depth + 1);
+			},
+			IntExpressionVariant::CastFromBool(operand) => {
+				println!("Cast from Bool");
+				operand.print(depth + 1);
+			},
+			IntExpressionVariant::CastFromReal(operand) => {
+				println!("Cast from Real");
+				operand.print(depth + 1);
+			},
+			IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
+				print!("Identifier/Function \"{name}\", ");
+				if *uses_fn_keyword {
+					print!(", Fn");
+				}
+				if *has_parentheses {
+					print!(", Parenthesised/()");
+				}
+				println!();
+				for argument in arguments {
+					argument.print(depth + 1);
+				}
+			},
 		}
-		//match &self.variant {
-		//	ExpressionVariant::FloatLiteral { value, is_imaginary } => {
-		//		print!("Float Literal {value}");
-		//		if *is_imaginary {
-		//			print!(", Imaginary/i");
-		//		}
-		//	}
-		//	ExpressionVariant::IntegerLiteral(value) => print!("Integer Literal {value}"),
-		//	ExpressionVariant::StringLiteral(value) => print!("String Literal \"{value}\""),
-		//	ExpressionVariant::PrintComma => print!("Comma"),
-		//	ExpressionVariant::PrintSemicolon => print!("Semicolon"),
-		//	ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments, uses_fn_keyword, has_parentheses } => {
-		//		print!("Identifier/Function \"{name}\", ");
-		//		match identifier_type {
-		//			IdentifierType::UnmarkedNumber => print!("Number/Unmarked"),
-		//			IdentifierType::Integer => print!("Integer/%"),
-		//			IdentifierType::String => print!("String/$"),
-		//			IdentifierType::ComplexNumber => print!("Complex Number/#"),
-		//		}
-		//		if *is_optional {
-		//			print!(", Optional/?");
-		//		}
-		//		if *uses_fn_keyword {
-		//			print!(", Fn");
-		//		}
-		//		if *has_parentheses {
-		//			print!(", Parenthesised/()");
-		//		}
-		//		println!();
-		//		for argument in arguments {
-		//			argument.print(depth + 1);
-		//		}
-		//	}
-		//	ExpressionVariant::Exponentiation(left_operand, right_operand) => {
-		//		print!("Exponentiation/^");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Negation(operand) => {
-		//		print!("Negation/-");
-		//		println!();
-		//		operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::UnaryPlus(operand) => {
-		//		print!("Unary Plus/+");
-		//		println!();
-		//		operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Multiplication(left_operand, right_operand) => {
-		//		print!("Multiplication/*");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Division(left_operand, right_operand) => {
-		//		print!("Division//");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::FlooredDivision(left_operand, right_operand) => {
-		//		print!("Floored Division/\\");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::AdditionConcatenation(left_operand, right_operand) => {
-		//		print!("Addition/Concatenation/+");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Subtraction(left_operand, right_operand) => {
-		//		print!("Subtraction/-");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::GreaterThan(left_operand, right_operand) => {
-		//		print!("Greater Than/>");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::LessThan(left_operand, right_operand) => {
-		//		print!("Less Than/<");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::GreaterThanOrEqualTo(left_operand, right_operand) => {
-		//		print!("Greater Than or Equal to/>=");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::LessThanOrEqualTo(left_operand, right_operand) => {
-		//		print!("Less Than Or Equal to/<=");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::EqualTo(left_operand, right_operand) => {
-		//		print!("Equal to/=");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::NotEqualTo(left_operand, right_operand) => {
-		//		print!("Not Equal to/<>");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Not(operand) => {
-		//		print!("Not");
-		//		println!();
-		//		operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::And(left_operand, right_operand) => {
-		//		print!("And");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Or(left_operand, right_operand) => {
-		//		print!("Or");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//	ExpressionVariant::Concatenation(left_operand, right_operand) => {
-		//		print!("Concatenation/&");
-		//		println!();
-		//		left_operand.print(depth + 1);
-		//		right_operand.print(depth + 1);
-		//	}
-		//}
-		//if matches!(self.variant, ExpressionVariant::IntegerLiteral { .. } | ExpressionVariant::FloatLiteral { .. } | ExpressionVariant::PrintComma | ExpressionVariant::PrintSemicolon | ExpressionVariant::StringLiteral(..)) {
-		//	println!();
-		//}
 	}
 }
 
@@ -1155,7 +1019,72 @@ pub struct RealExpression {
 
 impl RealExpression {
 	pub fn print(&self, depth: usize) {
-		todo!()
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Real ", self.column);
+		match &self.variant {
+			RealExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
+			RealExpressionVariant::Addition(lhs, rhs) => {
+				println!("Addition");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::Subtraction(lhs, rhs) => {
+				println!("Subtraction");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::Multiplication(lhs, rhs) => {
+				println!("Multiplication");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::Division(lhs, rhs) => {
+				println!("Division");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::Exponentiation(lhs, rhs) => {
+				println!("Exponentiation");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::FlooredDivision(lhs, rhs) => {
+				println!("Floored Division");
+				lhs.print(depth + 1);
+				rhs.print(depth + 1);
+			},
+			RealExpressionVariant::CastFromComplex(operand) => {
+				println!("Cast from Complex");
+				operand.print(depth + 1);
+			},
+			RealExpressionVariant::CastFromInt(operand) => {
+				println!("Cast from Int");
+				operand.print(depth + 1);
+			},
+			RealExpressionVariant::Negation(operand) => {
+				println!("Negation");
+				operand.print(depth + 1);
+			},
+			RealExpressionVariant::UnaryPlus(operand) => {
+				println!("Unary Plus");
+				operand.print(depth + 1);
+			},
+			RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
+				print!("Identifier/Function \"{name}\", ");
+				if *uses_fn_keyword {
+					print!(", Fn");
+				}
+				if *has_parentheses {
+					print!(", Parenthesised/()");
+				}
+				println!();
+				for argument in arguments {
+					argument.print(depth + 1);
+				}
+			},
+		}
 	}
 }
 
@@ -1179,6 +1108,15 @@ pub enum RealExpressionVariant {
 pub enum RealValue {
 	IntValue(Rc<BigInt>),
 	FloatValue(f64),
+}
+
+impl Display for RealValue {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::FloatValue(value) => write!(f, "{}", value),
+			Self::IntValue(value) => write!(f, "{}", value),
+		}
+	}
 }
 
 #[derive(Debug, PartialEq)]
