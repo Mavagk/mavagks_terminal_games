@@ -109,10 +109,6 @@ impl IntExpression {
 				lhs.print(depth + 1);
 				rhs.print(depth + 1);
 			},
-			IntExpressionVariant::BitwiseNot(operand) => {
-				println!("Bitwise NOT");
-				operand.print(depth + 1);
-			},
 			IntExpressionVariant::CastFromBool(operand) => {
 				println!("Cast from Bool");
 				operand.print(depth + 1);
@@ -144,7 +140,6 @@ pub enum IntExpressionVariant {
 	IntIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
 	BitwiseAnd(Box<IntExpression>, Box<IntExpression>),
 	BitwiseOr(Box<IntExpression>, Box<IntExpression>),
-	BitwiseNot(Box<IntExpression>),
 	CastFromReal(Box<RealExpression>),
 	CastFromBool(Box<BoolExpression>),
 }
@@ -205,6 +200,10 @@ impl RealExpression {
 				println!("Negation");
 				operand.print(depth + 1);
 			},
+			RealExpressionVariant::BitwiseNot(operand) => {
+				println!("Bitwise NOT");
+				operand.print(depth + 1);
+			},
 			RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
 				print!("Identifier/Function \"{name}\", ");
 				if *uses_fn_keyword {
@@ -230,9 +229,10 @@ pub enum RealExpressionVariant {
 	Negation(Box<RealExpression>),
 	Multiplication(Box<RealExpression>, Box<RealExpression>),
 	Division(Box<RealExpression>, Box<RealExpression>),
-	FlooredDivision(Box<RealExpression>, Box<RealExpression>),
+	FlooredDivision(Box<IntExpression>, Box<IntExpression>),
 	Addition(Box<RealExpression>, Box<RealExpression>),
 	Subtraction(Box<RealExpression>, Box<RealExpression>),
+	BitwiseNot(Box<IntExpression>),
 	CastFromInt(Box<IntExpression>),
 	CastFromComplex(Box<ComplexExpression>),
 }

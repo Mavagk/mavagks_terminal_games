@@ -161,6 +161,7 @@ dependencies = [
  "array2d",
  "crossterm",
  "num",
+ "num-traits",
  "rand",
  "strum",
  "strum_macros",

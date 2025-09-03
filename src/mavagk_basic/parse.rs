@@ -664,8 +664,8 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::FlooredDivision(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
+						Box::new(lhs.to_int_expression(line_number)?),
+						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
@@ -677,8 +677,8 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::FlooredDivision(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
+						Box::new(lhs.to_int_expression(line_number)?),
+						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
@@ -926,7 +926,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 			AnyTypeExpression::Bool(..) =>
 				AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::Not(Box::new(operand.to_bool_expression(line_number)?)), column: start_column }),
 			AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) | AnyTypeExpression::Complex(..) =>
-				AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
+				AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
 			AnyTypeExpression::String(..) =>
 				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
 			_ => unreachable!(),

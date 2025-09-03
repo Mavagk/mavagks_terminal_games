@@ -2,8 +2,6 @@ use std::{fmt::{self, Display, Formatter}, num::NonZeroUsize};
 
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::value::ComplexValue;
-
 //use crate::mavagk_basic::machine::Value;
 
 #[derive(Debug)]
@@ -53,7 +51,7 @@ pub enum ErrorVariant {
 	InvalidOperatorSymbol,
 	InvalidLineNumber,
 	NonNumberValueCastToInt(f64),
-	NonRealComplexValueCastToReal(ComplexValue),
+	NonRealComplexValueCastToReal(Complex64),
 	StringCastToNumber,
 	NumberCastToString,
 	StatementShouldEnd,
