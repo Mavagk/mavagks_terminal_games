@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{abstract_syntax_tree::parse_line, error::handle_error, /*machine::Machine*/ program::Program, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{error::handle_error, parse::parse_line, program::Program, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,

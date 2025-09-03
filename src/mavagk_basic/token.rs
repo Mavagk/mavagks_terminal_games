@@ -4,7 +4,7 @@ use num::{BigInt, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{BinaryOperator, UnaryOperator}, error::{Error, ErrorVariant}};
+use crate::mavagk_basic::error::{Error, ErrorVariant};
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
@@ -330,6 +330,99 @@ impl Keyword {
 			}
 		}
 		None
+	}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BinaryOperator {
+	Exponentiation,
+	Multiplication,
+	Division,
+	DoubleSlash,
+	BackSlash,
+	AdditionConcatenation,
+	Subtraction,
+	LessThan,
+	GreaterThan,
+	Equal,
+	NotEqualTo,
+	LessThanOrEqualTo,
+	GreaterThanOrEqualTo,
+	And,
+	Or,
+	Concatenation,
+}
+
+impl BinaryOperator {
+	pub fn get_operator_precedence(self) -> u8 {
+		match self {
+			Self::Exponentiation => 0,
+			Self::Multiplication | Self::Division | Self::DoubleSlash => 2,
+			Self::BackSlash => 3,
+			Self::AdditionConcatenation | Self::Subtraction | Self::Concatenation => 4,
+			Self::LessThan | Self::GreaterThan | Self::LessThanOrEqualTo | Self::GreaterThanOrEqualTo | Self::Equal | Self::NotEqualTo => 5,
+			Self::And => 7,
+			Self::Or => 8,
+		}
+	}
+
+	pub fn from_symbol(symbol: &str) -> Option<Self> {
+		match symbol {
+			"^" | "↑" => Some(Self::Exponentiation),
+			"*" => Some(Self::Multiplication),
+			"/" => Some(Self::Division),
+			"//" => Some(Self::DoubleSlash),
+			"\\" => Some(Self::BackSlash),
+			"+" => Some(Self::AdditionConcatenation),
+			"-" => Some(Self::Subtraction),
+			"<" => Some(Self::LessThan),
+			">" => Some(Self::GreaterThan),
+			"=" => Some(Self::Equal),
+			"<>" | "><" => Some(Self::NotEqualTo),
+			"<=" | "=<" => Some(Self::LessThanOrEqualTo),
+			">=" | "=>" => Some(Self::GreaterThanOrEqualTo),
+			"&" => Some(Self::Concatenation),
+			_ => None,
+		}
+	}
+
+	pub fn from_name(name: &str) -> Option<Self> {
+		match name {
+			_ if name.eq_ignore_ascii_case("AND") => Some(Self::And),
+			_ if name.eq_ignore_ascii_case("OR") => Some(Self::Or),
+			_ => None,
+		}
+	}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum UnaryOperator {
+	Negation,
+	UnaryPlus,
+	Not,
+}
+
+impl UnaryOperator {
+	pub fn get_operator_precedence(self) -> u8 {
+		match self {
+			Self::UnaryPlus | Self::Negation => 1,
+			Self::Not => 6,
+		}
+	}
+
+	pub fn from_symbol(symbol: &str) -> Option<Self> {
+		match symbol {
+			"-" => Some(Self::Negation),
+			"+" => Some(Self::UnaryPlus),
+			_ => None,
+		}
+	}
+
+	pub fn from_name(name: &str) -> Option<Self> {
+		match name {
+			_ if name.eq_ignore_ascii_case("NOT") => Some(Self::Not),
+			_ => None,
+		}
 	}
 }
 

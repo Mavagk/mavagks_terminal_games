@@ -2,7 +2,7 @@ use std::{collections::HashMap, f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{parse_line, Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
+use crate::mavagk_basic::{abstract_syntax_tree::{Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
 
 /*pub struct Machine {
 	is_executing_unnumbered_line: bool,
