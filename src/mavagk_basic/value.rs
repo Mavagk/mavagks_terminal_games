@@ -47,9 +47,9 @@ impl Display for ComplexValue {
 	}
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct StringValue {
-	value: Rc<String>,
+	pub value: Rc<String>,
 }
 
 impl StringValue {

@@ -260,10 +260,27 @@ impl Machine {
 		})
 	}
 
-	fn execute_string_expression(&self, expression: &StringExpression, line: Option<&BigInt>) -> Result<StringValue, Error> {
+	fn execute_string_expression(&self, expression: &StringExpression, line_number: Option<&BigInt>) -> Result<StringValue, Error> {
 		let StringExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression_variant {
-			_ => todo!(),
+			StringExpressionVariant::ConstantValue(value) => value.clone(),
+			StringExpressionVariant::Concatenation(lhs, rhs) => StringValue {
+				value: {
+					let mut lhs_value = Self::execute_string_expression(self, lhs, line_number)?.value;
+					let string = Rc::<String>::make_mut(&mut lhs_value);
+					string.push_str(&*Self::execute_string_expression(self, rhs, line_number)?.value);
+					lhs_value
+				},
+			},
+			StringExpressionVariant::StringIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+				if *has_parentheses || *uses_fn_keyword {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column) });
+				}
+				match self.string_variables.get(name) {
+					Some(int_variable) => int_variable.clone(),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column) }),
+				}
+			}
 		})
 	}
 
