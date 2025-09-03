@@ -2,15 +2,15 @@ use std::{collections::HashMap, f64::{INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, Complex, FromPrimitive, ToPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{Statement, StatementVariant}, error::{Error, ErrorVariant}, program::Program, token::{IdentifierType, Token}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{Error, ErrorVariant}, parse::parse_line, program::Program, token::{IdentifierType, Token}, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
-/*pub struct Machine {
+pub struct Machine {
 	is_executing_unnumbered_line: bool,
 	line_executing: BigInt,
-	float_variables: HashMap<Box<str>, f64>,
-	complex_variables: HashMap<Box<str>, Complex64>,
-	int_variables: HashMap<Box<str>, Rc<BigInt>>,
-	string_variables: HashMap<Box<str>, Rc<String>>,
+	real_variables: HashMap<Box<str>, RealValue>,
+	complex_variables: HashMap<Box<str>, ComplexValue>,
+	int_variables: HashMap<Box<str>, IntValue>,
+	string_variables: HashMap<Box<str>, StringValue>,
 }
 
 impl Machine {
@@ -19,7 +19,7 @@ impl Machine {
 			is_executing_unnumbered_line: false,
 			line_executing: 0.into(),
 			int_variables: HashMap::new(),
-			float_variables: HashMap::new(),
+			real_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
 		}
@@ -36,7 +36,7 @@ impl Machine {
 	fn clear_machine_state(&mut self) {
 		// TODO
 		self.int_variables = HashMap::new();
-		self.float_variables = HashMap::new();
+		self.real_variables = HashMap::new();
 		self.complex_variables = HashMap::new();
 		self.string_variables = HashMap::new();
 	}
@@ -84,11 +84,17 @@ impl Machine {
 				match variant {
 					StatementVariant::Print(sub_expressions) => {
 						for sub_expression in sub_expressions {
-							if let Expression { variant: ExpressionVariant::PrintSemicolon | ExpressionVariant::PrintComma, column } = sub_expression {
-								return Err(Error { variant: ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()), line_number: line_number.cloned(), column_number: Some(*column) })
+							match sub_expression {
+								AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression, line_number)?),
+								AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression, line_number)?),
+								AnyTypeExpression::Real(sub_expression) => print!("{}", self.execute_real_expression(sub_expression, line_number)?),
+								AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression, line_number)?),
+								AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression, line_number)?),
+								AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
+									return Err(Error {
+										variant: ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()), line_number: line_number.cloned(), column_number: Some(*sub_expression_column)
+									}),
 							}
-							let value = self.execute_expression(sub_expression, line_number)?;
-							print!("{value}");
 						}
 						println!();
 					}
@@ -96,8 +102,7 @@ impl Machine {
 						// Set the line to be executed next
 						match sub_expression {
 							Some(sub_expression) => {
-								let line_number = self.execute_expression(sub_expression, line_number)?.cast_to_int(line_number, *column)?;
-								let line_number = line_number.unwrap_int();
+								let line_number = self.execute_int_expression(sub_expression, line_number)?.value;
 								self.line_executing = (&*line_number).clone();
 								self.is_executing_unnumbered_line = false;
 							}
@@ -111,35 +116,65 @@ impl Machine {
 						continue 'lines_loop;
 					}
 					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
-					StatementVariant::Assign(l_value, r_value_expression) => {
+					StatementVariant::AssignInt(l_value, r_value_expression) => {
 						// Get what to assign to
-						let (name, identifier_type, is_optional, _arguments, has_parentheses) = match l_value {
-							Expression { variant: ExpressionVariant::IdentifierOrFunction { name, identifier_type, is_optional, arguments, uses_fn_keyword: false, has_parentheses }, .. } => (name, *identifier_type, *is_optional, arguments, *has_parentheses),
-							Expression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
+						let (name, _arguments, has_parentheses) = match l_value {
+							IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+								=> (name, arguments, *has_parentheses),
+							IntExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
 						};
 						// Get r-value
-						let r_value = Self::execute_expression(&self, r_value_expression, line_number)?;
+						let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
 						// Assign
 						if has_parentheses {
 							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column) });
 						}
-						if is_optional {
-							return Err(Error { variant: ErrorVariant::NotYetImplemented("Optionals".into()), line_number: line_number.cloned(), column_number: Some(*column) });
-						}
-						match identifier_type {
-							IdentifierType::Integer => {
-								self.int_variables.insert(name.clone(), r_value.cast_to_int(line_number, r_value_expression.column)?.unwrap_int());
-							}
-							IdentifierType::UnmarkedNumber => {
-								self.float_variables.insert(name.clone(), r_value.cast_to_float(line_number, r_value_expression.column)?.unwrap_float());
-							}
-							IdentifierType::ComplexNumber => {
-								self.complex_variables.insert(name.clone(), r_value.cast_to_complex(line_number, r_value_expression.column)?.unwrap_complex());
-							}
-							IdentifierType::String => {
-								self.string_variables.insert(name.clone(), r_value.cast_to_string(line_number, r_value_expression.column)?.unwrap_string());
-							}
+						self.int_variables.insert(name.clone(), r_value);
+					}
+					StatementVariant::AssignReal(l_value, r_value_expression) => {
+						// Get what to assign to
+						let (name, _arguments, has_parentheses) = match l_value {
+							RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+								=> (name, arguments, *has_parentheses),
+							RealExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
 						};
+						// Get r-value
+						let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
+						// Assign
+						if has_parentheses {
+							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column) });
+						}
+						self.real_variables.insert(name.clone(), r_value);
+					}
+					StatementVariant::AssignComplex(l_value, r_value_expression) => {
+						// Get what to assign to
+						let (name, _arguments, has_parentheses) = match l_value {
+							ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+								=> (name, arguments, *has_parentheses),
+							ComplexExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
+						};
+						// Get r-value
+						let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
+						// Assign
+						if has_parentheses {
+							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column) });
+						}
+						self.complex_variables.insert(name.clone(), r_value);
+					}
+					StatementVariant::AssignString(l_value, r_value_expression) => {
+						// Get what to assign to
+						let (name, _arguments, has_parentheses) = match l_value {
+							StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+								=> (name, arguments, *has_parentheses),
+							StringExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column) }),
+						};
+						// Get r-value
+						let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
+						// Assign
+						if has_parentheses {
+							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column) });
+						}
+						self.string_variables.insert(name.clone(), r_value);
 					}
 				}
 			}
@@ -154,7 +189,85 @@ impl Machine {
 		}
 	}
 
-	fn execute_expression(&self, expression: &Expression, line: Option<&BigInt>) -> Result<Value, Error> {
+	fn execute_int_expression(&self, expression: &IntExpression, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
+		let IntExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression_variant {
+			IntExpressionVariant::ConstantValue(value) => value.clone(),
+			IntExpressionVariant::CastFromBool(sub_expression) => IntValue {
+				value: Rc::new(match Self::execute_bool_expression(&self, sub_expression, line_number)?.value {
+					true => -1,
+					false => 0,
+				}.try_into().unwrap()),
+			},
+			IntExpressionVariant::CastFromReal(sub_expression) => IntValue {
+				value: match Self::execute_real_expression(&self, sub_expression, line_number)? {
+					RealValue::IntValue(value) => value,
+					RealValue::FloatValue(value) => Rc::new(match BigInt::from_f64(value) {
+						Some(value) => value,
+						None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(value), line_number: line_number.cloned(), column_number: Some(*expression_column) }),
+					}),
+				}
+			},
+			IntExpressionVariant::BitwiseAnd(lhs, rhs) => IntValue {
+				value: {
+					let mut lhs_value = Self::execute_int_expression(self, lhs, line_number)?.value;
+					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+					(*int) &= &*Self::execute_int_expression(self, rhs, line_number)?.value;
+					lhs_value
+				},
+			},
+			IntExpressionVariant::BitwiseOr(lhs, rhs) => IntValue {
+				value: {
+					let mut lhs_value = Self::execute_int_expression(self, lhs, line_number)?.value;
+					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+					(*int) |= &*Self::execute_int_expression(self, rhs, line_number)?.value;
+					lhs_value
+				},
+			},
+			IntExpressionVariant::BitwiseNot(sub_expression) => IntValue {
+				value: Rc::new(!&*Self::execute_int_expression(self, sub_expression, line_number)?.value),
+			},
+			IntExpressionVariant::IntIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+				if *has_parentheses || *uses_fn_keyword {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column) });
+				}
+				match self.int_variables.get(name) {
+					Some(int_variable) => int_variable.clone(),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column) }),
+				}
+			}
+		})
+	}
+
+	fn execute_bool_expression(&self, expression: &BoolExpression, line: Option<&BigInt>) -> Result<BoolValue, Error> {
+		let BoolExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression_variant {
+			_ => todo!(),
+		})
+	}
+
+	fn execute_real_expression(&self, expression: &RealExpression, line: Option<&BigInt>) -> Result<RealValue, Error> {
+		let RealExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression_variant {
+			_ => todo!(),
+		})
+	}
+
+	fn execute_complex_expression(&self, expression: &ComplexExpression, line: Option<&BigInt>) -> Result<ComplexValue, Error> {
+		let ComplexExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression_variant {
+			_ => todo!(),
+		})
+	}
+
+	fn execute_string_expression(&self, expression: &StringExpression, line: Option<&BigInt>) -> Result<StringValue, Error> {
+		let StringExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression_variant {
+			_ => todo!(),
+		})
+	}
+
+	/*fn execute_expression(&self, expression: &Expression, line: Option<&BigInt>) -> Result<Value, Error> {
 		let Expression { variant, column } = expression;
 		Ok(match variant {
 			ExpressionVariant::StringLiteral(string) => Value::String(string.clone()),
@@ -485,19 +598,19 @@ impl Machine {
 			//_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Other expressions".into()), line_number: line.cloned(), column_number: Some(*column) })
 		})
 		
-	}
+	}*/
 }
 
-#[derive(Clone, Debug)]
+/*#[derive(Clone, Debug)]
 pub enum Value {
 	Int(Rc<BigInt>),
 	Float(f64),
 	Bool(bool),
 	Complex(Complex64),
 	String(Rc<String>),
-}
+}*/
 
-impl Value {
+/*impl Value {
 	fn upcast(self, rhs: Self, line_number: Option<&BigInt>, column_number: NonZeroUsize) -> Result<(Self, Self), Error> {
 		Ok(match (&self, &rhs) {
 			// Two of the same type

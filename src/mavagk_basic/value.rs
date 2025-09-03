@@ -2,9 +2,9 @@ use std::{fmt::{self, Display, Formatter}, rc::Rc};
 
 use num::{complex::Complex64, BigInt};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntValue {
-	value: Rc<BigInt>,
+	pub value: Rc<BigInt>,
 }
 
 impl IntValue {
@@ -68,7 +68,7 @@ impl Display for StringValue {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct BoolValue {
-	value: bool,
+	pub value: bool,
 }
 
 impl Display for BoolValue {

@@ -2,6 +2,8 @@ use std::{fmt::{self, Display, Formatter}, num::NonZeroUsize};
 
 use num::{complex::Complex64, BigInt};
 
+use crate::mavagk_basic::value::ComplexValue;
+
 //use crate::mavagk_basic::machine::Value;
 
 #[derive(Debug)]
@@ -50,8 +52,8 @@ pub enum ErrorVariant {
 	InvalidOperator,
 	InvalidOperatorSymbol,
 	InvalidLineNumber,
-	//NonNumberValueCastToInt(Value),
-	//NonRealComplexValueCastToReal(Value),
+	NonNumberValueCastToInt(f64),
+	NonRealComplexValueCastToReal(ComplexValue),
 	StringCastToNumber,
 	NumberCastToString,
 	StatementShouldEnd,
@@ -91,8 +93,8 @@ impl Display for ErrorVariant {
 			Self::InvalidOperator => write!(f, "Invalid operator."),
 			Self::InvalidOperatorSymbol => write!(f, "Invalid operator symbol."),
 			Self::InvalidLineNumber => write!(f, "Line not found."),
-			//Self::NonNumberValueCastToInt(value) => write!(f, "Non-number {} value {value} cast to int.", value.get_type_name()),
-			//Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
+			Self::NonNumberValueCastToInt(value) => write!(f, "Non-number value {value} cast to int."),
+			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
 			Self::NumberCastToString => write!(f, "Number cast to string."),
 			Self::StatementShouldEnd => write!(f, "Statement should end."),
