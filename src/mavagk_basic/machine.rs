@@ -1,9 +1,10 @@
-use std::{collections::HashMap, rc::Rc};
+use std::{collections::HashMap, io::stdout, rc::Rc};
 
+use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, BoolExpressionVariant, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, BoolExpressionVariant, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	is_executing_unnumbered_line: bool,
@@ -45,18 +46,24 @@ impl Machine {
 	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
 		// Parse line
 		let (line_number, tokens) = Token::tokenize_line(&*line)?;
-		let statements = parse_line(&*tokens, line_number.as_ref())?;
+		let (statements, error) = parse_line(&*tokens, line_number.as_ref());
 		// Enter line number into program and run if it does not have a line number
 		match line_number {
 			Some(line_number) => {
-				if statements.is_empty() {
+				if let Some(error) = &error {
+					handle_error::<()>(Err(error.clone()));
+				}
+				if statements.is_empty() && error.is_none() {
 					program.lines.remove(&line_number);
 				}
 				else {
-					program.lines.insert(line_number, (statements, line));
+					program.lines.insert(line_number, (statements, error, line));
 				}
 			}
 			None => {
+				if let Some(error) = error {
+					return Err(error);
+				}
 				program.unnumbered_line = statements;
 				self.is_executing_unnumbered_line = true;
 				self.execute(program)?;
@@ -73,10 +80,10 @@ impl Machine {
 				true => None,
 			};
 			// Get the statements to execute
-			let statements = match self.is_executing_unnumbered_line {
-				true => &program.unnumbered_line,
+			let (statements, error) = match self.is_executing_unnumbered_line {
+				true => (&program.unnumbered_line, &None),
 				false => match program.lines.get(&self.line_executing) {
-					Some(line) => &line.0,
+					Some((statements, error, _)) => (statements, error),
 					None => return Err(Error { variant: ErrorVariant::InvalidLineNumber, line_number: Some(line_number.cloned().unwrap()), column_number: None })
 				}
 			};
@@ -192,11 +199,20 @@ impl Machine {
 							(None, Some(range_end_value)) => program.lines.range(..=range_end_value),
 							(Some(range_start_value), Some(range_end_value)) => program.lines.range(range_start_value..=range_end_value),
 						};
-						for (_line, (_statements, code_text)) in range {
-							println!("{code_text}");
+						for (_line, (_statements, error, code_text)) in range {
+							if let Some(_) = error {
+								execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{code_text}\n")))).unwrap()
+							}
+							else {
+								println!("{code_text}");
+							}
 						}
 					}
 				}
+			}
+			// Throw the error at the end of the line if it has one
+			if let Some(error) = error {
+				return Err(error.clone())
 			}
 			// Decide what to execute next
 			if self.is_executing_unnumbered_line {

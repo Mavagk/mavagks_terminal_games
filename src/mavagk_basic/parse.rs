@@ -4,18 +4,19 @@ use num::{complex::Complex64, BigInt};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, BoolExpressionVariant, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
 
-pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> Result<Box<[Statement]>, Error> {
+pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> (Box<[Statement]>, Option<Error>) {
 	let mut out = Vec::new();
 	loop {
-		match parse(tokens, line_number)? {
-			Some((ast, rest_of_tokens)) => {
+		match parse(tokens, line_number) {
+			Err(error) => return (out.into(), Some(error)),
+			Ok(Some((ast, rest_of_tokens))) => {
 				tokens = rest_of_tokens;
 				out.push(ast);
-			}
-			None => break,
+			},
+			Ok(None) => break,
 		}
 	}
-	Ok(out.into())
+	(out.into(), None)
 }
 
 pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) -> Result<Option<(Statement, &'b [Token<'a>])>, Error> {
@@ -94,7 +95,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 	let keyword = match statement_identifier_token.variant {
 		TokenVariant::Identifier { keyword: Some(keyword), .. } => keyword,
 		TokenVariant::Identifier { keyword: None, .. } =>
-			return Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
 		_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
 	};
 	match keyword {

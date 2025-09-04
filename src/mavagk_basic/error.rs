@@ -1,10 +1,11 @@
-use std::{fmt::{self, Display, Formatter}, num::NonZeroUsize};
+use std::{fmt::{self, Display, Formatter}, io::{stdout, Write}, num::NonZeroUsize};
 
+use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{complex::Complex64, BigInt};
 
 //use crate::mavagk_basic::machine::Value;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error {
 	pub variant: ErrorVariant,
 	pub line_number: Option<BigInt>,
@@ -34,7 +35,7 @@ impl Display for Error {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ErrorVariant {
 	InvalidTokenFirstChar(char),
 	InvalidToken,
@@ -128,7 +129,11 @@ pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
 	match maybe_error {
 		Ok(not_error) => Some(not_error),
 		Err(error) => {
-			println!("\nBasic error{error}");
+			stdout().flush().unwrap();
+			if position().unwrap().0 != 0 {
+				println!();
+			}
+			execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("Basic error{error}\n")))).unwrap();
 			None
 		}
 	}

@@ -30,15 +30,15 @@ impl Game for MavagkBasicTerminal {
 					Some(tokens) => tokens,
 					None => return Ok(()),
 				};
-				let trees = match handle_error(parse_line(&*tokens, line.as_ref())) {
-					Some(trees) => trees,
-					None => return Ok(()),
-				};
+				let (trees, error) = parse_line(&*tokens, line.as_ref());
 				if let Some(line) = line {
 					println!("Line: {line}");
 				}
 				for tree in trees {
 					tree.print(0);
+				}
+				if let Some(error) = error {
+					println!("Error{error}");
 				}
 			}
 			// If a terminal command was not entered, enter the line of text into the MavagkBasic virtual machine
