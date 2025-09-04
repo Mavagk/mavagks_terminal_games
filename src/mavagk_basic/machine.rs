@@ -57,7 +57,7 @@ impl Machine {
 		match line_number {
 			Some(line_number) => {
 				if let Some(error) = &error {
-					handle_error::<()>(Err(error.clone()));
+					handle_error::<()>(Err(error.clone()), &line);
 				}
 				if statements.is_empty() && error.is_none() {
 					program.lines.remove(&line_number);

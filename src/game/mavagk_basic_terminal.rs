@@ -25,7 +25,7 @@ impl Game for MavagkBasicTerminal {
 					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
-					handle_error::<()>(Err(error));
+					handle_error::<()>(Err(error), text_after_terminal_command);
 					return Ok(());
 				}
 				println!("{tokens:?}");
@@ -37,7 +37,7 @@ impl Game for MavagkBasicTerminal {
 					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
-					handle_error::<()>(Err(error));
+					handle_error::<()>(Err(error), text_after_terminal_command);
 					return Ok(());
 				}
 				let (trees, error) = parse_line(&*tokens, line_number.as_ref());
@@ -53,7 +53,8 @@ impl Game for MavagkBasicTerminal {
 			}
 			// If a terminal command was not entered, enter the line of text into the MavagkBasic virtual machine
 			None => {
-				handle_error(self.machine.line_of_text_entered(input, &mut self.program));
+				let text_after_terminal_command = Box::new(input.clone());
+				handle_error(self.machine.line_of_text_entered(input, &mut self.program), &text_after_terminal_command);
 			}
 		}
 		Ok(())

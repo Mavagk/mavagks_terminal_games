@@ -125,7 +125,7 @@ impl Display for ErrorVariant {
 }
 
 /// Takes in a `Result` value that may have an error, prints the error if it exists.
-pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
+pub fn handle_error<T>(maybe_error: Result<T, Error>, line: &str) -> Option<T> {
 	match maybe_error {
 		Ok(not_error) => Some(not_error),
 		Err(error) => {
@@ -134,6 +134,13 @@ pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
 				println!();
 			}
 			execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("Basic error{error}\n")))).unwrap();
+			//if let Some(error) = error.column_number {
+			//	println!("{line}");
+			//	for _ in 0..error.get() - 1 {
+			//		print!(" ");
+			//	}
+			//	println!("^");
+			//}
 			None
 		}
 	}
