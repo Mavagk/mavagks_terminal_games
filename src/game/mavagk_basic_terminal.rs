@@ -20,19 +20,29 @@ impl Game for MavagkBasicTerminal {
 			Some(TerminalCommands::Exit) => self.should_exit = true,
 			// TOKENS prints the tokens received from tokenizing the text entered
 			Some(TerminalCommands::Tokens) => {
-				if let Some(tokens) = handle_error(Token::tokenize_line(text_after_terminal_command)) {
-					println!("{tokens:?}");
+				let (_line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
+					(line_number, Ok(tokens)) => (line_number, tokens, None),
+					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+				};
+				if let Some(error) = error {
+					handle_error::<()>(Err(error));
+					return Ok(());
 				}
+				println!("{tokens:?}");
 			}
 			// AST prints the abstract syntax trees received from tokenizing and then parsing the text entered
 			Some(TerminalCommands::AST) => {
-				let (line, tokens) = match handle_error(Token::tokenize_line(text_after_terminal_command)) {
-					Some(tokens) => tokens,
-					None => return Ok(()),
+				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
+					(line_number, Ok(tokens)) => (line_number, tokens, None),
+					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
-				let (trees, error) = parse_line(&*tokens, line.as_ref());
-				if let Some(line) = line {
-					println!("Line: {line}");
+				if let Some(error) = error {
+					handle_error::<()>(Err(error));
+					return Ok(());
+				}
+				let (trees, error) = parse_line(&*tokens, line_number.as_ref());
+				if let Some(line_number) = line_number {
+					println!("Line: {line_number}");
 				}
 				for tree in trees {
 					tree.print(0);

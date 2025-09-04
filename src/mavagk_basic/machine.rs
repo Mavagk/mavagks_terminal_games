@@ -45,8 +45,14 @@ impl Machine {
 
 	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
 		// Parse line
-		let (line_number, tokens) = Token::tokenize_line(&*line)?;
-		let (statements, error) = parse_line(&*tokens, line_number.as_ref());
+		let (line_number, tokens, error) = match Token::tokenize_line(&*line) {
+			(line_number, Ok(tokens)) => (line_number, tokens, None),
+			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+		};
+		let (statements, error) = match error {
+			None => parse_line(&*tokens, line_number.as_ref()),
+			Some(error) => (Box::default(), Some(error)),
+		};
 		// Enter line number into program and run if it does not have a line number
 		match line_number {
 			Some(line_number) => {

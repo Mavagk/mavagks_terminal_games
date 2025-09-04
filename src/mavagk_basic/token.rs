@@ -219,7 +219,7 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a (line number, list of tokens) pair.
-	pub fn tokenize_line(mut line_text: &'a str) -> Result<(Option<BigInt>, Box<[Self]>), Error> {
+	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, Error>) {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line_text.chars().next() {
@@ -228,23 +228,28 @@ impl<'a> Token<'a> {
 				let line_number_string;
 				(line_number_string, line_text) = line_text.split_at(length_of_line_number);
 				column_number = column_number.saturating_add(length_of_line_number);
-				Some(line_number_string.parse::<BigInt>().map_err(|_| Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })?)
+				//Some(line_number_string.parse::<BigInt>().map_err(|_| Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })?)
+				match line_number_string.parse::<BigInt>() {
+					Ok(line_number) => Some(line_number),
+					Err(_) => return (None, Err(Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })),
+				}
 			}
 			_ => None,
 		};
 		// Parse tokens from line until there are none left
 		let mut tokens = Vec::new();
 		loop {
-			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, line_number.as_ref())? {
-				None => break,
-				Some(result) => result,
+			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, line_number.as_ref()) {
+				Err(error) => return (line_number, Err(error)),
+				Ok(None) => break,
+				Ok(Some(result)) => result,
 			};
 			column_number = token.end_column;
 			line_text = remaining_string;
 			tokens.push(token);
 		}
 		// Return
-		Ok((line_number, tokens.into()))
+		(line_number, Ok(tokens.into()))
 	}
 }
 
@@ -764,39 +769,39 @@ mod tests {
 
 	#[test]
 	fn test_tokenize_line() {
-		let tokens = Token::tokenize_line("10 PRINT 10 + 8").unwrap();
+		let tokens = Token::tokenize_line("10 PRINT 10 + 8");
 		assert_eq!(tokens.0, Some(10.into()));
-		assert_eq!(tokens.1.len(), 4);
-		assert_eq!(tokens.1[0], Token {
+		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
+		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
 				name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print)
 			}, start_column: 4.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[1], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
 			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 10.try_into().unwrap(), end_column: 12.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[2], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[2], Token {
 			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 13.try_into().unwrap(), end_column: 14.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[3], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[3], Token {
 			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 15.try_into().unwrap(), end_column: 16.try_into().unwrap()
 		});
 
-		let tokens = Token::tokenize_line("PRINT 10 + 8").unwrap();
+		let tokens = Token::tokenize_line("PRINT 10 + 8");
 		assert_eq!(tokens.0, None);
-		assert_eq!(tokens.1.len(), 4);
-		assert_eq!(tokens.1[0], Token {
+		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
+		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
 				name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print)
 			}, start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[1], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
 			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 7.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[2], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[2], Token {
 			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 10.try_into().unwrap(), end_column: 11.try_into().unwrap()
 		});
-		assert_eq!(tokens.1[3], Token {
+		assert_eq!(tokens.1.as_ref().unwrap()[3], Token {
 			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 12.try_into().unwrap(), end_column: 13.try_into().unwrap()
 		});
 	}
