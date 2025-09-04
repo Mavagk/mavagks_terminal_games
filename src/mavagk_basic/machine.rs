@@ -178,7 +178,23 @@ impl Machine {
 						self.string_variables.insert(name.clone(), r_value);
 					}
 					StatementVariant::List(range_start, range_end) => {
-						todo!()
+						let range_start_value = match range_start {
+							Some(range_start) => Some(&*self.execute_int_expression(range_start, line_number)?.value),
+							None => None,
+						};
+						let range_end_value = match range_end {
+							Some(range_end) => Some(&*self.execute_int_expression(range_end, line_number)?.value),
+							None => None,
+						};
+						let range = match (range_start_value, range_end_value) {
+							(None, None) => program.lines.range(..),
+							(Some(range_start_value), None) => program.lines.range(range_start_value..),
+							(None, Some(range_end_value)) => program.lines.range(..=range_end_value),
+							(Some(range_start_value), Some(range_end_value)) => program.lines.range(range_start_value..=range_end_value),
+						};
+						for (_line, (_statements, code_text)) in range {
+							println!("{code_text}");
+						}
 					}
 				}
 			}

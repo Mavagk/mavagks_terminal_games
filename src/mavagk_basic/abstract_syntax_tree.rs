@@ -70,7 +70,16 @@ impl Statement {
 				r_value.print(depth + 1);
 			}
 			StatementVariant::List(from, to) => {
-				print!("LIST");
+				print!("LIST from ");
+				match from {
+					Some(_) => print!("Line"),
+					None => print!("Program Start"),
+				}
+				print!(" to ");
+				match to {
+					Some(_) => print!("Line"),
+					None => print!("Program End"),
+				}
 				println!();
 				if let Some(from) = from {
 					from.print(depth + 1);
