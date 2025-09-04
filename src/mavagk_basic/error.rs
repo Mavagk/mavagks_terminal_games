@@ -10,6 +10,7 @@ pub struct Error {
 	pub variant: ErrorVariant,
 	pub line_number: Option<BigInt>,
 	pub column_number: Option<NonZeroUsize>,
+	pub line_text: Option<String>,
 }
 
 impl Error {
@@ -125,7 +126,7 @@ impl Display for ErrorVariant {
 }
 
 /// Takes in a `Result` value that may have an error, prints the error if it exists.
-pub fn handle_error<T>(maybe_error: Result<T, Error>, line: &str) -> Option<T> {
+pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
 	match maybe_error {
 		Ok(not_error) => Some(not_error),
 		Err(error) => {
@@ -134,13 +135,15 @@ pub fn handle_error<T>(maybe_error: Result<T, Error>, line: &str) -> Option<T> {
 				println!();
 			}
 			execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("Basic error{error}\n")))).unwrap();
-			//if let Some(error) = error.column_number {
-			//	println!("{line}");
-			//	for _ in 0..error.get() - 1 {
-			//		print!(" ");
-			//	}
-			//	println!("^");
-			//}
+			if let Some(line_number) = error.column_number {
+				if let Some(line_text) = error.line_text {
+					println!("{}", line_text);
+					for _ in 0..line_number.get() - 1 {
+						print!(" ");
+					}
+					println!("^");
+				}
+			}
 			None
 		}
 	}

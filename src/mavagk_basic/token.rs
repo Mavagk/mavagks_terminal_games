@@ -56,7 +56,7 @@ impl<'a> Token<'a> {
 				let binary_operator = BinaryOperator::from_symbol(token_string);
 				let unary_operator = UnaryOperator::from_symbol(token_string);
 				if binary_operator.is_none() && unary_operator.is_none() {
-					return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column) });
+					return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None });
 				}
 				(TokenVariant::Operator(binary_operator, unary_operator), rest_of_string_with_token_removed)
 			}
@@ -208,7 +208,7 @@ impl<'a> Token<'a> {
 				}
 			}
 			// TODO: Quoteless string literals in DATA statements
-			_ => return Err(Error { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column) })
+			_ => return Err(Error { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		};
 		// Get the end column of the char
 		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
@@ -231,7 +231,7 @@ impl<'a> Token<'a> {
 				//Some(line_number_string.parse::<BigInt>().map_err(|_| Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })?)
 				match line_number_string.parse::<BigInt>() {
 					Ok(line_number) => Some(line_number),
-					Err(_) => return (None, Err(Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number) })),
+					Err(_) => return (None, Err(Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number), line_text: None })),
 				}
 			}
 			_ => None,

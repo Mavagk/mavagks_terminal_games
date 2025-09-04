@@ -51,11 +51,11 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let r_value_expression;
 			let remaining_tokens;
 			(r_value_expression, remaining_tokens, _) = match parse_expression(&tokens[l_value_length + 1..], line_number, equal_sign_end_column)? {
-				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column), line_text: None }),
 				Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 			};
 			if remaining_tokens.len() != 0 {
-				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
+				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None });
 			}
 			// Assemble into statement
 			let statement = match l_value_expression {
@@ -95,8 +95,8 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 	let keyword = match statement_identifier_token.variant {
 		TokenVariant::Identifier { keyword: Some(keyword), .. } => keyword,
 		TokenVariant::Identifier { keyword: None, .. } =>
-			return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
-		_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column), line_text: None }),
+		_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column), line_text: None }),
 	};
 	match keyword {
 		// LET
@@ -106,24 +106,24 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let l_value_length = get_l_value_length_old(remaining_tokens);
 			let l_value_expression;
 			(l_value_expression, _, _) = match parse_expression_primary(&remaining_tokens[..l_value_length], line_number, statement_identifier_token.end_column)? {
-				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column) }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column), line_text: None }),
 				Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 			};
 			remaining_tokens = &remaining_tokens[l_value_length..];
 			// Expect equal sign
 			let equal_sign_end_column = match remaining_tokens.get(0) {
 				Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), end_column, .. }) => *end_column,
-				Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(*start_column) }),
-				None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(tokens[l_value_length].end_column) }),
+				Some(Token { start_column, .. }) => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedEqualSign, line_number: line_number.cloned(), column_number: Some(tokens[l_value_length].end_column), line_text: None }),
 			};
 			// Get r-value expression
 			let r_value_expression;
 			(r_value_expression, remaining_tokens, _) = match parse_expression(&remaining_tokens[1..], line_number, equal_sign_end_column)? {
-				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column) }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(equal_sign_end_column), line_text: None }),
 				Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 			};
 			if remaining_tokens.len() != 0 {
-				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
+				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None });
 			}
 			// Assemble into statement
 			let statement = match l_value_expression {
@@ -193,12 +193,12 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let mut expression = None;
 			if !remaining_tokens.is_empty() {
 				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, statement_identifier_token.end_column)? {
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) }),
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None }),
 					Some((result, remaining_tokens, expression_end_column)) =>
 						(Some(result.to_int_expression(line_number)?), remaining_tokens, expression_end_column),
 				};
 				if !remaining_tokens.is_empty() {
-					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) });
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None });
 				}
 			}
 			let variant = match keyword {
@@ -224,10 +224,10 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 					match parse_expression(tokens_after_statement_keyword, line_number, statement_identifier_token.end_column)?
 				{
 					Some(result) => result,
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.end_column) }),
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.end_column), line_text: None }),
 				};
 				if !tokens_after_sub_expression.is_empty() {
-					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column), line_text: None });
 				}
 				let sub_expression = sub_expression.to_int_expression(line_number)?;
 				break 'a Ok(Some((Statement { variant: StatementVariant::List(Some(sub_expression.clone()), Some(sub_expression)), column: statement_identifier_token.start_column }, rest_of_tokens)));
@@ -238,7 +238,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let range_start_expression = match parse_expression(range_start_expression_tokens, line_number, statement_identifier_token.end_column)? {
 				Some((range_start_expression, tokens_after_range_start_expression, sub_expression_end_column)) => {
 					if !tokens_after_range_start_expression.is_empty() {
-						return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+						return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column), line_text: None });
 					}
 					Some(range_start_expression.to_int_expression(line_number)?)
 				},
@@ -248,14 +248,14 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let range_end_expression_tokens = &tokens_after_statement_keyword[hyphen_index + 1..];
 			match BinaryOperator::Subtraction.find_in(range_end_expression_tokens) {
 				Some(second_hyphen_index) =>
-					return Err(Error { variant: ErrorVariant::UnexpectedSecondListHyphen, line_number: line_number.cloned(), column_number: Some(tokens_after_statement_keyword[second_hyphen_index].start_column) }),
+					return Err(Error { variant: ErrorVariant::UnexpectedSecondListHyphen, line_number: line_number.cloned(), column_number: Some(tokens_after_statement_keyword[second_hyphen_index].start_column), line_text: None }),
 				None => {}
 			}
 			// Parse range end expression
 			let range_end_expression = match parse_expression(range_end_expression_tokens, line_number, tokens_after_statement_keyword[hyphen_index].end_column)? {
 				Some((range_end_expression, tokens_after_range_end_expression, sub_expression_end_column)) => {
 					if !tokens_after_range_end_expression.is_empty() {
-						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column), line_text: None });
 					}
 					Some(range_end_expression.to_int_expression(line_number)?)
 				},
@@ -264,7 +264,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			// Assemble into LIST statement
 			Ok(Some((Statement { column: statement_identifier_token.start_column, variant: StatementVariant::List(range_start_expression, range_end_expression) }, rest_of_tokens)))
 		}
-		Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
+		Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column), line_text: None }),
 	}
 }
 fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
@@ -308,10 +308,10 @@ pub fn parse_expression<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&Bi
 				(expression_primary, tokens_after_expression_primary, end_column_of_expression_primary),
 			None => {
 				if !expression_primaries_and_their_unary_operators.is_empty() {
-					return Err(Error { variant: ErrorVariant::ExpectedExpressionPrimary, column_number: Some(end_column_of_last_token), line_number: line_number.cloned() });
+					return Err(Error { variant: ErrorVariant::ExpectedExpressionPrimary, column_number: Some(end_column_of_last_token), line_number: line_number.cloned(), line_text: None });
 				}
 				if !unary_operators_before_expression_primary.is_empty() {
-					return Err(Error { variant: ErrorVariant::UnaryOperatorsAtEndOfExpression, column_number: Some(end_column_of_last_token), line_number: line_number.cloned() });
+					return Err(Error { variant: ErrorVariant::UnaryOperatorsAtEndOfExpression, column_number: Some(end_column_of_last_token), line_number: line_number.cloned(), line_text: None });
 				}
 				break 'a;
 			}
@@ -418,21 +418,21 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 			let (sub_expression, tokens_after_sub_expression, sub_expression_end_column)
 				= match parse_expression(&tokens[1..], line_number, *first_token_end_column)?
 			{
-				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
 				Some((expression, tokens_after_sub_expression, sub_expression_end_column)) => (expression, tokens_after_sub_expression, sub_expression_end_column),
 			};
 			// Make sure that there is a closing parenthesis after the sub-expression
 			let (tokens_after_expression_primary, expression_primary_end_column) = match tokens_after_sub_expression.first() {
 				Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => (&tokens_after_sub_expression[1..], end_column),
 				Some(Token { variant: _, start_column, .. }) =>
-					return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(*start_column), line_number: line_number.cloned() }),
-				None => return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(sub_expression_end_column), line_number: line_number.cloned() }),
+					return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(sub_expression_end_column), line_number: line_number.cloned(), line_text: None }),
 			};
 			// Return
 			(sub_expression, tokens_after_expression_primary, *expression_primary_end_column)
 		}
 		// There should not be operators
-		TokenVariant::Operator(..) => return Err(Error { variant: ErrorVariant::UnexpectedOperator, column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+		TokenVariant::Operator(..) => return Err(Error { variant: ErrorVariant::UnexpectedOperator, column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
 		// Identifiers
 		TokenVariant::Identifier { keyword, .. } => 'a: {
 			// Get if this is a FN function
@@ -445,15 +445,15 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 				= match tokens_after_fn.get(0)
 			{
 				Some(token_after_fn) => token_after_fn,
-				None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned() }),
+				None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
 			};
 			// Get identifier name
 			let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
 				TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
-				_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned() }),
+				_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None }),
 			};
 			if *identifier_is_optional {
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("Optional functions".into()), column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned() });
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("Optional functions".into()), column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None });
 			}
 			// Return if there is not a left parenthesis after the identifier
 			let tokens_after_identifier = &tokens_after_fn[1..];
@@ -481,7 +481,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 			// Make sure there is not a leading comma
 			match argument_tokens.get(0) {
 				Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
-					return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+					return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
 				_ => {},
 			}
 			// Parse each argument
@@ -494,7 +494,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 						match argument_tokens.get(0) {
 							// If it was because there was a comma
 							Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
-								return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+								return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
 							// If it was because we reached a right parenthesis
 							Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
 								argument_tokens = &argument_tokens[1..];
@@ -503,7 +503,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 							}
 							// If it was because of an invalid separator
 							Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
-								return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned() }),
+								return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
 							_ => unreachable!(),
 						};
 					}
@@ -547,7 +547,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 		// End of expression
 		TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
 		TokenVariant::SingleQuestionMark =>
-			return Err(Error { variant: ErrorVariant::NotYetImplemented("Question mark not as type".into()), column_number: Some(*first_token_start_column), line_number: line_number.cloned() }),
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Question mark not as type".into()), column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
 	}))
 }
 
@@ -637,7 +637,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotConcatenateNumbers, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotConcatenateNumbers, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::Concatenation(
 						Box::new(lhs.to_string_expression(line_number)?),
@@ -660,7 +660,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_complex_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -678,7 +678,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_complex_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -696,7 +696,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_complex_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -714,7 +714,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_complex_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -727,7 +727,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -740,7 +740,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -944,7 +944,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -962,7 +962,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						Box::new(rhs.to_int_expression(line_number)?),
 					), column: start_column}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
 			}
 		},
@@ -977,7 +977,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 			AnyTypeExpression::Complex(..) =>
 				AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Negation(Box::new(operand.to_complex_expression(line_number)?)), column: start_column }),
 			AnyTypeExpression::String(..) =>
-				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 			_ => unreachable!(),
 		}
 		UnaryOperator::UnaryPlus  => operand,
@@ -987,7 +987,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 			AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) | AnyTypeExpression::Complex(..) =>
 				AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
 			AnyTypeExpression::String(..) =>
-				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column) }),
+				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 			_ => unreachable!(),
 		}
 	})

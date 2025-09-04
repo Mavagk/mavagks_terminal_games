@@ -598,7 +598,7 @@ impl AnyTypeExpression {
 				RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromComplex(Box::new(expression)) }
 			)) },
 			Self::Bool(expression) => IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned() }),
+			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
@@ -611,7 +611,7 @@ impl AnyTypeExpression {
 			Self::Bool(expression) => RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromInt(Box::new(
 				IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
 			)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned() }),
+			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
@@ -628,7 +628,7 @@ impl AnyTypeExpression {
 					IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
 				)) }
 			)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned() }),
+			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
@@ -637,7 +637,7 @@ impl AnyTypeExpression {
 		Ok(match self {
 			Self::Int(IntExpression { column, .. }) | Self::Real(RealExpression { column, .. }) |
 			Self::Complex(ComplexExpression { column, .. }) | Self::Bool(BoolExpression { column, .. }) =>
-				return Err(Error { variant: ErrorVariant::NumberCastToString, column_number: Some(column), line_number: line_number.cloned() }),
+				return Err(Error { variant: ErrorVariant::NumberCastToString, column_number: Some(column), line_number: line_number.cloned(), line_text: None }),
 			Self::String(value) => value,
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
@@ -646,7 +646,7 @@ impl AnyTypeExpression {
 	pub fn to_bool_expression(self, line_number: Option<&BigInt>) -> Result<BoolExpression, Error> {
 		Ok(match self {
 			Self::Bool(value) => value,
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned() }),
+			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 			_ => todo!(),
 		})
