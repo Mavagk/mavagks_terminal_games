@@ -74,6 +74,7 @@ impl Machine {
 					return Err(error);
 				}
 				program.unnumbered_line = statements;
+				program.unnumbered_line_string = line;
 				self.is_executing_unnumbered_line = true;
 				self.execute(program)?;
 			}
@@ -85,151 +86,37 @@ impl Machine {
 		'lines_loop: loop {
 			// Get the line number to be executed
 			let line_number = match self.is_executing_unnumbered_line {
-				false => Some(&self.line_executing),
+				false => Some(self.line_executing.clone()),
 				true => None,
 			};
 			// Get the statements to execute
-			let (statements, error) = match self.is_executing_unnumbered_line {
-				true => (&program.unnumbered_line, None),
+			let (statements, mut error, line_text) = match self.is_executing_unnumbered_line {
+				true => (&program.unnumbered_line, None, Some(&*program.unnumbered_line_string)),
 				false => match program.lines.get(&self.line_executing) {
-					Some((statements, error, line_text)) => {
-						let mut error = error.clone();
-						if let Some(error) = &mut error {
-							error.line_text = Some(line_text.clone().into_string());
-						}
-						(statements, error)
-					},
-					None => return Err(Error { variant: ErrorVariant::InvalidLineNumber, line_number: Some(line_number.cloned().unwrap()), column_number: None, line_text: None })
+					Some((statements, error, line_text)) => (statements, error.clone(), Some(&**line_text)),
+					None => return Err(Error { variant: ErrorVariant::InvalidLineNumber, line_number: line_number, column_number: None, line_text: None })
 				}
 			};
 			// Execute statements
-			for Statement { variant, column } in statements {
-				match variant {
-					StatementVariant::Print(sub_expressions) => {
-						for sub_expression in sub_expressions {
-							match sub_expression {
-								AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression, line_number)?),
-								AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression, line_number)?),
-								AnyTypeExpression::Real(sub_expression) => print!("{}", self.execute_real_expression(sub_expression, line_number)?),
-								AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression, line_number)?),
-								AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression, line_number)?),
-								AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
-									return Err(Error {
-										variant: ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()), line_number: line_number.cloned(), column_number: Some(*sub_expression_column),
-										line_text: None
-									}),
-							}
-						}
-						println!();
+			for statement in statements {
+				let do_skip_other_statements_on_line = match self.execute_statement(statement, line_number.as_ref(), program) {
+					Ok(do_skip_other_statements_on_line) => do_skip_other_statements_on_line,
+					Err(statement_error) => {
+						error = Some(statement_error);
+						break;
 					}
-					StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
-						// Set the line to be executed next
-						match sub_expression {
-							Some(sub_expression) => {
-								let line_number = self.execute_int_expression(sub_expression, line_number)?.value;
-								self.line_executing = (&*line_number).clone();
-								self.is_executing_unnumbered_line = false;
-							}
-							None => self.set_line_executing_to_first_line(&program),
-						}
-						// Clear if this is a RUN statement
-						if matches!(variant, StatementVariant::Run(..)) {
-							self.clear_machine_state();
-						}
-						// Next statement
-						continue 'lines_loop;
-					}
-					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
-					StatementVariant::AssignInt(l_value, r_value_expression) => {
-						// Get what to assign to
-						let (name, _arguments, has_parentheses) = match l_value {
-							IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-								=> (name, arguments, *has_parentheses),
-							IntExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
-						};
-						// Get r-value
-						let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
-						// Assign
-						if has_parentheses {
-							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
-						}
-						self.int_variables.insert(name.clone(), r_value);
-					}
-					StatementVariant::AssignReal(l_value, r_value_expression) => {
-						// Get what to assign to
-						let (name, _arguments, has_parentheses) = match l_value {
-							RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-								=> (name, arguments, *has_parentheses),
-							RealExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
-						};
-						// Get r-value
-						let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
-						// Assign
-						if has_parentheses {
-							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
-						}
-						self.real_variables.insert(name.clone(), r_value);
-					}
-					StatementVariant::AssignComplex(l_value, r_value_expression) => {
-						// Get what to assign to
-						let (name, _arguments, has_parentheses) = match l_value {
-							ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-								=> (name, arguments, *has_parentheses),
-							ComplexExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
-						};
-						// Get r-value
-						let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
-						// Assign
-						if has_parentheses {
-							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
-						}
-						self.complex_variables.insert(name.clone(), r_value);
-					}
-					StatementVariant::AssignString(l_value, r_value_expression) => {
-						// Get what to assign to
-						let (name, _arguments, has_parentheses) = match l_value {
-							StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-								=> (name, arguments, *has_parentheses),
-							StringExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
-						};
-						// Get r-value
-						let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
-						// Assign
-						if has_parentheses {
-							return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
-						}
-						self.string_variables.insert(name.clone(), r_value);
-					}
-					StatementVariant::List(range_start, range_end) => {
-						let range_start_value = match range_start {
-							Some(range_start) => Some(&*self.execute_int_expression(range_start, line_number)?.value),
-							None => None,
-						};
-						let range_end_value = match range_end {
-							Some(range_end) => Some(&*self.execute_int_expression(range_end, line_number)?.value),
-							None => None,
-						};
-						let range = match (range_start_value, range_end_value) {
-							(None, None) => program.lines.range(..),
-							(Some(range_start_value), None) => program.lines.range(range_start_value..),
-							(None, Some(range_end_value)) => program.lines.range(..=range_end_value),
-							(Some(range_start_value), Some(range_end_value)) => program.lines.range(range_start_value..=range_end_value),
-						};
-						for (_line, (_statements, error, code_text)) in range {
-							if let Some(_) = error {
-								execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{code_text}\n")))).unwrap()
-							}
-							else {
-								println!("{code_text}");
-							}
-						}
-					}
+				};
+				if do_skip_other_statements_on_line {
+					continue 'lines_loop;
 				}
 			}
-			// Throw the error at the end of the line if it has one
+			// Throw the error if there is one
 			if let Some(error) = error {
-				// error.line_text = Some(line.clone().into());
-				return Err(error.clone())
+				if let Some(line_text) = line_text {
+					let mut error = error.clone();
+					error.line_text = Some(line_text.into());
+					return Err(error.clone())
+				}
 			}
 			// Decide what to execute next
 			if self.is_executing_unnumbered_line {
@@ -240,6 +127,132 @@ impl Machine {
 				None => return Ok(()),
 			}.clone();
 		}
+	}
+
+	fn execute_statement(&mut self, statement: &Statement, line_number: Option<&BigInt>, program: &Program) -> Result<bool, Error> {
+		let Statement { variant, column } = &statement;
+		match variant {
+			StatementVariant::Print(sub_expressions) => {
+				for sub_expression in sub_expressions {
+					match sub_expression {
+						AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression, line_number)?),
+						AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression, line_number)?),
+						AnyTypeExpression::Real(sub_expression) => print!("{}", self.execute_real_expression(sub_expression, line_number)?),
+						AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression, line_number)?),
+						AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression, line_number)?),
+						AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
+							return Err(Error {
+								variant: ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()), line_number: line_number.cloned(), column_number: Some(*sub_expression_column),
+								line_text: None
+							}),
+					}
+				}
+				println!();
+			}
+			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
+				// Set the line to be executed next
+				match sub_expression {
+					Some(sub_expression) => {
+						let line_number = self.execute_int_expression(sub_expression, line_number)?.value;
+						self.line_executing = (&*line_number).clone();
+						self.is_executing_unnumbered_line = false;
+					}
+					None => self.set_line_executing_to_first_line(&program),
+				}
+				// Clear if this is a RUN statement
+				if matches!(variant, StatementVariant::Run(..)) {
+					self.clear_machine_state();
+				}
+				// Next statement
+				return Ok(true);
+			}
+			StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+			StatementVariant::AssignInt(l_value, r_value_expression) => {
+				// Get what to assign to
+				let (name, _arguments, has_parentheses) = match l_value {
+					IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+						=> (name, arguments, *has_parentheses),
+					IntExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+				};
+				// Get r-value
+				let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
+				// Assign
+				if has_parentheses {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
+				}
+				self.int_variables.insert(name.clone(), r_value);
+			}
+			StatementVariant::AssignReal(l_value, r_value_expression) => {
+				// Get what to assign to
+				let (name, _arguments, has_parentheses) = match l_value {
+					RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+						=> (name, arguments, *has_parentheses),
+					RealExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+				};
+				// Get r-value
+				let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
+				// Assign
+				if has_parentheses {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
+				}
+				self.real_variables.insert(name.clone(), r_value);
+			}
+			StatementVariant::AssignComplex(l_value, r_value_expression) => {
+				// Get what to assign to
+				let (name, _arguments, has_parentheses) = match l_value {
+					ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+						=> (name, arguments, *has_parentheses),
+					ComplexExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+				};
+				// Get r-value
+				let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
+				// Assign
+				if has_parentheses {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
+				}
+				self.complex_variables.insert(name.clone(), r_value);
+			}
+			StatementVariant::AssignString(l_value, r_value_expression) => {
+				// Get what to assign to
+				let (name, _arguments, has_parentheses) = match l_value {
+					StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+						=> (name, arguments, *has_parentheses),
+					StringExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+				};
+				// Get r-value
+				let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
+				// Assign
+				if has_parentheses {
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
+				}
+				self.string_variables.insert(name.clone(), r_value);
+			}
+			StatementVariant::List(range_start, range_end) => {
+				let range_start_value = match range_start {
+					Some(range_start) => Some(&*self.execute_int_expression(range_start, line_number)?.value),
+					None => None,
+				};
+				let range_end_value = match range_end {
+					Some(range_end) => Some(&*self.execute_int_expression(range_end, line_number)?.value),
+					None => None,
+				};
+				let range = match (range_start_value, range_end_value) {
+					(None, None) => program.lines.range(..),
+					(Some(range_start_value), None) => program.lines.range(range_start_value..),
+					(None, Some(range_end_value)) => program.lines.range(..=range_end_value),
+					(Some(range_start_value), Some(range_end_value)) => program.lines.range(range_start_value..=range_end_value),
+				};
+				for (_line, (_statements, error, code_text)) in range {
+					if let Some(_) = error {
+						execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{code_text}\n")))).unwrap()
+					}
+					else {
+						println!("{code_text}");
+					}
+				}
+			}
+		}
+		Ok(false)
 	}
 
 	fn execute_int_expression(&self, expression: &IntExpression, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
