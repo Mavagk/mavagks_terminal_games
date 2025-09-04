@@ -123,7 +123,7 @@ impl Machine {
 						// Next statement
 						continue 'lines_loop;
 					}
-					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: Some(line_number.cloned().unwrap()), column_number: Some(*column) }),
+					StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: line_number.cloned(), column_number: Some(*column) }),
 					StatementVariant::AssignInt(l_value, r_value_expression) => {
 						// Get what to assign to
 						let (name, _arguments, has_parentheses) = match l_value {
