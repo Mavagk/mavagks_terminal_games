@@ -307,6 +307,7 @@ pub enum Keyword {
 	Gosub,
 	Fn,
 	Let,
+	List,
 }
 
 impl Keyword {
@@ -318,6 +319,7 @@ impl Keyword {
 			Self::Gosub => &[("GOSUB", IdentifierType::UnmarkedNumber)],
 			Self::Fn => &[("FN", IdentifierType::UnmarkedNumber)],
 			Self::Let => &[("LET", IdentifierType::UnmarkedNumber)],
+			Self::List => &[("LIST", IdentifierType::UnmarkedNumber)],
 		}
 	}
 
@@ -392,6 +394,26 @@ impl BinaryOperator {
 			_ if name.eq_ignore_ascii_case("OR") => Some(Self::Or),
 			_ => None,
 		}
+	}
+
+	pub fn find_in(&self, find_in: &[Token]) -> Option<usize> {
+		let mut bracket_depth = 0usize;
+		for (index, token) in find_in.iter().enumerate() {
+			match token.variant {
+				TokenVariant::Operator(binary_operator, _) | TokenVariant::Identifier { binary_operator, .. }
+					if bracket_depth == 0 && Some(self) == binary_operator.as_ref() =>
+				{
+					return Some(index);
+				},
+				TokenVariant::LeftParenthesis => bracket_depth += 1,
+				TokenVariant::RightParenthesis => bracket_depth = match bracket_depth.checked_sub(1) {
+					Some(bracket_depth) => bracket_depth,
+					None => return None,
+				},
+				_ => {},
+			}
+		}
+		None
 	}
 }
 

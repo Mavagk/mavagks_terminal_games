@@ -41,6 +41,7 @@ pub enum ErrorVariant {
 	NotYetImplemented(String),
 	MalformedLineNumber(String),
 	ExpectedExpression,
+	ExpectedListHyphen,
 	MoreLeftParenthesesThanRightParentheses,
 	MoreRightParenthesesThanLeftParentheses,
 	FnWithoutIdentifier,
@@ -73,6 +74,7 @@ pub enum ErrorVariant {
 	UnaryOperatorsAtEndOfExpression,
 	ExpectedExpressionPrimary,
 	NonRealComparison(Complex64, Complex64),
+	UnexpectedSecondListHyphen,
 }
 
 impl Display for ErrorVariant {
@@ -115,6 +117,8 @@ impl Display for ErrorVariant {
 			Self::UnaryOperatorsAtEndOfExpression => write!(f, "Unary operators at end of expression."),
 			Self::ExpectedExpressionPrimary => write!(f, "Expected expression primary."),
 			Self::NonRealComparison(lhs, rhs) => write!(f, "Comparison between non-real numbers {lhs} and {rhs}."),
+			Self::ExpectedListHyphen => write!(f, "Expected LIST hyphen."),
+			Self::UnexpectedSecondListHyphen => write!(f, "Unexpected second LIST hyphen."),
 		}
 	}
 }

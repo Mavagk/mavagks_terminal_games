@@ -27,7 +27,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 	let statement_length = get_statement_length(tokens);
 	let (tokens, rest_of_tokens) = tokens.split_at(statement_length);
 	// Get first token or return if we are at the end of the tokens
-	let identifier_token = match tokens.first() {
+	let statement_identifier_token = match tokens.first() {
 		Some(token) => token,
 		None => return Ok(None),
 	};
@@ -45,7 +45,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 		};
 		// Get l-value
 		let l_value_expression;
-		(l_value_expression, _, _) = parse_expression_primary(&tokens[..l_value_length], line_number, identifier_token.end_column)?.unwrap();
+		(l_value_expression, _, _) = parse_expression_primary(&tokens[..l_value_length], line_number, statement_identifier_token.end_column)?.unwrap();
 		// Get r-value expression
 			let r_value_expression;
 			let remaining_tokens;
@@ -59,28 +59,28 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			// Assemble into statement
 			let statement = match l_value_expression {
 				AnyTypeExpression::Int(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignInt(
 						l_value_expression.to_int_expression(line_number)?,
 						r_value_expression.to_int_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::Real(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignReal(
 						l_value_expression.to_real_expression(line_number)?,
 						r_value_expression.to_real_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::Complex(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignComplex(
 						l_value_expression.to_complex_expression(line_number)?,
 						r_value_expression.to_complex_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::String(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignString(
 						l_value_expression.to_string_expression(line_number)?,
 						r_value_expression.to_string_expression(line_number)?
@@ -91,11 +91,11 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			return Ok(Some((statement, rest_of_tokens)));
 	}
 	// Parse depending on keyword
-	let keyword = match identifier_token.variant {
+	let keyword = match statement_identifier_token.variant {
 		TokenVariant::Identifier { keyword: Some(keyword), .. } => keyword,
 		TokenVariant::Identifier { keyword: None, .. } =>
-			return Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
-		_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Many statements".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
+		_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
 	};
 	match keyword {
 		// LET
@@ -104,7 +104,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			// Get l-value expression
 			let l_value_length = get_l_value_length_old(remaining_tokens);
 			let l_value_expression;
-			(l_value_expression, _, _) = match parse_expression_primary(&remaining_tokens[..l_value_length], line_number, identifier_token.end_column)? {
+			(l_value_expression, _, _) = match parse_expression_primary(&remaining_tokens[..l_value_length], line_number, statement_identifier_token.end_column)? {
 				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column) }),
 				Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 			};
@@ -127,28 +127,28 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			// Assemble into statement
 			let statement = match l_value_expression {
 				AnyTypeExpression::Int(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignInt(
 						l_value_expression.to_int_expression(line_number)?,
 						r_value_expression.to_int_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::Real(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignReal(
 						l_value_expression.to_real_expression(line_number)?,
 						r_value_expression.to_real_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::Complex(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignComplex(
 						l_value_expression.to_complex_expression(line_number)?,
 						r_value_expression.to_complex_expression(line_number)?
 					),
 				},
 				AnyTypeExpression::String(..) => Statement {
-					column: identifier_token.start_column,
+					column: statement_identifier_token.start_column,
 					variant: StatementVariant::AssignString(
 						l_value_expression.to_string_expression(line_number)?,
 						r_value_expression.to_string_expression(line_number)?
@@ -177,21 +177,21 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 					_ => {}
 				}
 				let expression;
-				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, identifier_token.end_column)? {
+				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, statement_identifier_token.end_column)? {
 					None => break,
 					Some(result) => result,
 				};
 				expressions.push(expression);
 			}
 			debug_assert!(remaining_tokens.is_empty());
-			Ok(Some((Statement { column: identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
+			Ok(Some((Statement { column: statement_identifier_token.start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
 		}
 		// RUN / GOTO / GOSUB
 		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
 			let mut remaining_tokens = &tokens[1..];
 			let mut expression = None;
 			if !remaining_tokens.is_empty() {
-				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, identifier_token.end_column)? {
+				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, statement_identifier_token.end_column)? {
 					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column) }),
 					Some((result, remaining_tokens, expression_end_column)) =>
 						(Some(result.to_int_expression(line_number)?), remaining_tokens, expression_end_column),
@@ -206,9 +206,64 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 				Keyword::Gosub => StatementVariant::Gosub(expression),
 				_ => unreachable!(),
 			};
-			Ok(Some((Statement { column: identifier_token.start_column, variant }, rest_of_tokens)))
+			Ok(Some((Statement { column: statement_identifier_token.start_column, variant }, rest_of_tokens)))
 		}
-		Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(identifier_token.start_column) }),
+		// LIST
+		Keyword::List => 'a: {
+			let tokens_after_statement_keyword = &tokens[1..];
+			// If this is a blank LIST statement
+			if tokens_after_statement_keyword.is_empty() {
+				break 'a Ok(Some((Statement { variant: StatementVariant::List(None, None), column: statement_identifier_token.start_column }, tokens_after_statement_keyword)));
+			}
+			// Else find the hyphen
+			let hyphen_index = BinaryOperator::Subtraction.find_in(tokens_after_statement_keyword);
+			// If there is no hyphen, just parse one expression
+			if hyphen_index == None {
+				let (sub_expression, tokens_after_sub_expression, sub_expression_end_column) =
+					match parse_expression(tokens_after_statement_keyword, line_number, statement_identifier_token.end_column)?
+				{
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.end_column) }),
+				};
+				if !tokens_after_sub_expression.is_empty() {
+					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+				}
+				let sub_expression = sub_expression.to_int_expression(line_number)?;
+				break 'a Ok(Some((Statement { variant: StatementVariant::List(Some(sub_expression.clone()), Some(sub_expression)), column: statement_identifier_token.start_column }, tokens_after_statement_keyword)));
+			}
+			// Else parse range start expression
+			let hyphen_index = hyphen_index.unwrap();
+			let range_start_expression_tokens = &tokens_after_statement_keyword[..hyphen_index];
+			let range_start_expression = match parse_expression(range_start_expression_tokens, line_number, statement_identifier_token.end_column)? {
+				Some((range_start_expression, tokens_after_range_start_expression, sub_expression_end_column)) => {
+					if !tokens_after_range_start_expression.is_empty() {
+						return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+					}
+					Some(range_start_expression.to_int_expression(line_number)?)
+				},
+				None => None,
+			};
+			// Make sure there is not another unparenthesized minus/hyphen after the first one
+			match BinaryOperator::Subtraction.find_in(tokens_after_statement_keyword) {
+				Some(second_hyphen_index) =>
+					return Err(Error { variant: ErrorVariant::UnexpectedSecondListHyphen, line_number: line_number.cloned(), column_number: Some(tokens_after_statement_keyword[second_hyphen_index].start_column) }),
+				None => {}
+			}
+			// Parse range end expression
+			let range_end_expression_tokens = &tokens_after_statement_keyword[hyphen_index..];
+			let range_end_expression = match parse_expression(range_end_expression_tokens, line_number, tokens_after_statement_keyword[hyphen_index].end_column)? {
+				Some((range_end_expression, tokens_after_range_end_expression, sub_expression_end_column)) => {
+					if !tokens_after_range_end_expression.is_empty() {
+						return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
+					}
+					Some(range_end_expression.to_int_expression(line_number)?)
+				},
+				None => None,
+			};
+			// Assemble into LIST statement
+			Ok(Some((Statement { column: statement_identifier_token.start_column, variant: StatementVariant::List(range_start_expression, range_end_expression) }, rest_of_tokens)))
+		}
+		Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column) }),
 	}
 }
 fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {

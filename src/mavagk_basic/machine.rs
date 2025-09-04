@@ -177,6 +177,9 @@ impl Machine {
 						}
 						self.string_variables.insert(name.clone(), r_value);
 					}
+					StatementVariant::List(range_start, range_end) => {
+						todo!()
+					}
 				}
 			}
 			// Decide what to execute next

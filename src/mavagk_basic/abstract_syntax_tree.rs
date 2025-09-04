@@ -69,6 +69,16 @@ impl Statement {
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
+			StatementVariant::List(from, to) => {
+				print!("LIST");
+				println!();
+				if let Some(from) = from {
+					from.print(depth + 1);
+				}
+				if let Some(to) = to {
+					to.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -83,9 +93,10 @@ pub enum StatementVariant {
 	AssignReal(RealExpression, RealExpression),
 	AssignComplex(ComplexExpression, ComplexExpression),
 	AssignString(StringExpression, StringExpression),
+	List(Option<IntExpression>, Option<IntExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct IntExpression {
 	pub variant: IntExpressionVariant,
 	pub column: NonZeroUsize,
@@ -134,7 +145,7 @@ impl IntExpression {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum IntExpressionVariant {
 	ConstantValue(IntValue),
 	IntIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
@@ -144,7 +155,7 @@ pub enum IntExpressionVariant {
 	CastFromBool(Box<BoolExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct RealExpression {
 	pub variant: RealExpressionVariant,
 	pub column: NonZeroUsize,
@@ -221,7 +232,7 @@ impl RealExpression {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum RealExpressionVariant {
 	ConstantValue(RealValue),
 	RealIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
@@ -237,7 +248,7 @@ pub enum RealExpressionVariant {
 	CastFromComplex(Box<ComplexExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ComplexExpression {
 	pub variant: ComplexExpressionVariant,
 	pub column: NonZeroUsize,
@@ -301,7 +312,7 @@ impl ComplexExpression {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ComplexExpressionVariant {
 	ConstantValue(ComplexValue),
 	ComplexIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
@@ -314,7 +325,7 @@ pub enum ComplexExpressionVariant {
 	CastFromReal(Box<RealExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct StringExpression {
 	pub variant: StringExpressionVariant,
 	pub column: NonZeroUsize,
@@ -350,14 +361,14 @@ impl StringExpression {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum StringExpressionVariant {
 	ConstantValue(StringValue),
 	StringIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
 	Concatenation(Box<StringExpression>, Box<StringExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct BoolExpression {
 	pub variant: BoolExpressionVariant,
 	pub column: NonZeroUsize,
@@ -524,7 +535,7 @@ impl BoolExpression {
 	}
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BoolExpressionVariant {
 	ConstantValue(BoolValue),
 	And(Box<BoolExpression>, Box<BoolExpression>),
@@ -558,7 +569,7 @@ pub enum BoolExpressionVariant {
 	BoolGreaterThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AnyTypeExpression {
 	Int(IntExpression),
 	Real(RealExpression),
