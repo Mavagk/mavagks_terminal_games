@@ -213,7 +213,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			let tokens_after_statement_keyword = &tokens[1..];
 			// If this is a blank LIST statement
 			if tokens_after_statement_keyword.is_empty() {
-				break 'a Ok(Some((Statement { variant: StatementVariant::List(None, None), column: statement_identifier_token.start_column }, tokens_after_statement_keyword)));
+				break 'a Ok(Some((Statement { variant: StatementVariant::List(None, None), column: statement_identifier_token.start_column }, rest_of_tokens)));
 			}
 			// Else find the hyphen
 			let hyphen_index = BinaryOperator::Subtraction.find_in(tokens_after_statement_keyword);
@@ -229,7 +229,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(sub_expression_end_column) });
 				}
 				let sub_expression = sub_expression.to_int_expression(line_number)?;
-				break 'a Ok(Some((Statement { variant: StatementVariant::List(Some(sub_expression.clone()), Some(sub_expression)), column: statement_identifier_token.start_column }, tokens_after_statement_keyword)));
+				break 'a Ok(Some((Statement { variant: StatementVariant::List(Some(sub_expression.clone()), Some(sub_expression)), column: statement_identifier_token.start_column }, rest_of_tokens)));
 			}
 			// Else parse range start expression
 			let hyphen_index = hyphen_index.unwrap();
@@ -244,13 +244,13 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 				None => None,
 			};
 			// Make sure there is not another unparenthesized minus/hyphen after the first one
-			match BinaryOperator::Subtraction.find_in(tokens_after_statement_keyword) {
+			let range_end_expression_tokens = &tokens_after_statement_keyword[hyphen_index + 1..];
+			match BinaryOperator::Subtraction.find_in(range_end_expression_tokens) {
 				Some(second_hyphen_index) =>
 					return Err(Error { variant: ErrorVariant::UnexpectedSecondListHyphen, line_number: line_number.cloned(), column_number: Some(tokens_after_statement_keyword[second_hyphen_index].start_column) }),
 				None => {}
 			}
 			// Parse range end expression
-			let range_end_expression_tokens = &tokens_after_statement_keyword[hyphen_index..];
 			let range_end_expression = match parse_expression(range_end_expression_tokens, line_number, tokens_after_statement_keyword[hyphen_index].end_column)? {
 				Some((range_end_expression, tokens_after_range_end_expression, sub_expression_end_column)) => {
 					if !tokens_after_range_end_expression.is_empty() {
@@ -280,6 +280,9 @@ fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
 }
 
 pub fn parse_expression<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, start_column: NonZeroUsize)-> Result<Option<(AnyTypeExpression, &'b [Token<'a>], NonZeroUsize)>, Error> {
+	if tokens.is_empty() {
+		return Ok(None);
+	}
 	let mut remaining_tokens = tokens;
 	let mut end_column_of_last_token = start_column;
 	let mut expression_primaries_and_their_unary_operators = Vec::new();
