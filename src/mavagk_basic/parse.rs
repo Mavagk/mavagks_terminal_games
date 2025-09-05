@@ -31,10 +31,6 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 	if tokens.is_empty() {
 		return Ok(None);
 	}
-	//let statement_identifier_token = match tokens.first() {
-	//	Some(token) => token,
-	//	None => return Ok(None),
-	//};
 	// Parse assignments without LET
 	'a: {
 		// Check if this a non-LET assignment
@@ -99,12 +95,6 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 		Some(result) => result,
 		None => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(tokens[0].start_column), line_text: None }),
 	};
-	//let keyword = match statement_identifier_token.variant {
-	//	TokenVariant::Identifier { keyword: Some(keyword), .. } => keyword,
-	//	TokenVariant::Identifier { keyword: None, .. } =>
-	//		return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column), line_text: None }),
-	//	_ => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_identifier_token.start_column), line_text: None }),
-	//};
 	match statement_keyword {
 		// LET
 		Keyword::Let => {
