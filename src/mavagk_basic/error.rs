@@ -77,6 +77,7 @@ pub enum ErrorVariant {
 	ExpectedExpressionPrimary,
 	NonRealComparison(Complex64, Complex64),
 	UnexpectedSecondListHyphen,
+	SingleGoKeyword,
 }
 
 impl Display for ErrorVariant {
@@ -121,6 +122,7 @@ impl Display for ErrorVariant {
 			Self::NonRealComparison(lhs, rhs) => write!(f, "Comparison between non-real numbers {lhs} and {rhs}."),
 			Self::ExpectedListHyphen => write!(f, "Expected LIST hyphen."),
 			Self::UnexpectedSecondListHyphen => write!(f, "Unexpected second LIST hyphen."),
+			Self::SingleGoKeyword => write!(f, "GO keyword found that was not part of a GO TO or GO SUB word pair."),
 		}
 	}
 }
