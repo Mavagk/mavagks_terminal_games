@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, BoolExpressionVariant, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> (Box<[Statement]>, Option<Error>) {
 	let mut out = Vec::new();
@@ -45,7 +45,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 		};
 		// Get l-value
 		let l_value_expression;
-		(l_value_expression, _, _) = parse_expression_primary(&tokens[..l_value_length], line_number, tokens[0].start_column)?.unwrap();
+		(l_value_expression, _, _) = parse_l_value(&tokens[..l_value_length], line_number, tokens[0].start_column)?.unwrap();
 		// Get r-value expression
 			let r_value_expression;
 			let remaining_tokens;
@@ -58,35 +58,35 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			}
 			// Assemble into statement
 			let statement = match l_value_expression {
-				AnyTypeExpression::Int(..) => Statement {
+				AnyTypeLValue::Int(l_value) => Statement {
 					column: tokens[0].start_column,
 					variant: StatementVariant::AssignInt(
-						l_value_expression.to_int_expression(line_number)?,
+						l_value,
 						r_value_expression.to_int_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::Real(..) => Statement {
+				AnyTypeLValue::Real(l_value) => Statement {
 					column: tokens[0].start_column,
 					variant: StatementVariant::AssignReal(
-						l_value_expression.to_real_expression(line_number)?,
+						l_value,
 						r_value_expression.to_real_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::Complex(..) => Statement {
+				AnyTypeLValue::Complex(l_value) => Statement {
 					column: tokens[0].start_column,
 					variant: StatementVariant::AssignComplex(
-						l_value_expression.to_complex_expression(line_number)?,
+						l_value,
 						r_value_expression.to_complex_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::String(..) => Statement {
+				AnyTypeLValue::String(l_value) => Statement {
 					column: tokens[0].start_column,
 					variant: StatementVariant::AssignString(
-						l_value_expression.to_string_expression(line_number)?,
+						l_value,
 						r_value_expression.to_string_expression(line_number)?
 					),
 				},
-				_ => unreachable!(),
+				//_ => unreachable!(),
 			};
 			return Ok(Some((statement, rest_of_tokens)));
 	}
@@ -102,7 +102,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			// Get l-value expression
 			let l_value_length = get_l_value_length_old(remaining_tokens);
 			let l_value_expression;
-			(l_value_expression, _, _) = match parse_expression_primary(&remaining_tokens[..l_value_length], line_number, statement_keyword_end_column)? {
+			(l_value_expression, _, _) = match parse_l_value(&remaining_tokens[..l_value_length], line_number, statement_keyword_end_column)? {
 				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens[0].end_column), line_text: None }),
 				Some((l_value_expression, remaining_tokens, expression_end_column)) => (l_value_expression, remaining_tokens, expression_end_column),
 			};
@@ -124,35 +124,35 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 			}
 			// Assemble into statement
 			let statement = match l_value_expression {
-				AnyTypeExpression::Int(..) => Statement {
+				AnyTypeLValue::Int(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignInt(
-						l_value_expression.to_int_expression(line_number)?,
+						l_value,
 						r_value_expression.to_int_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::Real(..) => Statement {
+				AnyTypeLValue::Real(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignReal(
-						l_value_expression.to_real_expression(line_number)?,
+						l_value,
 						r_value_expression.to_real_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::Complex(..) => Statement {
+				AnyTypeLValue::Complex(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignComplex(
-						l_value_expression.to_complex_expression(line_number)?,
+						l_value,
 						r_value_expression.to_complex_expression(line_number)?
 					),
 				},
-				AnyTypeExpression::String(..) => Statement {
+				AnyTypeLValue::String(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignString(
-						l_value_expression.to_string_expression(line_number)?,
+						l_value,
 						r_value_expression.to_string_expression(line_number)?
 					),
 				},
-				_ => unreachable!(),
+				//_ => unreachable!(),
 			};
 			Ok(Some((statement, rest_of_tokens)))
 		}
@@ -265,6 +265,7 @@ pub fn parse<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) 
 		_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),
 	}
 }
+
 fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
 	let mut parenthesis_depth = 0usize;
 	for (index, token) in tokens.iter().enumerate() {
@@ -398,17 +399,18 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 	Ok(Some(match first_token_variant {
 		// Literals
 		TokenVariant::IntegerLiteral(value) =>
-			(AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::ConstantValue(IntValue::new(Rc::new(value.clone()))), column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
+			(AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone()) }, start_column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
 		TokenVariant::FloatLiteral { value, is_imaginary } => match *is_imaginary {
 			false =>
-				(AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::ConstantValue(RealValue::FloatValue(*value)), column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
-			true => (AnyTypeExpression::Complex(
-				ComplexExpression { variant: ComplexExpressionVariant::ConstantValue(ComplexValue { value: Complex64::new(0., *value) } ), column: *first_token_start_column }
-			), &tokens[1..], *first_token_end_column),
+				(AnyTypeExpression::Real(RealExpression::ConstantValue { value: RealValue::FloatValue(*value), start_column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
+			true =>
+				(AnyTypeExpression::Complex(
+					ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }
+				), &tokens[1..], *first_token_end_column),
 		}
 		TokenVariant::StringLiteral(value) =>
 			(AnyTypeExpression::String(
-				StringExpression { variant: StringExpressionVariant::ConstantValue(StringValue::new(Rc::new((*value).into()))), column: *first_token_start_column }
+				StringExpression::ConstantValue { value: StringValue { value: Rc::new(value.to_string().clone()) }, start_column: *first_token_start_column }
 			), &tokens[1..], *first_token_end_column),
 		// An expression in parentheses
 		TokenVariant::LeftParenthesis => {
@@ -432,115 +434,17 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 		// There should not be operators
 		TokenVariant::Operator(..) => return Err(Error { variant: ErrorVariant::UnexpectedOperator, column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
 		// Identifiers
-		TokenVariant::Identifier { keyword, .. } => 'a: {
-			// Get if this is a FN function
-			let uses_fn_keyword = *keyword == Some(Keyword::Fn);
-			let tokens_after_fn = match uses_fn_keyword {
-				false => tokens,
-				true => &tokens[1..],
-			};
-			let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: token_after_fn_end_column }
-				= match tokens_after_fn.get(0)
-			{
-				Some(token_after_fn) => token_after_fn,
-				None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
-			};
-			// Get identifier name
-			let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
-				TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
-				_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None }),
-			};
-			if *identifier_is_optional {
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("Optional functions".into()), column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None });
+		TokenVariant::Identifier { .. } => {
+			match parse_l_value(tokens, line_number, *first_token_start_column)?.unwrap() {
+				(AnyTypeLValue::Int(l_value), remaining_tokens, end_column) =>
+					(AnyTypeExpression::Int(IntExpression::LValue(l_value)), remaining_tokens, end_column),
+				(AnyTypeLValue::Real(l_value), remaining_tokens, end_column) =>
+					(AnyTypeExpression::Real(RealExpression::LValue(l_value)), remaining_tokens, end_column),
+				(AnyTypeLValue::Complex(l_value), remaining_tokens, end_column) =>
+					(AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)), remaining_tokens, end_column),
+				(AnyTypeLValue::String(l_value), remaining_tokens, end_column) =>
+					(AnyTypeExpression::String(StringExpression::LValue(l_value)), remaining_tokens, end_column),
 			}
-			// Return if there is not a left parenthesis after the identifier
-			let tokens_after_identifier = &tokens_after_fn[1..];
-			let parenthesis_end_column = match tokens_after_identifier.get(0) {
-				Some(Token { variant: TokenVariant::LeftParenthesis, end_column, .. }) => *end_column,
-				_ => break 'a (match identifier_type {
-					IdentifierType::Integer => AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction {
-						name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-					}, column: *first_token_start_column }),
-					IdentifierType::UnmarkedNumber => AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction {
-						name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-					}, column: *first_token_start_column }),
-					IdentifierType::ComplexNumber => AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction {
-						name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-					}, column: *first_token_start_column }),
-					IdentifierType::String => AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction {
-						name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-					}, column: *first_token_start_column }),
-				}, tokens_after_identifier, *token_after_fn_end_column),
-			};
-			// Get arguments
-			let mut argument_tokens = &tokens_after_identifier[1..];
-			let mut end_column_of_token_before_argument = parenthesis_end_column;
-			let mut arguments = Vec::new();
-			// Make sure there is not a leading comma
-			match argument_tokens.get(0) {
-				Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
-					return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-				_ => {},
-			}
-			// Parse each argument
-			'b: loop {
-				// Parse argument
-				let argument_parse_result = parse_expression(argument_tokens, line_number, end_column_of_token_before_argument)?;
-				let (argument_expression, tokens_after_argument, end_column_of_argument) = match argument_parse_result {
-					// If we did not an argument, why?
-					None => {
-						match argument_tokens.get(0) {
-							// If it was because there was a comma
-							Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
-								return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-							// If it was because we reached a right parenthesis
-							Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
-								argument_tokens = &argument_tokens[1..];
-								end_column_of_token_before_argument = *end_column;
-								break 'b;
-							}
-							// If it was because of an invalid separator
-							Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
-								return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-							_ => unreachable!(),
-						};
-					}
-					// If we did get an argument
-					Some((argument_expression, tokens_after_argument, end_column_of_argument)) =>
-						(argument_expression, tokens_after_argument, end_column_of_argument),
-				};
-				arguments.push(argument_expression);
-				argument_tokens = tokens_after_argument;
-				end_column_of_token_before_argument = end_column_of_argument;
-				// Parse comma or right parentheses
-				match argument_tokens.get(0) {
-					Some(Token { variant: TokenVariant::Comma, end_column , ..}) => {
-						argument_tokens = &argument_tokens[1..];
-						end_column_of_token_before_argument = *end_column;
-					}
-					Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
-						argument_tokens = &argument_tokens[1..];
-						end_column_of_token_before_argument = *end_column;
-						break 'b;
-					}
-					_ => {}
-				};
-			}
-			// Return
-			(match identifier_type {
-				IdentifierType::Integer => AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction {
-					name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false
-				}, column: *first_token_start_column }),
-				IdentifierType::UnmarkedNumber => AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction {
-					name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false
-				}, column: *first_token_start_column }),
-				IdentifierType::ComplexNumber => AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction {
-					name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false
-				}, column: *first_token_start_column }),
-				IdentifierType::String => AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction {
-					name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false
-				}, column: *first_token_start_column }),
-			}, argument_tokens, end_column_of_token_before_argument)
 		}
 		// End of expression
 		TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
@@ -549,31 +453,167 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 	}))
 }
 
-///// Gets a one or two word keyword from the start of the list of tokens. Returns:
-///// * `None` if there is not a keyword at the start of the list.
-///// * `Some((keyword, tokens after keyword, keyword start column, keyword end column))` if it could.
-//pub fn get_keyword<'a, 'b>(tokens: &'b [Token<'a>]) -> Option<(Keyword, &'b [Token<'a>], NonZeroUsize, NonZeroUsize)> {
-//	// Get first keyword or return if there is not a first keyword
-//	let (first_keyword_variant, first_keyword_start_column, first_keyword_end_column) = match tokens.get(0) {
-//		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, end_column }) => (*keyword, *start_column, *end_column),
-//		_ => return None,
-//	};
-//	// Get the second keyword if there is one
-//	let second_keyword_variant_and_end_column = match tokens.get(1) {
-//		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, end_column, .. }) => Some((*keyword, *end_column)),
-//		_ => None,
-//	};
-//	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
-//	if let Some((second_keyword_variant, second_keyword_end_column)) = second_keyword_variant_and_end_column {
-//		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
-//			if second_keyword_variant == *second_keyword_of_double_word_keyword {
-//				return Some((*double_word_keyword, &tokens[2..], first_keyword_start_column, second_keyword_end_column));
-//			}
-//		}
-//	}
-//	// Else return the first keyword variant
-//	Some((first_keyword_variant, &tokens[1..], first_keyword_start_column, first_keyword_end_column))
-//}
+pub fn parse_l_value<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, _start_column: NonZeroUsize)-> Result<Option<(AnyTypeLValue, &'b [Token<'a>], NonZeroUsize)>, Error> {
+	// Get the first token or return if there are no more tokens to parse
+	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.first() {
+		Some(first_token) => first_token,
+		None => return Ok(None),
+	};
+	let keyword = match first_token_variant {
+		TokenVariant::Identifier { keyword, .. } =>
+			*keyword,
+		_ => return Err(Error { variant: ErrorVariant::InvalidLValue, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
+	};
+	// Get if this is a FN function
+	let uses_fn_keyword = keyword == Some(Keyword::Fn);
+	let tokens_after_fn = match uses_fn_keyword {
+		false => tokens,
+		true => &tokens[1..],
+	};
+	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: token_after_fn_end_column }
+		= match tokens_after_fn.get(0)
+	{
+		Some(token_after_fn) => token_after_fn,
+		None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
+	};
+	// Get identifier name
+	let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
+		TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
+		_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None }),
+	};
+	if *identifier_is_optional {
+		return Err(Error { variant: ErrorVariant::NotYetImplemented("Optional functions".into()), column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None });
+	}
+	// Return if there is not a left parenthesis after the identifier
+	let tokens_after_identifier = &tokens_after_fn[1..];
+	let parenthesis_end_column = match tokens_after_identifier.get(0) {
+		Some(Token { variant: TokenVariant::LeftParenthesis, end_column, .. }) => *end_column,
+		//_ => break 'a (match identifier_type {
+		//	IdentifierType::Integer => AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction {
+		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
+		//	}, column: *first_token_start_column }),
+		//	IdentifierType::UnmarkedNumber => AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction {
+		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
+		//	}, column: *first_token_start_column }),
+		//	IdentifierType::ComplexNumber => AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction {
+		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
+		//	}, column: *first_token_start_column }),
+		//	IdentifierType::String => AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction {
+		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
+		//	}, column: *first_token_start_column }),
+		//}, tokens_after_identifier, *token_after_fn_end_column),
+		_ => return Ok(Some((match identifier_type {
+			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			}),
+			IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			}),
+			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			}),
+			IdentifierType::String => AnyTypeLValue::String(StringLValue {
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			}),
+		}, tokens_after_identifier, *token_after_fn_end_column))),
+	};
+	// Get arguments
+	let mut argument_tokens = &tokens_after_identifier[1..];
+	let mut end_column_of_token_before_argument = parenthesis_end_column;
+	let mut arguments = Vec::new();
+	// Make sure there is not a leading comma
+	match argument_tokens.get(0) {
+		Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
+			return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+		_ => {},
+	}
+	// Parse each argument
+	'b: loop {
+		// Parse argument
+		let argument_parse_result = parse_expression(argument_tokens, line_number, end_column_of_token_before_argument)?;
+		let (argument_expression, tokens_after_argument, end_column_of_argument) = match argument_parse_result {
+			// If we did not an argument, why?
+			None => {
+				match argument_tokens.get(0) {
+					// If it was because there was a comma
+					Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
+						return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+					// If it was because we reached a right parenthesis
+					Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
+						argument_tokens = &argument_tokens[1..];
+						end_column_of_token_before_argument = *end_column;
+						break 'b;
+					}
+					// If it was because of an invalid separator
+					Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
+						return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+					_ => unreachable!(),
+				};
+			}
+			// If we did get an argument
+			Some((argument_expression, tokens_after_argument, end_column_of_argument)) =>
+				(argument_expression, tokens_after_argument, end_column_of_argument),
+		};
+		arguments.push(argument_expression);
+		argument_tokens = tokens_after_argument;
+		end_column_of_token_before_argument = end_column_of_argument;
+		// Parse comma or right parentheses
+		match argument_tokens.get(0) {
+			Some(Token { variant: TokenVariant::Comma, end_column , ..}) => {
+				argument_tokens = &argument_tokens[1..];
+				end_column_of_token_before_argument = *end_column;
+			}
+			Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
+				argument_tokens = &argument_tokens[1..];
+				end_column_of_token_before_argument = *end_column;
+				break 'b;
+			}
+			_ => {}
+		};
+	}
+	// Return
+	return Ok(Some((match identifier_type {
+		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+		}),
+		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+		}),
+		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+		}),
+		IdentifierType::String => AnyTypeLValue::String(StringLValue {
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+		}),
+	}, argument_tokens, end_column_of_token_before_argument)))
+}
+
+// TODO: Remove
+/// Gets a one or two word keyword from the start of the list of tokens. Returns:
+/// * `None` if there is not a keyword at the start of the list.
+/// * `Some((keyword, tokens after keyword, keyword start column, keyword end column))` if it could.
+pub fn get_keyword<'a, 'b>(tokens: &'b [Token<'a>]) -> Option<(Keyword, &'b [Token<'a>], NonZeroUsize, NonZeroUsize)> {
+	// Get first keyword or return if there is not a first keyword
+	let (first_keyword_variant, first_keyword_start_column, first_keyword_end_column) = match tokens.get(0) {
+		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, end_column }) => (*keyword, *start_column, *end_column),
+		_ => return None,
+	};
+	// Get the second keyword if there is one
+	let second_keyword_variant_and_end_column = match tokens.get(1) {
+		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, end_column, .. }) => Some((*keyword, *end_column)),
+		_ => None,
+	};
+	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
+	if let Some((second_keyword_variant, second_keyword_end_column)) = second_keyword_variant_and_end_column {
+		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
+			if second_keyword_variant == *second_keyword_of_double_word_keyword {
+				return Some((*double_word_keyword, &tokens[2..], first_keyword_start_column, second_keyword_end_column));
+			}
+		}
+	}
+	// Else return the first keyword variant
+	Some((first_keyword_variant, &tokens[1..], first_keyword_start_column, first_keyword_end_column))
+}
 
 /// Takes in a list of tokens and returns how many form one expression given the following productions:
 ///
@@ -640,20 +680,23 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Addition(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::Addition {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Addition(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Complex(ComplexExpression::Addition {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::Concatenation(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::String(StringExpression::Concatenation {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -663,10 +706,11 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotConcatenateNumbers, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::Concatenation(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::String(StringExpression::Concatenation {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -674,15 +718,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Subtraction(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::Subtraction {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Subtraction(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Complex(ComplexExpression::Subtraction {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -692,15 +738,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Multiplication(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::Multiplication {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Multiplication(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Complex(ComplexExpression::Multiplication {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -710,15 +758,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Division(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::Division {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Division(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Complex(ComplexExpression::Division {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -728,15 +778,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Exponentiation(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::Exponentiation {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Exponentiation(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Complex(ComplexExpression::Exponentiation {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -746,10 +798,11 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::FlooredDivision(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::FlooredDivision {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -759,10 +812,11 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::FlooredDivision(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Real(RealExpression::FlooredDivision {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -772,30 +826,35 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolEqualTo(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolEqualTo {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntEqualTo(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntEqualTo {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::RealEqualTo {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::ComplexEqualTo(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::ComplexEqualTo {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringEqualTo(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringEqualTo {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -803,30 +862,35 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolNotEqualTo(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolNotEqualTo {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntNotEqualTo(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntNotEqualTo {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealNotEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::RealNotEqualTo {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::ComplexNotEqualTo(
-						Box::new(lhs.to_complex_expression(line_number)?),
-						Box::new(rhs.to_complex_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::ComplexNotEqualTo {
+						lhs_expression: Box::new(lhs.to_complex_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_complex_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringNotEqualTo(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringNotEqualTo {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -834,30 +898,29 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolGreaterThan(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolGreaterThan {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntGreaterThan(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealGreaterThan(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealGreaterThan(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntGreaterThan {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::RealGreaterThan {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringGreaterThan(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringGreaterThan {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -865,30 +928,29 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolGreaterThanOrEqualTo(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolGreaterThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntGreaterThanOrEqualTo(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealGreaterThanOrEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealGreaterThanOrEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntGreaterThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::RealGreaterThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringGreaterThanOrEqualTo(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringGreaterThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -896,30 +958,29 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolLessThan(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolLessThan {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntLessThan(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealLessThan(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealLessThan(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntLessThan {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::RealLessThan {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringLessThan(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringLessThan {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -927,30 +988,29 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::BoolLessThanOrEqualTo(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::BoolLessThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::IntLessThanOrEqualTo(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealLessThanOrEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
-				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::RealLessThanOrEqualTo(
-						Box::new(lhs.to_real_expression(line_number)?),
-						Box::new(rhs.to_real_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::IntLessThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::RealLessThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::StringLessThanOrEqualTo(
-						Box::new(lhs.to_string_expression(line_number)?),
-						Box::new(rhs.to_string_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::StringLessThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_string_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_string_expression(line_number)?),
+						start_column,
+					}),
 				_ => unreachable!(),
 			}
 		},
@@ -958,15 +1018,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::And(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::And {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::BitwiseAnd(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Int(IntExpression::BitwiseAnd {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -976,15 +1038,17 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
-					AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::Or(
-						Box::new(lhs.to_bool_expression(line_number)?),
-						Box::new(rhs.to_bool_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Bool(BoolExpression::Or {
+						lhs_expression: Box::new(lhs.to_bool_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::BitwiseOr(
-						Box::new(lhs.to_int_expression(line_number)?),
-						Box::new(rhs.to_int_expression(line_number)?),
-					), column: start_column}),
+					AnyTypeExpression::Int(IntExpression::BitwiseOr {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				_ => unreachable!(),
@@ -997,9 +1061,11 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 	Ok(match &operator {
 		UnaryOperator::Negation  => match operand {
 			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) =>
-				AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Negation(Box::new(operand.to_real_expression(line_number)?)), column: start_column }),
+				//AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Negation(Box::new(operand.to_real_expression(line_number)?)), column: start_column }),
+				AnyTypeExpression::Real(RealExpression::Negation { sub_expression: Box::new(operand.to_real_expression(line_number)?), start_column }),
 			AnyTypeExpression::Complex(..) =>
-				AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Negation(Box::new(operand.to_complex_expression(line_number)?)), column: start_column }),
+				//AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Negation(Box::new(operand.to_complex_expression(line_number)?)), column: start_column }),
+				AnyTypeExpression::Complex(ComplexExpression::Negation { sub_expression: Box::new(operand.to_complex_expression(line_number)?), start_column }),
 			AnyTypeExpression::String(..) =>
 				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 			_ => unreachable!(),
@@ -1007,9 +1073,11 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 		UnaryOperator::UnaryPlus  => operand,
 		UnaryOperator::Not  => match operand {
 			AnyTypeExpression::Bool(..) =>
-				AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::Not(Box::new(operand.to_bool_expression(line_number)?)), column: start_column }),
+				//AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::Not(Box::new(operand.to_bool_expression(line_number)?)), column: start_column }),
+				AnyTypeExpression::Bool(BoolExpression::Not { sub_expression: Box::new(operand.to_bool_expression(line_number)?), start_column }),
 			AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) | AnyTypeExpression::Complex(..) =>
-				AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
+				//AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
+				AnyTypeExpression::Int(IntExpression::BitwiseNot { sub_expression: Box::new(operand.to_int_expression(line_number)?), start_column }),
 			AnyTypeExpression::String(..) =>
 				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 			_ => unreachable!(),

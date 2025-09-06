@@ -111,6 +111,7 @@ pub enum IntExpression {
 	LValue(IntLValue),
 	BitwiseAnd { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	BitwiseOr { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	BitwiseNot { sub_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	CastFromReal(Box<RealExpression>),
 	CastFromBool(Box<BoolExpression>),
 }
@@ -121,6 +122,7 @@ impl IntExpression {
 			Self::ConstantValue { start_column, .. } => *start_column,
 			Self::BitwiseAnd { start_column, .. } => *start_column,
 			Self::BitwiseOr { start_column, .. } => *start_column,
+			Self::BitwiseNot { start_column, .. } => *start_column,
 			Self::LValue(l_value) => l_value.start_column,
 			Self::CastFromReal(real_expression) => real_expression.get_start_column(),
 			Self::CastFromBool(bool_expression) => bool_expression.get_start_column(),
@@ -144,6 +146,10 @@ impl IntExpression {
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
+			Self::BitwiseNot { sub_expression, .. } => {
+				println!("Bitwise NOT");
+				sub_expression.print(depth + 1);
+			},
 			Self::CastFromBool(operand) => {
 				println!("Cast from Bool");
 				operand.print(depth + 1);
@@ -162,11 +168,11 @@ impl IntExpression {
 
 #[derive(Debug, Clone)]
 pub struct IntLValue {
-	name: Box<str>,
-	arguments: Box<[AnyTypeExpression]>,
-	uses_fn_keyword: bool,
-	has_parentheses: bool,
-	start_column: NonZeroUsize,
+	pub name: Box<str>,
+	pub arguments: Box<[AnyTypeExpression]>,
+	pub uses_fn_keyword: bool,
+	pub has_parentheses: bool,
+	pub start_column: NonZeroUsize,
 }
 
 impl IntLValue {
@@ -199,7 +205,6 @@ pub enum RealExpression {
 	FlooredDivision { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	Addition { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
 	Subtraction { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	BitwiseNot { sub_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	CastFromInt(Box<IntExpression>),
 	CastFromComplex(Box<ComplexExpression>),
 }
@@ -209,7 +214,6 @@ impl RealExpression {
 		match self {
 			Self::ConstantValue { start_column, .. } => *start_column,
 			Self::Negation { start_column, .. } => *start_column,
-			Self::BitwiseNot { start_column, .. } => *start_column,
 			Self::LValue(l_value) => l_value.start_column,
 			Self::CastFromInt(real_expression) => real_expression.get_start_column(),
 			Self::CastFromComplex(bool_expression) => bool_expression.get_start_column(),
@@ -271,10 +275,6 @@ impl RealExpression {
 				println!("Negation");
 				sub_expression.print(depth + 1);
 			},
-			Self::BitwiseNot { sub_expression, .. } => {
-				println!("Bitwise NOT");
-				sub_expression.print(depth + 1);
-			},
 			Self::LValue(l_value) => {
 				l_value.print(depth + 1);
 			},
@@ -284,11 +284,11 @@ impl RealExpression {
 
 #[derive(Debug, Clone)]
 pub struct RealLValue {
-	name: Box<str>,
-	arguments: Box<[AnyTypeExpression]>,
-	uses_fn_keyword: bool,
-	has_parentheses: bool,
-	start_column: NonZeroUsize,
+	pub name: Box<str>,
+	pub arguments: Box<[AnyTypeExpression]>,
+	pub uses_fn_keyword: bool,
+	pub has_parentheses: bool,
+	pub start_column: NonZeroUsize,
 }
 
 impl RealLValue {
@@ -314,12 +314,12 @@ impl RealLValue {
 pub enum ComplexExpression {
 	ConstantValue { value: ComplexValue, start_column: NonZeroUsize },
 	LValue(ComplexLValue),
-	Exponentiation { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	Negation { sub_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	Multiplication { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	Division { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	Addition { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
-	Subtraction { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Exponentiation { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	Negation { sub_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	Multiplication { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	Division { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	Addition { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	Subtraction { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
 	CastFromReal(Box<RealExpression>),
 }
 
@@ -387,11 +387,11 @@ impl ComplexExpression {
 
 #[derive(Debug, Clone)]
 pub struct ComplexLValue {
-	name: Box<str>,
-	arguments: Box<[AnyTypeExpression]>,
-	uses_fn_keyword: bool,
-	has_parentheses: bool,
-	start_column: NonZeroUsize,
+	pub name: Box<str>,
+	pub arguments: Box<[AnyTypeExpression]>,
+	pub uses_fn_keyword: bool,
+	pub has_parentheses: bool,
+	pub start_column: NonZeroUsize,
 }
 
 impl ComplexLValue {
@@ -450,11 +450,11 @@ impl StringExpression {
 
 #[derive(Debug, Clone)]
 pub struct StringLValue {
-	name: Box<str>,
-	arguments: Box<[AnyTypeExpression]>,
-	uses_fn_keyword: bool,
-	has_parentheses: bool,
-	start_column: NonZeroUsize,
+	pub name: Box<str>,
+	pub arguments: Box<[AnyTypeExpression]>,
+	pub uses_fn_keyword: bool,
+	pub has_parentheses: bool,
+	pub start_column: NonZeroUsize,
 }
 
 impl StringLValue {
@@ -479,9 +479,9 @@ impl StringLValue {
 #[derive(Debug, Clone)]
 pub enum BoolExpression {
 	ConstantValue { value: BoolValue, start_column: NonZeroUsize },
-	And { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
-	Or { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
-	Not { sub_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	And { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	Or { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	Not { sub_expression: Box<BoolExpression>, start_column: NonZeroUsize },
 	IntLessThan { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	IntGreaterThan { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	IntEqualTo { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
@@ -825,6 +825,14 @@ impl AnyTypeExpression {
 			}
 		}
 	}
+}
+
+#[derive(Debug, Clone)]
+pub enum AnyTypeLValue {
+	Int(IntLValue),
+	Real(RealLValue),
+	Complex(ComplexLValue),
+	String(StringLValue),
 }
 
 #[cfg(test)]
