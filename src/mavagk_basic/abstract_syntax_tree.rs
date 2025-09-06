@@ -130,10 +130,12 @@ impl IntExpression {
 	}
 
 	pub fn print(&self, depth: usize) {
-		for _ in 0..depth {
-			print!("-");
+		if !matches!(self, Self::LValue(_)) {
+			for _ in 0..depth {
+				print!("-");
+			}
+			print!(" {:03}: Int ", self.get_start_column());
 		}
-		print!(" {:03}: Int ", self.get_start_column());
 		match &self {
 			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
 			Self::BitwiseAnd { lhs_expression, rhs_expression, .. } => {
@@ -159,8 +161,7 @@ impl IntExpression {
 				operand.print(depth + 1);
 			},
 			Self::LValue(l_value_expression) => {
-				println!("L-Value");
-				l_value_expression.print(depth + 1);
+				l_value_expression.print(depth);
 			},
 		}
 	}
@@ -227,10 +228,12 @@ impl RealExpression {
 	}
 
 	pub fn print(&self, depth: usize) {
-		for _ in 0..depth {
-			print!("-");
+		if !matches!(self, Self::LValue(_)) {
+			for _ in 0..depth {
+				print!("-");
+			}
+			print!(" {:03}: Real ", self.get_start_column());
 		}
-		print!(" {:03}: Real ", self.get_start_column());
 		match self {
 			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
 			Self::Addition { lhs_expression, rhs_expression, .. } => {
@@ -276,7 +279,7 @@ impl RealExpression {
 				sub_expression.print(depth + 1);
 			},
 			Self::LValue(l_value) => {
-				l_value.print(depth + 1);
+				l_value.print(depth);
 			},
 		}
 	}
@@ -339,10 +342,12 @@ impl ComplexExpression {
 	}
 
 	pub fn print(&self, depth: usize) {
-		for _ in 0..depth {
-			print!("-");
+		if !matches!(self, Self::LValue(_)) {
+			for _ in 0..depth {
+				print!("-");
+			}
+			print!(" {:03}: Complex ", self.get_start_column());
 		}
-		print!(" {:03}: Complex ", self.get_start_column());
 		match self {
 			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
 			Self::Addition { lhs_expression, rhs_expression, .. } => {
@@ -379,7 +384,7 @@ impl ComplexExpression {
 				sub_expression.print(depth + 1);
 			},
 			Self::LValue(l_value) => {
-				l_value.print(depth + 1);
+				l_value.print(depth);
 			},
 		}
 	}
@@ -430,10 +435,12 @@ impl StringExpression {
 	}
 
 	pub fn print(&self, depth: usize) {
-		for _ in 0..depth {
-			print!("-");
+		if !matches!(self, Self::LValue(_)) {
+			for _ in 0..depth {
+				print!("-");
+			}
+			print!(" {:03}: String ", self.get_start_column());
 		}
-		print!(" {:03}: String ", self.get_start_column());
 		match self {
 			Self::ConstantValue { value, .. } => println!("Constant Value \"{value}\""),
 			Self::Concatenation { lhs_expression, rhs_expression, .. } => {
@@ -442,7 +449,7 @@ impl StringExpression {
 				rhs_expression.print(depth + 1);
 			},
 			Self::LValue(l_value) => {
-				l_value.print(depth + 1);
+				l_value.print(depth);
 			},
 		}
 	}

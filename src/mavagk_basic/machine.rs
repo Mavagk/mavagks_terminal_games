@@ -4,7 +4,7 @@ use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, Styled
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, BoolExpressionVariant, ComplexExpression, ComplexExpressionVariant, IntExpression, IntExpressionVariant, RealExpression, RealExpressionVariant, Statement, StatementVariant, StringExpression, StringExpressionVariant}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	is_executing_unnumbered_line: bool,
@@ -170,9 +170,11 @@ impl Machine {
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				// Get what to assign to
 				let (name, _arguments, has_parentheses) = match l_value {
-					IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-						=> (name, arguments, *has_parentheses),
-					IntExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+					IntLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
+					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+					//	=> (name, arguments, *has_parentheses),
+					//IntLValue { start_column, .. } =>
+					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				};
 				// Get r-value
 				let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
@@ -185,9 +187,11 @@ impl Machine {
 			StatementVariant::AssignReal(l_value, r_value_expression) => {
 				// Get what to assign to
 				let (name, _arguments, has_parentheses) = match l_value {
-					RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-						=> (name, arguments, *has_parentheses),
-					RealExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+					RealLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
+					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+					//	=> (name, arguments, *has_parentheses),
+					//RealLValue { start_column, .. } =>
+					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				};
 				// Get r-value
 				let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
@@ -200,9 +204,11 @@ impl Machine {
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				// Get what to assign to
 				let (name, _arguments, has_parentheses) = match l_value {
-					ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-						=> (name, arguments, *has_parentheses),
-					ComplexExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+					ComplexLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
+					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+					//	=> (name, arguments, *has_parentheses),
+					//ComplexLValue { start_column, .. } =>
+					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				};
 				// Get r-value
 				let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
@@ -215,9 +221,11 @@ impl Machine {
 			StatementVariant::AssignString(l_value, r_value_expression) => {
 				// Get what to assign to
 				let (name, _arguments, has_parentheses) = match l_value {
-					StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-						=> (name, arguments, *has_parentheses),
-					StringExpression { variant: _, column } => return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
+					StringLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
+					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
+					//	=> (name, arguments, *has_parentheses),
+					//StringLValue { start_column, .. } =>
+					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				};
 				// Get r-value
 				let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
@@ -256,68 +264,71 @@ impl Machine {
 	}
 
 	fn execute_int_expression(&self, expression: &IntExpression, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
-		let IntExpression { variant: expression_variant, column: expression_column } = expression;
-		Ok(match expression_variant {
-			IntExpressionVariant::ConstantValue(value) => value.clone(),
-			IntExpressionVariant::CastFromBool(sub_expression) => IntValue {
+		//let IntExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression {
+			IntExpression::ConstantValue { value, .. } => value.clone(),
+			IntExpression::CastFromBool(sub_expression) => IntValue {
 				value: Rc::new(match Self::execute_bool_expression(&self, sub_expression, line_number)?.value {
 					true => -1,
 					false => 0,
 				}.try_into().unwrap()),
 			},
-			IntExpressionVariant::CastFromReal(sub_expression) => IntValue {
+			IntExpression::CastFromReal(sub_expression) => IntValue {
 				value: match Self::execute_real_expression(&self, sub_expression, line_number)? {
 					RealValue::IntValue(value) => value,
 					RealValue::FloatValue(value) => Rc::new(match BigInt::from_f64(value) {
 						Some(value) => value,
-						None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(value), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+						None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(value), line_number: line_number.cloned(), column_number: Some(sub_expression.get_start_column()), line_text: None }),
 					}),
 				}
 			},
-			IntExpressionVariant::BitwiseAnd(lhs, rhs) => IntValue {
+			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } => IntValue {
 				value: {
-					let mut lhs_value = Self::execute_int_expression(self, lhs, line_number)?.value;
+					let mut lhs_value = Self::execute_int_expression(self, lhs_expression, line_number)?.value;
 					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-					(*int) &= &*Self::execute_int_expression(self, rhs, line_number)?.value;
+					(*int) &= &*Self::execute_int_expression(self, rhs_expression, line_number)?.value;
 					lhs_value
 				},
 			},
-			IntExpressionVariant::BitwiseOr(lhs, rhs) => IntValue {
+			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } => IntValue {
 				value: {
-					let mut lhs_value = Self::execute_int_expression(self, lhs, line_number)?.value;
+					let mut lhs_value = Self::execute_int_expression(self, lhs_expression, line_number)?.value;
 					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-					(*int) |= &*Self::execute_int_expression(self, rhs, line_number)?.value;
+					(*int) |= &*Self::execute_int_expression(self, rhs_expression, line_number)?.value;
 					lhs_value
 				},
 			},
-			IntExpressionVariant::IntIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+			IntExpression::BitwiseNot { sub_expression, .. } => IntValue { 
+				value: Rc::new(!&*Self::execute_int_expression(self, sub_expression, line_number)?.value),
+			},
+			IntExpression::LValue(IntLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
 				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
 				match self.int_variables.get(name) {
 					Some(int_variable) => int_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
 			}
 		})
 	}
 
 	fn execute_real_expression(&self, expression: &RealExpression, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
-		let RealExpression { variant: expression_variant, column: expression_column } = expression;
-		Ok(match expression_variant {
-			RealExpressionVariant::ConstantValue(value) => value.clone(),
-			RealExpressionVariant::CastFromInt(sub_expression) => RealValue::IntValue(
+		//let RealExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression {
+			RealExpression::ConstantValue { value, .. } => value.clone(),
+			RealExpression::CastFromInt(sub_expression) => RealValue::IntValue(
 				Self::execute_int_expression(&self, sub_expression, line_number)?.value
 			),
-			RealExpressionVariant::CastFromComplex(sub_expression) => RealValue::FloatValue({
+			RealExpression::CastFromComplex(sub_expression) => RealValue::FloatValue({
 				let value = Self::execute_complex_expression(&self, sub_expression, line_number)?.value;
 				if value.im != 0. {
-					return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(value), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(value), line_number: line_number.cloned(), column_number: Some(sub_expression.get_start_column()), line_text: None });
 				}
 				value.re
 			}),
-			RealExpressionVariant::Addition(lhs, rhs) => {
-				match (self.execute_real_expression(lhs, line_number)?, self.execute_real_expression(rhs, line_number)?) {
+			RealExpression::Addition { lhs_expression, rhs_expression, .. } => {
+				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
 					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
 						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
 						(*int) += &*rhs_value;
@@ -326,8 +337,8 @@ impl Machine {
 					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() + rhs_value.get_float()),
 				}
 			}
-			RealExpressionVariant::Subtraction(lhs, rhs) => {
-				match (self.execute_real_expression(lhs, line_number)?, self.execute_real_expression(rhs, line_number)?) {
+			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } => {
+				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
 					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
 						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
 						(*int) -= &*rhs_value;
@@ -336,8 +347,8 @@ impl Machine {
 					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() - rhs_value.get_float()),
 				}
 			}
-			RealExpressionVariant::Multiplication(lhs, rhs) => {
-				match (self.execute_real_expression(lhs, line_number)?, self.execute_real_expression(rhs, line_number)?) {
+			RealExpression::Multiplication { lhs_expression, rhs_expression, .. } => {
+				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
 					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
 						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
 						(*int) *= &*rhs_value;
@@ -346,8 +357,8 @@ impl Machine {
 					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() * rhs_value.get_float()),
 				}
 			}
-			RealExpressionVariant::Division(lhs, rhs) => {
-				match (self.execute_real_expression(lhs, line_number)?, self.execute_real_expression(rhs, line_number)?) {
+			RealExpression::Division { lhs_expression, rhs_expression, .. } => {
+				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
 					(lhs_value, rhs_value) if rhs_value.is_zero() => RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
 					(lhs_value, rhs_value) if matches!((&lhs_value, &rhs_value), (RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) if !lhs_int.is_multiple_of(rhs_int)) =>
 						RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
@@ -359,9 +370,9 @@ impl Machine {
 					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
 				}
 			}
-			RealExpressionVariant::Exponentiation(lhs, rhs) => {
-				let lhs_value = self.execute_real_expression(lhs, line_number)?;
-				let rhs_value = self.execute_real_expression(rhs, line_number)?;
+			RealExpression::Exponentiation { lhs_expression, rhs_expression, .. } => {
+				let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+				let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 				match (&lhs_value, &rhs_value) {
 					(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => {
 						match rhs_int.to_biguint() {
@@ -372,178 +383,175 @@ impl Machine {
 					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float().powf(rhs_value.get_float())),
 				}
 			}
-			RealExpressionVariant::BitwiseNot(sub_expression) => RealValue::IntValue(
-				Rc::new(!&*Self::execute_int_expression(self, sub_expression, line_number)?.value)
-			),
-			RealExpressionVariant::Negation(sub_expression) => match self.execute_real_expression(&sub_expression, line_number)? {
+			RealExpression::Negation { sub_expression, .. } => match self.execute_real_expression(&sub_expression, line_number)? {
 				RealValue::IntValue(int_value) => RealValue::IntValue(Rc::new(-&*int_value)),
 				RealValue::FloatValue(float_value) => RealValue::FloatValue(-float_value),
 			}
-			RealExpressionVariant::FlooredDivision(lhs, rhs) => {
-				let mut lhs_value = self.execute_int_expression(lhs, line_number)?.value;
-				let rhs_value = self.execute_int_expression(rhs, line_number)?.value;
+			RealExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } => {
+				let mut lhs_value = self.execute_int_expression(lhs_expression, line_number)?.value;
+				let rhs_value = self.execute_int_expression(rhs_expression, line_number)?.value;
 				if rhs_value.is_zero() {
-					return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
 				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
 				(*int) /= &*rhs_value;
 				RealValue::IntValue(lhs_value)
 			}
-			RealExpressionVariant::RealIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+			RealExpression::LValue(RealLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
 				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
 				match self.real_variables.get(name) {
 					Some(real_variable) => real_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
 			}
 		})
 	}
 
 	fn execute_complex_expression(&self, expression: &ComplexExpression, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {
-		let ComplexExpression { variant: expression_variant, column: expression_column } = expression;
-		Ok(match expression_variant {
-			ComplexExpressionVariant::ConstantValue(value) => *value,
-			ComplexExpressionVariant::CastFromReal(sub_expression) => ComplexValue {
+		//let ComplexExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression {
+			ComplexExpression::ConstantValue { value, .. } => *value,
+			ComplexExpression::CastFromReal(sub_expression) => ComplexValue {
 				value: Complex { re: self.execute_real_expression(sub_expression, line_number)?.get_float(), im: 0. }
 			},
-			ComplexExpressionVariant::Addition(lhs, rhs) => ComplexValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value + self.execute_complex_expression(rhs, line_number)?.value
+			ComplexExpression::Addition { lhs_expression, rhs_expression, .. } => ComplexValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value + self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
-			ComplexExpressionVariant::Subtraction(lhs, rhs) => ComplexValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value - self.execute_complex_expression(rhs, line_number)?.value
+			ComplexExpression::Subtraction { lhs_expression, rhs_expression, .. } => ComplexValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value - self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
-			ComplexExpressionVariant::Multiplication(lhs, rhs) => ComplexValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value * self.execute_complex_expression(rhs, line_number)?.value
+			ComplexExpression::Multiplication { lhs_expression, rhs_expression, .. } => ComplexValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value * self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
-			ComplexExpressionVariant::Division(lhs, rhs) => ComplexValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value / self.execute_complex_expression(rhs, line_number)?.value
+			ComplexExpression::Division { lhs_expression, rhs_expression, .. } => ComplexValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value / self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
-			ComplexExpressionVariant::Exponentiation(lhs, rhs) => ComplexValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value.powc(self.execute_complex_expression(rhs, line_number)?.value)
+			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, .. } => ComplexValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value.powc(self.execute_complex_expression(rhs_expression, line_number)?.value)
 			},
-			ComplexExpressionVariant::Negation(sub_expression) => ComplexValue {
+			ComplexExpression::Negation { sub_expression, .. } => ComplexValue {
 				value: -self.execute_complex_expression(sub_expression, line_number)?.value
 			},
-			ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+			ComplexExpression::LValue(ComplexLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
 				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
 				match self.complex_variables.get(name) {
 					Some(complex_variable) => complex_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
 			}
 		})
 	}
 
 	fn execute_bool_expression(&self, expression: &BoolExpression, line_number: Option<&BigInt>) -> Result<BoolValue, Error> {
-		let BoolExpression { variant: expression_variant, column: expression_column } = expression;
-		Ok(match expression_variant {
-			BoolExpressionVariant::ConstantValue(value) => *value,
-			BoolExpressionVariant::And(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value && self.execute_bool_expression(rhs, line_number)?.value
+		//let BoolExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression {
+			BoolExpression::ConstantValue { value, .. } => *value,
+			BoolExpression::And { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value && self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::Or(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value || self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::Or { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value || self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::Not(sub_expression) => BoolValue {
+			BoolExpression::Not { sub_expression, .. } => BoolValue {
 				value: !self.execute_bool_expression(sub_expression, line_number)?.value
 			},
 
-			BoolExpressionVariant::BoolEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value == self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value == self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::BoolNotEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value != self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value != self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::BoolLessThan(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value < self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value < self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::BoolLessThanOrEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value <= self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value <= self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::BoolGreaterThan(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value > self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value > self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::BoolGreaterThanOrEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_bool_expression(lhs, line_number)?.value >= self.execute_bool_expression(rhs, line_number)?.value
+			BoolExpression::BoolGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_bool_expression(lhs_expression, line_number)?.value >= self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
 			
-			BoolExpressionVariant::IntEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value == *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value == *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::IntNotEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value != *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value != *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::IntLessThan(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value < *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value < *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::IntLessThanOrEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value <= *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value <= *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::IntGreaterThan(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value > *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value > *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::IntGreaterThanOrEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_int_expression(lhs, line_number)?.value >= *self.execute_int_expression(rhs, line_number)?.value
+			BoolExpression::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_int_expression(lhs_expression, line_number)?.value >= *self.execute_int_expression(rhs_expression, line_number)?.value
 			},
 
-			BoolExpressionVariant::RealEqualTo(lhs, rhs) => BoolValue {
+			BoolExpression::RealEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int == **rhs_int,
 						(_, _) => lhs_value.get_float() == rhs_value.get_float(),
 					}
 				}
 			},
-			BoolExpressionVariant::RealNotEqualTo(lhs, rhs) => BoolValue {
+			BoolExpression::RealNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int != **rhs_int,
 						(_, _) => lhs_value.get_float() != rhs_value.get_float(),
 					}
 				}
 			},
-			BoolExpressionVariant::RealLessThan(lhs, rhs) => BoolValue {
+			BoolExpression::RealLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int < **rhs_int,
 						(_, _) => lhs_value.get_float() < rhs_value.get_float(),
 					}
 				}
 			},
-			BoolExpressionVariant::RealLessThanOrEqualTo(lhs, rhs) => BoolValue {
+			BoolExpression::RealLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int <= **rhs_int,
 						(_, _) => lhs_value.get_float() <= rhs_value.get_float(),
 					}
 				}
 			},
-			BoolExpressionVariant::RealGreaterThan(lhs, rhs) => BoolValue {
+			BoolExpression::RealGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int > **rhs_int,
 						(_, _) => lhs_value.get_float() > rhs_value.get_float(),
 					}
 				}
 			},
-			BoolExpressionVariant::RealGreaterThanOrEqualTo(lhs, rhs) => BoolValue {
+			BoolExpression::RealGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: {
-					let lhs_value = self.execute_real_expression(lhs, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs, line_number)?;
+					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
 					match (&lhs_value, &rhs_value) {
 						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int >= **rhs_int,
 						(_, _) => lhs_value.get_float() >= rhs_value.get_float(),
@@ -551,49 +559,49 @@ impl Machine {
 				}
 			},
 
-			BoolExpressionVariant::ComplexEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value == self.execute_complex_expression(rhs, line_number)?.value
+			BoolExpression::ComplexEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value == self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::ComplexNotEqualTo(lhs, rhs) => BoolValue {
-				value: self.execute_complex_expression(lhs, line_number)?.value != self.execute_complex_expression(rhs, line_number)?.value
+			BoolExpression::ComplexNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: self.execute_complex_expression(lhs_expression, line_number)?.value != self.execute_complex_expression(rhs_expression, line_number)?.value
 			},
 
-			BoolExpressionVariant::StringEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_string_expression(lhs, line_number)?.value == *self.execute_string_expression(rhs, line_number)?.value
+			BoolExpression::StringEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_string_expression(lhs_expression, line_number)?.value == *self.execute_string_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::StringNotEqualTo(lhs, rhs) => BoolValue {
-				value: *self.execute_string_expression(lhs, line_number)?.value != *self.execute_string_expression(rhs, line_number)?.value
+			BoolExpression::StringNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
+				value: *self.execute_string_expression(lhs_expression, line_number)?.value != *self.execute_string_expression(rhs_expression, line_number)?.value
 			},
-			BoolExpressionVariant::StringLessThan(_lhs, _rhs) =>
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
-			BoolExpressionVariant::StringLessThanOrEqualTo(_lhs, _rhs) =>
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
-			BoolExpressionVariant::StringGreaterThan(_lhs, _rhs) =>
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
-			BoolExpressionVariant::StringGreaterThanOrEqualTo(_lhs, _rhs) =>
-				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+			BoolExpression::StringLessThan { lhs_expression: _, rhs_expression: _, start_column } =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+			BoolExpression::StringLessThanOrEqualTo { lhs_expression: _, rhs_expression: _, start_column } =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+			BoolExpression::StringGreaterThan { lhs_expression: _, rhs_expression: _, start_column } =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+			BoolExpression::StringGreaterThanOrEqualTo { lhs_expression: _, rhs_expression: _, start_column } =>
+				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 		})
 	}
 
 	fn execute_string_expression(&self, expression: &StringExpression, line_number: Option<&BigInt>) -> Result<StringValue, Error> {
-		let StringExpression { variant: expression_variant, column: expression_column } = expression;
-		Ok(match expression_variant {
-			StringExpressionVariant::ConstantValue(value) => value.clone(),
-			StringExpressionVariant::Concatenation(lhs, rhs) => StringValue {
+		//let StringExpression { variant: expression_variant, column: expression_column } = expression;
+		Ok(match expression {
+			StringExpression::ConstantValue { value, .. } => value.clone(),
+			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } => StringValue {
 				value: {
-					let mut lhs_value = Self::execute_string_expression(self, lhs, line_number)?.value;
+					let mut lhs_value = Self::execute_string_expression(self, lhs_expression, line_number)?.value;
 					let string = Rc::<String>::make_mut(&mut lhs_value);
-					string.push_str(&*Self::execute_string_expression(self, rhs, line_number)?.value);
+					string.push_str(&*Self::execute_string_expression(self, rhs_expression, line_number)?.value);
 					lhs_value
 				},
 			},
-			StringExpressionVariant::StringIdentifierOrFunction { name, arguments: _, uses_fn_keyword, has_parentheses } => {
+			StringExpression::LValue(StringLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
 				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None });
+					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
 				match self.string_variables.get(name) {
 					Some(int_variable) => int_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*expression_column), line_text: None }),
+					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
 			}
 		})
