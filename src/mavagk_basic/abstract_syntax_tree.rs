@@ -842,6 +842,17 @@ pub enum AnyTypeLValue {
 	String(StringLValue),
 }
 
+impl AnyTypeLValue {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::Int(l_value) => l_value.start_column,
+			Self::Real(l_value) => l_value.start_column,
+			Self::Complex(l_value) => l_value.start_column,
+			Self::String(l_value) => l_value.start_column,
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	//use super::*;
