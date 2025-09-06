@@ -557,18 +557,18 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 //	}
 //}
 
-fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
-	let mut parenthesis_depth = 0usize;
-	for (index, token) in tokens.iter().enumerate() {
-		match token.variant {
-			TokenVariant::LeftParenthesis => parenthesis_depth += 1,
-			TokenVariant::RightParenthesis => parenthesis_depth = parenthesis_depth.saturating_sub(1),
-			TokenVariant::Colon if parenthesis_depth == 0 => return index,
-			_ => {}
-		}
-	}
-	tokens.len()
-}
+//fn get_statement_length<'a>(tokens: &[Token<'a>]) -> usize {
+//	let mut parenthesis_depth = 0usize;
+//	for (index, token) in tokens.iter().enumerate() {
+//		match token.variant {
+//			TokenVariant::LeftParenthesis => parenthesis_depth += 1,
+//			TokenVariant::RightParenthesis => parenthesis_depth = parenthesis_depth.saturating_sub(1),
+//			TokenVariant::Colon if parenthesis_depth == 0 => return index,
+//			_ => {}
+//		}
+//	}
+//	tokens.len()
+//}
 
 pub fn parse_expression<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-> Result<Option<AnyTypeExpression>, Error> {
 	// Return None if there are no tokens left
@@ -742,7 +742,7 @@ pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpressi
 
 pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-> Result<Option<AnyTypeExpression>, Error> {
 	// Get the first token or return if there are no more tokens to parse
-	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
+	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
 		Some(first_token) => first_token,
 		None => return Ok(None),
 	};
@@ -802,28 +802,27 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option
 
 pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-> Result<Option<AnyTypeLValue>, Error> {
 	// Get the first token or return if there are no more tokens to parse
-	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.first() {
+	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
 		Some(first_token) => first_token,
 		None => return Ok(None),
 	};
 	let keyword = match first_token_variant {
-		TokenVariant::Identifier { keyword, .. } =>
-			*keyword,
+		TokenVariant::Identifier { keyword, .. } => *keyword,
 		_ => return Err(Error { variant: ErrorVariant::InvalidLValue, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
 	};
 	// Get if this is a FN function
 	let uses_fn_keyword = keyword == Some(Keyword::Fn);
-	let tokens_after_fn = match uses_fn_keyword {
-		false => tokens,
-		true => &tokens[1..],
-	};
-	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: token_after_fn_end_column }
-		= match tokens_after_fn.get(0)
-	{
+	match uses_fn_keyword {
+		false => {}
+		true => {
+			tokens.take_next_token();
+		}
+	}
+	// Get identifier name
+	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: _ } = match tokens.tokens.get(0) {
 		Some(token_after_fn) => token_after_fn,
 		None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
 	};
-	// Get identifier name
 	let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
 		TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
 		_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None }),
@@ -831,25 +830,11 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 	if *identifier_is_optional {
 		return Err(Error { variant: ErrorVariant::NotYetImplemented("Optional functions".into()), column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None });
 	}
+	tokens.take_next_token();
 	// Return if there is not a left parenthesis after the identifier
-	let tokens_after_identifier = &tokens_after_fn[1..];
-	let parenthesis_end_column = match tokens_after_identifier.get(0) {
-		Some(Token { variant: TokenVariant::LeftParenthesis, end_column, .. }) => *end_column,
-		//_ => break 'a (match identifier_type {
-		//	IdentifierType::Integer => AnyTypeExpression::Int(IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction {
-		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-		//	}, column: *first_token_start_column }),
-		//	IdentifierType::UnmarkedNumber => AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::RealIdentifierOrFunction {
-		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-		//	}, column: *first_token_start_column }),
-		//	IdentifierType::ComplexNumber => AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::ComplexIdentifierOrFunction {
-		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-		//	}, column: *first_token_start_column }),
-		//	IdentifierType::String => AnyTypeExpression::String(StringExpression { variant: StringExpressionVariant::StringIdentifierOrFunction {
-		//		name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false
-		//	}, column: *first_token_start_column }),
-		//}, tokens_after_identifier, *token_after_fn_end_column),
-		_ => return Ok(Some((match identifier_type {
+	match tokens.tokens.get(0) {
+		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
+		_ => return Ok(Some(match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
 			}),
@@ -862,14 +847,14 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
 			}),
-		}, tokens_after_identifier, *token_after_fn_end_column))),
-	};
+		})),
+	}
+	// Skip opening parenthesis
+	tokens.take_next_token();
 	// Get arguments
-	let mut argument_tokens = &tokens_after_identifier[1..];
-	let mut end_column_of_token_before_argument = parenthesis_end_column;
 	let mut arguments = Vec::new();
 	// Make sure there is not a leading comma
-	match argument_tokens.get(0) {
+	match tokens.tokens.get(0) {
 		Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
 			return Err(Error { variant: ErrorVariant::LeadingCommaInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
 		_ => {},
@@ -877,18 +862,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 	// Parse each argument
 	'b: loop {
 		// Parse argument
-		let argument_parse_result = parse_expression(argument_tokens, line_number, end_column_of_token_before_argument)?;
-		let (argument_expression, tokens_after_argument, end_column_of_argument) = match argument_parse_result {
+		let argument_expression = match parse_expression(tokens, line_number)? {
 			// If we did not an argument, why?
 			None => {
-				match argument_tokens.get(0) {
+				match tokens.tokens.get(0) {
 					// If it was because there was a comma
 					Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
 						return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
 					// If it was because we reached a right parenthesis
-					Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
-						argument_tokens = &argument_tokens[1..];
-						end_column_of_token_before_argument = *end_column;
+					Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
+						tokens.take_next_token();
 						break 'b;
 					}
 					// If it was because of an invalid separator
@@ -898,28 +881,23 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 				};
 			}
 			// If we did get an argument
-			Some((argument_expression, tokens_after_argument, end_column_of_argument)) =>
-				(argument_expression, tokens_after_argument, end_column_of_argument),
+			Some(argument_expression) => argument_expression,
 		};
 		arguments.push(argument_expression);
-		argument_tokens = tokens_after_argument;
-		end_column_of_token_before_argument = end_column_of_argument;
 		// Parse comma or right parentheses
-		match argument_tokens.get(0) {
-			Some(Token { variant: TokenVariant::Comma, end_column , ..}) => {
-				argument_tokens = &argument_tokens[1..];
-				end_column_of_token_before_argument = *end_column;
+		match tokens.tokens.get(0) {
+			Some(Token { variant: TokenVariant::Comma, ..}) => {
+				tokens.take_next_token();
 			}
-			Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => {
-				argument_tokens = &argument_tokens[1..];
-				end_column_of_token_before_argument = *end_column;
+			Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
+				tokens.take_next_token();
 				break 'b;
 			}
 			_ => {}
 		};
 	}
 	// Return
-	return Ok(Some((match identifier_type {
+	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
 		}),
@@ -932,7 +910,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
 		}),
-	}, argument_tokens, end_column_of_token_before_argument)))
+	}))
 }
 
 //pub fn parse_l_value<'a, 'b>(tokens: &'b [Token<'a>], line_number: Option<&BigInt>, _start_column: NonZeroUsize)-> Result<Option<(AnyTypeLValue, &'b [Token<'a>], NonZeroUsize)>, Error> {
@@ -1593,7 +1571,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	}
 
 	/// Returns the token and it's start column.
-	pub fn take_next_token(&mut self) -> Option<&Token> {
+	pub fn take_next_token(&mut self) -> Option<&Token<'_>> {
 		let tokens_removed;
 		(tokens_removed, self.tokens) = match self.tokens.split_at_checked(1) {
 			Some(result) => result,
