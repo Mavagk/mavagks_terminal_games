@@ -742,59 +742,55 @@ pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpressi
 
 pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-> Result<Option<AnyTypeExpression>, Error> {
 	// Get the first token or return if there are no more tokens to parse
-	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.first() {
+	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
 		Some(first_token) => first_token,
 		None => return Ok(None),
 	};
 	// Parse the expression primary
 	Ok(Some(match first_token_variant {
 		// Literals
-		TokenVariant::IntegerLiteral(value) =>
-			(AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone()) }, start_column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
-		TokenVariant::FloatLiteral { value, is_imaginary } => match *is_imaginary {
-			false =>
-				(AnyTypeExpression::Real(RealExpression::ConstantValue { value: RealValue::FloatValue(*value), start_column: *first_token_start_column }), &tokens[1..], *first_token_end_column),
-			true =>
-				(AnyTypeExpression::Complex(
-					ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }
-				), &tokens[1..], *first_token_end_column),
+		TokenVariant::IntegerLiteral(value) => {
+			tokens.take_next_token();
+			AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone()) }, start_column: *first_token_start_column })
 		}
-		TokenVariant::StringLiteral(value) =>
-			(AnyTypeExpression::String(
-				StringExpression::ConstantValue { value: StringValue { value: Rc::new(value.to_string().clone()) }, start_column: *first_token_start_column }
-			), &tokens[1..], *first_token_end_column),
+		TokenVariant::FloatLiteral { value, is_imaginary } => {
+			tokens.take_next_token();
+			match *is_imaginary {
+				false => AnyTypeExpression::Real(RealExpression::ConstantValue { value: RealValue::FloatValue(*value), start_column: *first_token_start_column }),
+				true => AnyTypeExpression::Complex(ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }),
+			}
+		}
+		TokenVariant::StringLiteral(value) => {
+			tokens.take_next_token();
+			AnyTypeExpression::String(StringExpression::ConstantValue { value: StringValue { value: Rc::new(value.to_string().clone()) }, start_column: *first_token_start_column })
+		}
 		// An expression in parentheses
 		TokenVariant::LeftParenthesis => {
+			tokens.take_next_token();
 			// Get the sub-expression
-			let (sub_expression, tokens_after_sub_expression, sub_expression_end_column)
-				= match parse_expression(&tokens[1..], line_number, *first_token_end_column)?
-			{
-				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
-				Some((expression, tokens_after_sub_expression, sub_expression_end_column)) => (expression, tokens_after_sub_expression, sub_expression_end_column),
+			let sub_expression = match parse_expression(tokens, line_number)? {
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, column_number: Some(tokens.last_removed_token_end_column), line_number: line_number.cloned(), line_text: None }),
+				Some(sub_expression) => sub_expression,
 			};
 			// Make sure that there is a closing parenthesis after the sub-expression
-			let (tokens_after_expression_primary, expression_primary_end_column) = match tokens_after_sub_expression.first() {
-				Some(Token { variant: TokenVariant::RightParenthesis, end_column, .. }) => (&tokens_after_sub_expression[1..], end_column),
+			match tokens.take_next_token() {
+				Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {}
 				Some(Token { variant: _, start_column, .. }) =>
 					return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-				None => return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(sub_expression_end_column), line_number: line_number.cloned(), line_text: None }),
-			};
+				None => return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(tokens.last_removed_token_end_column), line_number: line_number.cloned(), line_text: None }),
+			}
 			// Return
-			(sub_expression, tokens_after_expression_primary, *expression_primary_end_column)
+			sub_expression
 		}
 		// There should not be operators
 		TokenVariant::Operator(..) => return Err(Error { variant: ErrorVariant::UnexpectedOperator, column_number: Some(*first_token_start_column), line_number: line_number.cloned(), line_text: None }),
 		// Identifiers
 		TokenVariant::Identifier { .. } => {
-			match parse_l_value(tokens, line_number, *first_token_start_column)?.unwrap() {
-				(AnyTypeLValue::Int(l_value), remaining_tokens, end_column) =>
-					(AnyTypeExpression::Int(IntExpression::LValue(l_value)), remaining_tokens, end_column),
-				(AnyTypeLValue::Real(l_value), remaining_tokens, end_column) =>
-					(AnyTypeExpression::Real(RealExpression::LValue(l_value)), remaining_tokens, end_column),
-				(AnyTypeLValue::Complex(l_value), remaining_tokens, end_column) =>
-					(AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)), remaining_tokens, end_column),
-				(AnyTypeLValue::String(l_value), remaining_tokens, end_column) =>
-					(AnyTypeExpression::String(StringExpression::LValue(l_value)), remaining_tokens, end_column),
+			match parse_l_value(tokens, line_number)?.unwrap() {
+				AnyTypeLValue::Int(l_value) => AnyTypeExpression::Int(IntExpression::LValue(l_value)),
+				AnyTypeLValue::Real(l_value) => AnyTypeExpression::Real(RealExpression::LValue(l_value)),
+				AnyTypeLValue::Complex(l_value) => AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)),
+				AnyTypeLValue::String(l_value) => AnyTypeExpression::String(StringExpression::LValue(l_value)),
 			}
 		}
 		// End of expression
