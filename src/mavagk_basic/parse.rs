@@ -126,7 +126,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 		None => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
 	};
 	// Parse depending on keyword
-	match statement_keyword {
+	Ok(Some(match statement_keyword {
 		// LET
 		Keyword::Let => {
 			// Get l-value expression
@@ -150,7 +150,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None });
 			}
 			// Assemble into statement
-			let statement = match l_value_expression {
+			match l_value_expression {
 				AnyTypeLValue::Int(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignInt(
@@ -179,59 +179,63 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 						r_value_expression.to_string_expression(line_number)?
 					),
 				},
-				//_ => unreachable!(),
-			};
-			Ok(Some(statement))
+			}
 		}
 		// PRINT
 		Keyword::Print => {
-			let mut remaining_tokens = tokens_after_statement_keyword;
 			let mut expressions = Vec::new();
-			while !remaining_tokens.is_empty() {
-				match &remaining_tokens[0] {
+			// Parse all PRINT arguments
+			while !tokens.tokens.is_empty() {
+				// Parse comma and semicolon arguments
+				match &tokens.tokens[0] {
 					Token { variant: TokenVariant::Comma, start_column, end_column: _ } => {
 						expressions.push(AnyTypeExpression::PrintComma(*start_column));
-						remaining_tokens = &remaining_tokens[1..];
+						tokens.remove_tokens(1);
 						continue;
 					}
 					Token { variant: TokenVariant::Semicolon, start_column, end_column: _ } => {
 						expressions.push(AnyTypeExpression::PrintSemicolon(*start_column));
-						remaining_tokens = &remaining_tokens[1..];
+						tokens.remove_tokens(1);
 						continue;
 					}
 					_ => {}
 				}
-				let expression;
-				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, statement_keyword_end_column)? {
+				// Parse expression arguments
+				let expression = match parse_expression(tokens, line_number)? {
 					None => break,
 					Some(result) => result,
 				};
 				expressions.push(expression);
 			}
-			debug_assert!(remaining_tokens.is_empty());
-			Ok(Some((Statement { column: statement_keyword_start_column, variant: StatementVariant::Print(expressions.into()) }, rest_of_tokens)))
-		}
-		// RUN / GOTO / GOSUB
-		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
-			let mut remaining_tokens = tokens_after_statement_keyword;
-			let mut expression = None;
-			if !remaining_tokens.is_empty() {
-				(expression, remaining_tokens, _) = match parse_expression(remaining_tokens, line_number, statement_keyword_end_column)? {
-					None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None }),
-					Some((result, remaining_tokens, expression_end_column)) =>
-						(Some(result.to_int_expression(line_number)?), remaining_tokens, expression_end_column),
-				};
-				if !remaining_tokens.is_empty() {
-					return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(remaining_tokens[0].start_column), line_text: None });
-				}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Print(expressions.into()),
 			}
+		}
+		// Statements with 0-1 integer arguments
+		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
+			// Get the argument expression if it exists
+			let expression = match parse_expression(tokens, line_number)? {
+				Some(expression) => Some(expression.to_int_expression(line_number)?),
+				None => None,
+			};
+			// There should be nothing after said expression
+			if !tokens.tokens.is_empty() {
+				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None });
+			}
+			// Parse depending on keyword
 			let variant = match statement_keyword {
 				Keyword::Run => StatementVariant::Run(expression),
 				Keyword::Goto => StatementVariant::Goto(expression),
 				Keyword::Gosub => StatementVariant::Gosub(expression),
 				_ => unreachable!(),
 			};
-			Ok(Some((Statement { column: statement_keyword_start_column, variant }, rest_of_tokens)))
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant
+			}
 		}
 		// LIST
 		Keyword::List => 'a: {
@@ -290,7 +294,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 		Keyword::Fn => Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),
 		Keyword::Go => Err(Error { variant: ErrorVariant::SingleGoKeyword, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),
 		_ => return Err(Error { variant: ErrorVariant::NotYetImplemented("Statement".into()), line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),
-	}
+	}))
 }
 
 pub fn parse_statement_old<'a, 'b>(mut tokens: &'b [Token<'a>], line_number: Option<&BigInt>) -> Result<Option<(Statement, &'b [Token<'a>])>, Error> {
