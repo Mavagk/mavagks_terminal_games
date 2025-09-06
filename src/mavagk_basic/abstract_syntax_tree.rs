@@ -98,487 +98,649 @@ pub enum StatementVariant {
 	Run(Option<IntExpression>),
 	Goto(Option<IntExpression>),
 	Gosub(Option<IntExpression>),
-	AssignInt(IntExpression, IntExpression),
-	AssignReal(RealExpression, RealExpression),
-	AssignComplex(ComplexExpression, ComplexExpression),
-	AssignString(StringExpression, StringExpression),
+	AssignInt(IntLValue, IntExpression),
+	AssignReal(RealLValue, RealExpression),
+	AssignComplex(ComplexLValue, ComplexExpression),
+	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct IntExpression {
-	pub variant: IntExpressionVariant,
-	pub column: NonZeroUsize,
-}
-
-impl IntExpression {
-	pub fn print(&self, depth: usize) {
-		for _ in 0..depth {
-			print!("-");
-		}
-		print!(" {:03}: Int ", self.column);
-		match &self.variant {
-			IntExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			IntExpressionVariant::BitwiseAnd(lhs, rhs) => {
-				println!("Bitwise AND");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			IntExpressionVariant::BitwiseOr(lhs, rhs) => {
-				println!("Bitwise OR");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			IntExpressionVariant::CastFromBool(operand) => {
-				println!("Cast from Bool");
-				operand.print(depth + 1);
-			},
-			IntExpressionVariant::CastFromReal(operand) => {
-				println!("Cast from Real");
-				operand.print(depth + 1);
-			},
-			IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
-				print!("Identifier/Function \"{name}\", ");
-				if *uses_fn_keyword {
-					print!(", Fn");
-				}
-				if *has_parentheses {
-					print!(", Parenthesised/()");
-				}
-				println!();
-				for argument in arguments {
-					argument.print(depth + 1);
-				}
-			},
-		}
-	}
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub enum IntExpressionVariant {
-	ConstantValue(IntValue),
-	IntIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
-	BitwiseAnd(Box<IntExpression>, Box<IntExpression>),
-	BitwiseOr(Box<IntExpression>, Box<IntExpression>),
+#[derive(Debug, Clone)]
+pub enum IntExpression {
+	ConstantValue { value: IntValue, start_column: NonZeroUsize },
+	LValue(IntLValue),
+	BitwiseAnd { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	BitwiseOr { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	CastFromReal(Box<RealExpression>),
 	CastFromBool(Box<BoolExpression>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct RealExpression {
-	pub variant: RealExpressionVariant,
-	pub column: NonZeroUsize,
-}
+impl IntExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::BitwiseAnd { start_column, .. } => *start_column,
+			Self::BitwiseOr { start_column, .. } => *start_column,
+			Self::LValue(l_value) => l_value.start_column,
+			Self::CastFromReal(real_expression) => real_expression.get_start_column(),
+			Self::CastFromBool(bool_expression) => bool_expression.get_start_column(),
+		}
+	}
 
-impl RealExpression {
 	pub fn print(&self, depth: usize) {
 		for _ in 0..depth {
 			print!("-");
 		}
-		print!(" {:03}: Real ", self.column);
-		match &self.variant {
-			RealExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			RealExpressionVariant::Addition(lhs, rhs) => {
-				println!("Addition");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+		print!(" {:03}: Int ", self.get_start_column());
+		match &self {
+			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
+			Self::BitwiseAnd { lhs_expression, rhs_expression, .. } => {
+				println!("Bitwise AND");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			RealExpressionVariant::Subtraction(lhs, rhs) => {
-				println!("Subtraction");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+			Self::BitwiseOr { lhs_expression, rhs_expression, .. } => {
+				println!("Bitwise OR");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			RealExpressionVariant::Multiplication(lhs, rhs) => {
-				println!("Multiplication");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			RealExpressionVariant::Division(lhs, rhs) => {
-				println!("Division");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			RealExpressionVariant::Exponentiation(lhs, rhs) => {
-				println!("Exponentiation");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			RealExpressionVariant::FlooredDivision(lhs, rhs) => {
-				println!("Floored Division");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
-			},
-			RealExpressionVariant::CastFromComplex(operand) => {
-				println!("Cast from Complex");
+			Self::CastFromBool(operand) => {
+				println!("Cast from Bool");
 				operand.print(depth + 1);
 			},
-			RealExpressionVariant::CastFromInt(operand) => {
-				println!("Cast from Int");
+			Self::CastFromReal(operand) => {
+				println!("Cast from Real");
 				operand.print(depth + 1);
 			},
-			RealExpressionVariant::Negation(operand) => {
-				println!("Negation");
-				operand.print(depth + 1);
-			},
-			RealExpressionVariant::BitwiseNot(operand) => {
-				println!("Bitwise NOT");
-				operand.print(depth + 1);
-			},
-			RealExpressionVariant::RealIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
-				print!("Identifier/Function \"{name}\", ");
-				if *uses_fn_keyword {
-					print!(", Fn");
-				}
-				if *has_parentheses {
-					print!(", Parenthesised/()");
-				}
-				println!();
-				for argument in arguments {
-					argument.print(depth + 1);
-				}
+			Self::LValue(l_value_expression) => {
+				println!("L-Value");
+				l_value_expression.print(depth + 1);
 			},
 		}
 	}
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum RealExpressionVariant {
-	ConstantValue(RealValue),
-	RealIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
-	Exponentiation(Box<RealExpression>, Box<RealExpression>),
-	Negation(Box<RealExpression>),
-	Multiplication(Box<RealExpression>, Box<RealExpression>),
-	Division(Box<RealExpression>, Box<RealExpression>),
-	FlooredDivision(Box<IntExpression>, Box<IntExpression>),
-	Addition(Box<RealExpression>, Box<RealExpression>),
-	Subtraction(Box<RealExpression>, Box<RealExpression>),
-	BitwiseNot(Box<IntExpression>),
+#[derive(Debug, Clone)]
+pub struct IntLValue {
+	name: Box<str>,
+	arguments: Box<[AnyTypeExpression]>,
+	uses_fn_keyword: bool,
+	has_parentheses: bool,
+	start_column: NonZeroUsize,
+}
+
+impl IntLValue {
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Int L-Value \"{}\"", self.start_column, self.name);
+		if self.uses_fn_keyword {
+			print!(", Fn");
+		}
+		if self.has_parentheses {
+			print!(", Parenthesised/()");
+		}
+		println!();
+		for argument in &self.arguments {
+			argument.print(depth + 1);
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum RealExpression {
+	ConstantValue { value: RealValue, start_column: NonZeroUsize },
+	LValue(RealLValue),
+	Exponentiation { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Negation { sub_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Multiplication { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Division { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	FlooredDivision { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	Addition { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Subtraction { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	BitwiseNot { sub_expression: Box<IntExpression>, start_column: NonZeroUsize },
 	CastFromInt(Box<IntExpression>),
 	CastFromComplex(Box<ComplexExpression>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct ComplexExpression {
-	pub variant: ComplexExpressionVariant,
-	pub column: NonZeroUsize,
-}
+impl RealExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::Negation { start_column, .. } => *start_column,
+			Self::BitwiseNot { start_column, .. } => *start_column,
+			Self::LValue(l_value) => l_value.start_column,
+			Self::CastFromInt(real_expression) => real_expression.get_start_column(),
+			Self::CastFromComplex(bool_expression) => bool_expression.get_start_column(),
+			Self::Addition { start_column, .. } => *start_column,
+			Self::Subtraction { start_column, .. } => *start_column,
+			Self::Multiplication { start_column, .. } => *start_column,
+			Self::Division { start_column, .. } => *start_column,
+			Self::Exponentiation { start_column, .. } => *start_column,
+			Self::FlooredDivision { start_column, .. } => *start_column,
+		}
+	}
 
-impl ComplexExpression {
 	pub fn print(&self, depth: usize) {
 		for _ in 0..depth {
 			print!("-");
 		}
-		print!(" {:03}: Complex ", self.column);
-		match &self.variant {
-			ComplexExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			ComplexExpressionVariant::Addition(lhs, rhs) => {
+		print!(" {:03}: Real ", self.get_start_column());
+		match self {
+			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
+			Self::Addition { lhs_expression, rhs_expression, .. } => {
 				println!("Addition");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::Subtraction(lhs, rhs) => {
+			Self::Subtraction { lhs_expression, rhs_expression, .. } => {
 				println!("Subtraction");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::Multiplication(lhs, rhs) => {
+			Self::Multiplication { lhs_expression, rhs_expression, .. } => {
 				println!("Multiplication");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::Division(lhs, rhs) => {
+			Self::Division { lhs_expression, rhs_expression, .. } => {
 				println!("Division");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::Exponentiation(lhs, rhs) => {
+			Self::Exponentiation { lhs_expression, rhs_expression, .. } => {
 				println!("Exponentiation");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::Negation(operand) => {
+			Self::FlooredDivision { lhs_expression, rhs_expression, .. } => {
+				println!("FlooredDivision");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::CastFromComplex(operand) => {
+				println!("Cast from Complex");
+				operand.print(depth + 1);
+			},
+			Self::CastFromInt(operand) => {
+				println!("Cast from Int");
+				operand.print(depth + 1);
+			},
+			Self::Negation { sub_expression, .. } => {
 				println!("Negation");
-				operand.print(depth + 1);
+				sub_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::CastFromReal(operand) => {
-				println!("Cast from Real");
-				operand.print(depth + 1);
+			Self::BitwiseNot { sub_expression, .. } => {
+				println!("Bitwise NOT");
+				sub_expression.print(depth + 1);
 			},
-			ComplexExpressionVariant::ComplexIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
-				print!("Identifier/Function \"{name}\", ");
-				if *uses_fn_keyword {
-					print!(", Fn");
-				}
-				if *has_parentheses {
-					print!(", Parenthesised/()");
-				}
-				println!();
-				for argument in arguments {
-					argument.print(depth + 1);
-				}
+			Self::LValue(l_value) => {
+				l_value.print(depth + 1);
 			},
 		}
 	}
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum ComplexExpressionVariant {
-	ConstantValue(ComplexValue),
-	ComplexIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
-	Exponentiation(Box<ComplexExpression>, Box<ComplexExpression>),
-	Negation(Box<ComplexExpression>),
-	Multiplication(Box<ComplexExpression>, Box<ComplexExpression>),
-	Division(Box<ComplexExpression>, Box<ComplexExpression>),
-	Addition(Box<ComplexExpression>, Box<ComplexExpression>),
-	Subtraction(Box<ComplexExpression>, Box<ComplexExpression>),
+#[derive(Debug, Clone)]
+pub struct RealLValue {
+	name: Box<str>,
+	arguments: Box<[AnyTypeExpression]>,
+	uses_fn_keyword: bool,
+	has_parentheses: bool,
+	start_column: NonZeroUsize,
+}
+
+impl RealLValue {
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Real L-Value \"{}\"", self.start_column, self.name);
+		if self.uses_fn_keyword {
+			print!(", Fn");
+		}
+		if self.has_parentheses {
+			print!(", Parenthesised/()");
+		}
+		println!();
+		for argument in &self.arguments {
+			argument.print(depth + 1);
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum ComplexExpression {
+	ConstantValue { value: ComplexValue, start_column: NonZeroUsize },
+	LValue(ComplexLValue),
+	Exponentiation { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Negation { sub_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Multiplication { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Division { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Addition { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	Subtraction { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
 	CastFromReal(Box<RealExpression>),
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct StringExpression {
-	pub variant: StringExpressionVariant,
-	pub column: NonZeroUsize,
+impl ComplexExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::Negation { start_column, .. } => *start_column,
+			Self::LValue(l_value) => l_value.start_column,
+			Self::CastFromReal(real_expression) => real_expression.get_start_column(),
+			Self::Addition { start_column, .. } => *start_column,
+			Self::Subtraction { start_column, .. } => *start_column,
+			Self::Multiplication { start_column, .. } => *start_column,
+			Self::Division { start_column, .. } => *start_column,
+			Self::Exponentiation { start_column, .. } => *start_column,
+		}
+	}
+
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Complex ", self.get_start_column());
+		match self {
+			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
+			Self::Addition { lhs_expression, rhs_expression, .. } => {
+				println!("Addition");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::Subtraction { lhs_expression, rhs_expression, .. } => {
+				println!("Subtraction");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::Multiplication { lhs_expression, rhs_expression, .. } => {
+				println!("Multiplication");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::Division { lhs_expression, rhs_expression, .. } => {
+				println!("Division");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::Exponentiation { lhs_expression, rhs_expression, .. } => {
+				println!("Exponentiation");
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
+			},
+			Self::CastFromReal(operand) => {
+				println!("Cast from Real");
+				operand.print(depth + 1);
+			},
+			Self::Negation { sub_expression, .. } => {
+				println!("Negation");
+				sub_expression.print(depth + 1);
+			},
+			Self::LValue(l_value) => {
+				l_value.print(depth + 1);
+			},
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct ComplexLValue {
+	name: Box<str>,
+	arguments: Box<[AnyTypeExpression]>,
+	uses_fn_keyword: bool,
+	has_parentheses: bool,
+	start_column: NonZeroUsize,
+}
+
+impl ComplexLValue {
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Complex L-Value \"{}\"", self.start_column, self.name);
+		if self.uses_fn_keyword {
+			print!(", Fn");
+		}
+		if self.has_parentheses {
+			print!(", Parenthesised/()");
+		}
+		println!();
+		for argument in &self.arguments {
+			argument.print(depth + 1);
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum StringExpression {
+	ConstantValue { value: StringValue, start_column: NonZeroUsize },
+	LValue(StringLValue),
+	Concatenation { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
 }
 
 impl StringExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::LValue(l_value) => l_value.start_column,
+			Self::Concatenation { start_column, .. } => *start_column,
+		}
+	}
+
 	pub fn print(&self, depth: usize) {
 		for _ in 0..depth {
 			print!("-");
 		}
-		print!(" {:03}: String ", self.column);
-		match &self.variant {
-			StringExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			StringExpressionVariant::Concatenation(lhs, rhs) => {
+		print!(" {:03}: String ", self.get_start_column());
+		match self {
+			Self::ConstantValue { value, .. } => println!("Constant Value \"{value}\""),
+			Self::Concatenation { lhs_expression, rhs_expression, .. } => {
 				println!("Concatenation");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			StringExpressionVariant::StringIdentifierOrFunction { name, arguments, uses_fn_keyword, has_parentheses } => {
-				print!("Identifier/Function \"{name}\", ");
-				if *uses_fn_keyword {
-					print!(", Fn");
-				}
-				if *has_parentheses {
-					print!(", Parenthesised/()");
-				}
-				println!();
-				for argument in arguments {
-					argument.print(depth + 1);
-				}
+			Self::LValue(l_value) => {
+				l_value.print(depth + 1);
 			},
 		}
 	}
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum StringExpressionVariant {
-	ConstantValue(StringValue),
-	StringIdentifierOrFunction { name: Box<str>, arguments: Box<[AnyTypeExpression]>, uses_fn_keyword: bool, has_parentheses: bool },
-	Concatenation(Box<StringExpression>, Box<StringExpression>),
+#[derive(Debug, Clone)]
+pub struct StringLValue {
+	name: Box<str>,
+	arguments: Box<[AnyTypeExpression]>,
+	uses_fn_keyword: bool,
+	has_parentheses: bool,
+	start_column: NonZeroUsize,
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct BoolExpression {
-	pub variant: BoolExpressionVariant,
-	pub column: NonZeroUsize,
+impl StringLValue {
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: String L-Value \"{}\"", self.start_column, self.name);
+		if self.uses_fn_keyword {
+			print!(", Fn");
+		}
+		if self.has_parentheses {
+			print!(", Parenthesised/()");
+		}
+		println!();
+		for argument in &self.arguments {
+			argument.print(depth + 1);
+		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub enum BoolExpression {
+	ConstantValue { value: BoolValue, start_column: NonZeroUsize },
+	And { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	Or { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	Not { sub_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	IntLessThan { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	IntGreaterThan { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	IntEqualTo { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	IntNotEqualTo { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	IntLessThanOrEqualTo { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	IntGreaterThanOrEqualTo { lhs_expression: Box<IntExpression>, rhs_expression: Box<IntExpression>, start_column: NonZeroUsize },
+	RealLessThan { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	RealGreaterThan { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	RealEqualTo { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	RealNotEqualTo { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	RealLessThanOrEqualTo { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	RealGreaterThanOrEqualTo { lhs_expression: Box<RealExpression>, rhs_expression: Box<RealExpression>, start_column: NonZeroUsize },
+	StringLessThan { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringGreaterThan { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringEqualTo { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringNotEqualTo { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringLessThanOrEqualTo { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringGreaterThanOrEqualTo { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	ComplexEqualTo { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	ComplexNotEqualTo { lhs_expression: Box<ComplexExpression>, rhs_expression: Box<ComplexExpression>, start_column: NonZeroUsize },
+	BoolLessThan { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	BoolGreaterThan { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	BoolEqualTo { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	BoolNotEqualTo { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	BoolLessThanOrEqualTo { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
+	BoolGreaterThanOrEqualTo { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
 }
 
 impl BoolExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::And { start_column, .. } => *start_column,
+			Self::Or { start_column, .. } => *start_column,
+			Self::Not { start_column, .. } => *start_column,
+			Self::IntGreaterThan { start_column, .. } => *start_column,
+			Self::IntGreaterThanOrEqualTo { start_column, .. } => *start_column,
+			Self::IntLessThan { start_column, .. } => *start_column,
+			Self::IntLessThanOrEqualTo { start_column, .. } => *start_column,
+			Self::IntEqualTo { start_column, .. } => *start_column,
+			Self::IntNotEqualTo { start_column, .. } => *start_column,
+			Self::RealGreaterThan { start_column, .. } => *start_column,
+			Self::RealGreaterThanOrEqualTo { start_column, .. } => *start_column,
+			Self::RealLessThan { start_column, .. } => *start_column,
+			Self::RealLessThanOrEqualTo { start_column, .. } => *start_column,
+			Self::RealEqualTo { start_column, .. } => *start_column,
+			Self::RealNotEqualTo { start_column, .. } => *start_column,
+			Self::ComplexEqualTo { start_column, .. } => *start_column,
+			Self::ComplexNotEqualTo { start_column, .. } => *start_column,
+			Self::StringGreaterThan { start_column, .. } => *start_column,
+			Self::StringGreaterThanOrEqualTo { start_column, .. } => *start_column,
+			Self::StringLessThan { start_column, .. } => *start_column,
+			Self::StringLessThanOrEqualTo { start_column, .. } => *start_column,
+			Self::StringEqualTo { start_column, .. } => *start_column,
+			Self::StringNotEqualTo { start_column, .. } => *start_column,
+			Self::BoolGreaterThan { start_column, .. } => *start_column,
+			Self::BoolGreaterThanOrEqualTo { start_column, .. } => *start_column,
+			Self::BoolLessThan { start_column, .. } => *start_column,
+			Self::BoolLessThanOrEqualTo { start_column, .. } => *start_column,
+			Self::BoolEqualTo { start_column, .. } => *start_column,
+			Self::BoolNotEqualTo { start_column, .. } => *start_column,
+		}
+	}
+
 	pub fn print(&self, depth: usize) {
 		for _ in 0..depth {
 			print!("-");
 		}
-		print!(" {:03}: Bool ", self.column);
-		match &self.variant {
-			BoolExpressionVariant::ConstantValue(value) => println!("Constant Value {value}"),
-			BoolExpressionVariant::And(lhs, rhs) => {
+		print!(" {:03}: Bool ", self.get_start_column());
+		match self {
+			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
+			Self::And { lhs_expression, rhs_expression, .. } => {
 				println!("Logical AND");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::Or(lhs, rhs) => {
+			Self::Or { lhs_expression, rhs_expression, .. } => {
 				println!("Logical OR");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::Not(operand) => {
+			Self::Not { sub_expression, .. } => {
 				println!("Logical NOT");
-				operand.print(depth + 1);
+				sub_expression.print(depth + 1);
 			},
 
-			BoolExpressionVariant::IntEqualTo(lhs, rhs) => {
+			Self::IntEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Int Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::IntNotEqualTo(lhs, rhs) => {
+			Self::IntNotEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Int Not Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::IntLessThan(lhs, rhs) => {
+			Self::IntLessThan { lhs_expression, rhs_expression, .. } => {
 				println!("Int Less Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::IntLessThanOrEqualTo(lhs, rhs) => {
+			Self::IntLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Int Less Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::IntGreaterThan(lhs, rhs) => {
+			Self::IntGreaterThan { lhs_expression, rhs_expression, .. } => {
 				println!("Int Greater Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::IntGreaterThanOrEqualTo(lhs, rhs) => {
+			Self::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Int Greater Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
 
-			BoolExpressionVariant::RealEqualTo(lhs, rhs) => {
+			Self::RealEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Real Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::RealNotEqualTo(lhs, rhs) => {
+			Self::RealNotEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Real Not Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::RealLessThan(lhs, rhs) => {
+			Self::RealLessThan { lhs_expression, rhs_expression, .. } => {
 				println!("Real Less Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::RealLessThanOrEqualTo(lhs, rhs) => {
+			Self::RealLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Real Less Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::RealGreaterThan(lhs, rhs) => {
+			Self::RealGreaterThan { lhs_expression, rhs_expression, .. } => {
 				println!("Real Greater Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::RealGreaterThanOrEqualTo(lhs, rhs) => {
+			Self::RealGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Real Greater Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
 
-			BoolExpressionVariant::ComplexEqualTo(lhs, rhs) => {
+			Self::ComplexEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Complex Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::ComplexNotEqualTo(lhs, rhs) => {
+			Self::ComplexNotEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Complex Not Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
 
-			BoolExpressionVariant::StringEqualTo(lhs, rhs) => {
+			Self::StringEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("String Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::StringNotEqualTo(lhs, rhs) => {
+			Self::StringNotEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("String Not Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::StringLessThan(lhs, rhs) => {
+			Self::StringLessThan { lhs_expression, rhs_expression, .. } => {
 				println!("String Less Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::StringLessThanOrEqualTo(lhs, rhs) => {
+			Self::StringLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("String Less Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::StringGreaterThan(lhs, rhs) => {
+			Self::StringGreaterThan { lhs_expression, rhs_expression, .. } => {
 				println!("String Greater Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::StringGreaterThanOrEqualTo(lhs, rhs) => {
+			Self::StringGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("String Greater Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
 
-			BoolExpressionVariant::BoolEqualTo(lhs, rhs) => {
+			Self::BoolEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::BoolNotEqualTo(lhs, rhs) => {
+			Self::BoolNotEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Not Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::BoolLessThan(lhs, rhs) => {
+			Self::BoolLessThan { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Less Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::BoolLessThanOrEqualTo(lhs, rhs) => {
+			Self::BoolLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Less Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::BoolGreaterThan(lhs, rhs) => {
+			Self::BoolGreaterThan { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Greater Than");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
-			BoolExpressionVariant::BoolGreaterThanOrEqualTo(lhs, rhs) => {
+			Self::BoolGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
 				println!("Bool Greater Than or Equal To");
-				lhs.print(depth + 1);
-				rhs.print(depth + 1);
+				lhs_expression.print(depth + 1);
+				rhs_expression.print(depth + 1);
 			},
 		}
 	}
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub enum BoolExpressionVariant {
-	ConstantValue(BoolValue),
-	And(Box<BoolExpression>, Box<BoolExpression>),
-	Or(Box<BoolExpression>, Box<BoolExpression>),
-	Not(Box<BoolExpression>),
-	IntLessThan(Box<IntExpression>, Box<IntExpression>),
-	IntGreaterThan(Box<IntExpression>, Box<IntExpression>),
-	IntEqualTo(Box<IntExpression>, Box<IntExpression>),
-	IntNotEqualTo(Box<IntExpression>, Box<IntExpression>),
-	IntLessThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
-	IntGreaterThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
-	RealLessThan(Box<RealExpression>, Box<RealExpression>),
-	RealGreaterThan(Box<RealExpression>, Box<RealExpression>),
-	RealEqualTo(Box<RealExpression>, Box<RealExpression>),
-	RealNotEqualTo(Box<RealExpression>, Box<RealExpression>),
-	RealLessThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
-	RealGreaterThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
-	StringLessThan(Box<StringExpression>, Box<StringExpression>),
-	StringGreaterThan(Box<StringExpression>, Box<StringExpression>),
-	StringEqualTo(Box<StringExpression>, Box<StringExpression>),
-	StringNotEqualTo(Box<StringExpression>, Box<StringExpression>),
-	StringLessThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
-	StringGreaterThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
-	ComplexEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
-	ComplexNotEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
-	BoolLessThan(Box<BoolExpression>, Box<BoolExpression>),
-	BoolGreaterThan(Box<BoolExpression>, Box<BoolExpression>),
-	BoolEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-	BoolNotEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-	BoolLessThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-	BoolGreaterThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-}
+//#[derive(Debug, PartialEq, Clone)]
+//pub enum BoolExpressionVariant {
+//	ConstantValue(BoolValue),
+//	And(Box<BoolExpression>, Box<BoolExpression>),
+//	Or(Box<BoolExpression>, Box<BoolExpression>),
+//	Not(Box<BoolExpression>),
+//	IntLessThan(Box<IntExpression>, Box<IntExpression>),
+//	IntGreaterThan(Box<IntExpression>, Box<IntExpression>),
+//	IntEqualTo(Box<IntExpression>, Box<IntExpression>),
+//	IntNotEqualTo(Box<IntExpression>, Box<IntExpression>),
+//	IntLessThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
+//	IntGreaterThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
+//	RealLessThan(Box<RealExpression>, Box<RealExpression>),
+//	RealGreaterThan(Box<RealExpression>, Box<RealExpression>),
+//	RealEqualTo(Box<RealExpression>, Box<RealExpression>),
+//	RealNotEqualTo(Box<RealExpression>, Box<RealExpression>),
+//	RealLessThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
+//	RealGreaterThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
+//	StringLessThan(Box<StringExpression>, Box<StringExpression>),
+//	StringGreaterThan(Box<StringExpression>, Box<StringExpression>),
+//	StringEqualTo(Box<StringExpression>, Box<StringExpression>),
+//	StringNotEqualTo(Box<StringExpression>, Box<StringExpression>),
+//	StringLessThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
+//	StringGreaterThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
+//	ComplexEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
+//	ComplexNotEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
+//	BoolLessThan(Box<BoolExpression>, Box<BoolExpression>),
+//	BoolGreaterThan(Box<BoolExpression>, Box<BoolExpression>),
+//	BoolEqualTo(Box<BoolExpression>, Box<BoolExpression>),
+//	BoolNotEqualTo(Box<BoolExpression>, Box<BoolExpression>),
+//	BoolLessThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
+//	BoolGreaterThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
+//}
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, Clone)]
 pub enum AnyTypeExpression {
 	Int(IntExpression),
 	Real(RealExpression),
@@ -590,54 +752,61 @@ pub enum AnyTypeExpression {
 }
 
 impl AnyTypeExpression {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			AnyTypeExpression::Bool(value) => value.get_start_column(),
+			AnyTypeExpression::Int(value) => value.get_start_column(),
+			AnyTypeExpression::Real(value) => value.get_start_column(),
+			AnyTypeExpression::Complex(value) => value.get_start_column(),
+			AnyTypeExpression::String(value) => value.get_start_column(),
+			AnyTypeExpression::PrintComma(column) => *column,
+			AnyTypeExpression::PrintSemicolon(column) => *column,
+		}
+	}
+
 	pub fn to_int_expression(self, line_number: Option<&BigInt>) -> Result<IntExpression, Error> {
 		Ok(match self {
 			Self::Int(expression) => expression,
-			Self::Real(expression) => IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromReal(Box::new(expression)) },
-			Self::Complex(expression) => IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromReal(Box::new(
-				RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromComplex(Box::new(expression)) }
-			)) },
-			Self::Bool(expression) => IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			Self::Real(expression) => IntExpression::CastFromReal(Box::new(expression)),
+			Self::Complex(expression) => IntExpression::CastFromReal(Box::new(RealExpression::CastFromComplex(Box::new(expression)))),
+			Self::Bool(expression) => IntExpression::CastFromBool(Box::new(expression)),
+			Self::String(expression) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
+			}),
 		})
 	}
 
 	pub fn to_real_expression(self, line_number: Option<&BigInt>) -> Result<RealExpression, Error> {
 		Ok(match self {
-			Self::Int(expression) => RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromInt(Box::new(expression)) },
+			Self::Int(expression) => RealExpression::CastFromInt(Box::new(expression)),
 			Self::Real(expression) => expression,
-			Self::Complex(expression) => RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromComplex(Box::new(expression)) },
-			Self::Bool(expression) => RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromInt(Box::new(
-				IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
-			)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
+			Self::Complex(expression) => RealExpression::CastFromComplex(Box::new(expression)),
+			Self::Bool(expression) => RealExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))),
+			Self::String(expression) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
+			}),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
 	pub fn to_complex_expression(self, line_number: Option<&BigInt>) -> Result<ComplexExpression, Error> {
 		Ok(match self {
-			Self::Int(expression) => ComplexExpression { column: expression.column, variant: ComplexExpressionVariant::CastFromReal(Box::new(
-				RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromInt(Box::new(expression)) }
-			)) },
-			Self::Real(expression) => ComplexExpression { column: expression.column, variant: ComplexExpressionVariant::CastFromReal(Box::new(expression)) },
+			Self::Int(expression) => ComplexExpression::CastFromReal(Box::new(RealExpression::CastFromInt(Box::new(expression)))),
+			Self::Real(expression) => ComplexExpression::CastFromReal(Box::new(expression)),
 			Self::Complex(expression) => expression,
-			Self::Bool(expression) => ComplexExpression { column: expression.column, variant: ComplexExpressionVariant::CastFromReal(Box::new(
-				RealExpression { column: expression.column, variant: RealExpressionVariant::CastFromInt(Box::new(
-					IntExpression { column: expression.column, variant: IntExpressionVariant::CastFromBool(Box::new(expression)) },
-				)) }
-			)) },
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
+			Self::Bool(expression) => ComplexExpression::CastFromReal(Box::new(RealExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))))),
+			Self::String(expression) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
+			}),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
 	pub fn to_string_expression(self, line_number: Option<&BigInt>) -> Result<StringExpression, Error> {
 		Ok(match self {
-			Self::Int(IntExpression { column, .. }) | Self::Real(RealExpression { column, .. }) |
-			Self::Complex(ComplexExpression { column, .. }) | Self::Bool(BoolExpression { column, .. }) =>
-				return Err(Error { variant: ErrorVariant::NumberCastToString, column_number: Some(column), line_number: line_number.cloned(), line_text: None }),
+			Self::Int(..) | Self::Real(..) | Self::Complex(..) | Self::Bool(..) =>
+				return Err(Error { variant: ErrorVariant::NumberCastToString, column_number: Some(self.get_start_column()), line_number: line_number.cloned(), line_text: None }),
 			Self::String(value) => value,
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
@@ -646,7 +815,9 @@ impl AnyTypeExpression {
 	pub fn to_bool_expression(self, line_number: Option<&BigInt>) -> Result<BoolExpression, Error> {
 		Ok(match self {
 			Self::Bool(value) => value,
-			Self::String(expression) => return Err(Error { variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.column), line_number: line_number.cloned(), line_text: None }),
+			Self::String(expression) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
+			}),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 			_ => todo!(),
 		})
@@ -686,18 +857,6 @@ impl AnyTypeExpression {
 				}
 				println!(" {:03}: Semicolon/;", column);
 			}
-		}
-	}
-
-	pub fn get_column(&self) -> NonZeroUsize {
-		match self {
-			AnyTypeExpression::Bool(value) => value.column,
-			AnyTypeExpression::Int(value) => value.column,
-			AnyTypeExpression::Real(value) => value.column,
-			AnyTypeExpression::Complex(value) => value.column,
-			AnyTypeExpression::String(value) => value.column,
-			AnyTypeExpression::PrintComma(column) => *column,
-			AnyTypeExpression::PrintSemicolon(column) => *column,
 		}
 	}
 }

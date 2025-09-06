@@ -549,31 +549,31 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &'b [Token<'a>], line_number: Op
 	}))
 }
 
-/// Gets a one or two word keyword from the start of the list of tokens. Returns:
-/// * `None` if there is not a keyword at the start of the list.
-/// * `Some((keyword, tokens after keyword, keyword start column, keyword end column))` if it could.
-pub fn get_keyword<'a, 'b>(tokens: &'b [Token<'a>]) -> Option<(Keyword, &'b [Token<'a>], NonZeroUsize, NonZeroUsize)> {
-	// Get first keyword or return if there is not a first keyword
-	let (first_keyword_variant, first_keyword_start_column, first_keyword_end_column) = match tokens.get(0) {
-		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, end_column }) => (*keyword, *start_column, *end_column),
-		_ => return None,
-	};
-	// Get the second keyword if there is one
-	let second_keyword_variant_and_end_column = match tokens.get(1) {
-		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, end_column, .. }) => Some((*keyword, *end_column)),
-		_ => None,
-	};
-	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
-	if let Some((second_keyword_variant, second_keyword_end_column)) = second_keyword_variant_and_end_column {
-		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
-			if second_keyword_variant == *second_keyword_of_double_word_keyword {
-				return Some((*double_word_keyword, &tokens[2..], first_keyword_start_column, second_keyword_end_column));
-			}
-		}
-	}
-	// Else return the first keyword variant
-	Some((first_keyword_variant, &tokens[1..], first_keyword_start_column, first_keyword_end_column))
-}
+///// Gets a one or two word keyword from the start of the list of tokens. Returns:
+///// * `None` if there is not a keyword at the start of the list.
+///// * `Some((keyword, tokens after keyword, keyword start column, keyword end column))` if it could.
+//pub fn get_keyword<'a, 'b>(tokens: &'b [Token<'a>]) -> Option<(Keyword, &'b [Token<'a>], NonZeroUsize, NonZeroUsize)> {
+//	// Get first keyword or return if there is not a first keyword
+//	let (first_keyword_variant, first_keyword_start_column, first_keyword_end_column) = match tokens.get(0) {
+//		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, end_column }) => (*keyword, *start_column, *end_column),
+//		_ => return None,
+//	};
+//	// Get the second keyword if there is one
+//	let second_keyword_variant_and_end_column = match tokens.get(1) {
+//		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, end_column, .. }) => Some((*keyword, *end_column)),
+//		_ => None,
+//	};
+//	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
+//	if let Some((second_keyword_variant, second_keyword_end_column)) = second_keyword_variant_and_end_column {
+//		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
+//			if second_keyword_variant == *second_keyword_of_double_word_keyword {
+//				return Some((*double_word_keyword, &tokens[2..], first_keyword_start_column, second_keyword_end_column));
+//			}
+//		}
+//	}
+//	// Else return the first keyword variant
+//	Some((first_keyword_variant, &tokens[1..], first_keyword_start_column, first_keyword_end_column))
+//}
 
 /// Takes in a list of tokens and returns how many form one expression given the following productions:
 ///
@@ -1015,4 +1015,57 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 			_ => unreachable!(),
 		}
 	})
+}
+
+pub struct Tokens<'a, 'b> {
+	pub tokens: &'b [Token<'a>],
+	pub last_removed_token_end_column: NonZeroUsize,
+}
+
+impl<'a, 'b> Tokens<'a, 'b> {
+	pub fn new(tokens: &'b [Token<'a>]) -> Self {
+		Self {
+			tokens,
+			last_removed_token_end_column: 1.try_into().unwrap(),
+		}
+	}
+
+	pub fn remove_tokens(&mut self, remove_count: usize) {
+		if remove_count == 0 {
+			return;
+		}
+		let tokens_removed;
+		(tokens_removed, self.tokens) = self.tokens.split_at(remove_count);
+		self.last_removed_token_end_column = tokens_removed.last().unwrap().end_column
+	}
+
+	/// Takes a one or two word keyword from the start of the list of tokens. Returns:
+	/// * `None` if there is not a keyword at the start of the list, leaves the list unchanged.
+	/// * `Some((keyword, keyword start column))` if it could, removes the tokens from the list.
+	pub fn take_keyword(&mut self) -> Option<(Keyword, NonZeroUsize)> {
+	// Take first keyword or return if there is not a first keyword
+	let (first_keyword_variant, first_keyword_start_column) = match self.tokens.get(0) {
+		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, .. }) => (*keyword, *start_column),
+		_ => return None,
+	};
+	self.remove_tokens(1);
+	// Take the second keyword if there is one
+	let second_keyword_variant = match self.tokens.get(0) {
+		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, .. }) => {
+			self.remove_tokens(1);
+			Some(*keyword)
+		},
+		_ => None,
+	};
+	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
+	if let Some(second_keyword_variant) = second_keyword_variant {
+		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
+			if second_keyword_variant == *second_keyword_of_double_word_keyword {
+				return Some((*double_word_keyword, first_keyword_start_column));
+			}
+		}
+	}
+	// Else return the first keyword variant
+	Some((first_keyword_variant, first_keyword_start_column))
+}
 }
