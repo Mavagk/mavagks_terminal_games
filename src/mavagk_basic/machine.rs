@@ -169,68 +169,44 @@ impl Machine {
 			StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				// Get what to assign to
-				let (name, _arguments, has_parentheses) = match l_value {
-					IntLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
-					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-					//	=> (name, arguments, *has_parentheses),
-					//IntLValue { start_column, .. } =>
-					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				};
+				let IntLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
 				// Get r-value
 				let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
 				// Assign
-				if has_parentheses {
+				if *has_parentheses {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
 				}
 				self.int_variables.insert(name.clone(), r_value);
 			}
 			StatementVariant::AssignReal(l_value, r_value_expression) => {
 				// Get what to assign to
-				let (name, _arguments, has_parentheses) = match l_value {
-					RealLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
-					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-					//	=> (name, arguments, *has_parentheses),
-					//RealLValue { start_column, .. } =>
-					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				};
+				let RealLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
 				// Get r-value
 				let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
 				// Assign
-				if has_parentheses {
+				if *has_parentheses {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
 				}
 				self.real_variables.insert(name.clone(), r_value);
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				// Get what to assign to
-				let (name, _arguments, has_parentheses) = match l_value {
-					ComplexLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
-					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-					//	=> (name, arguments, *has_parentheses),
-					//ComplexLValue { start_column, .. } =>
-					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				};
+				let ComplexLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
 				// Get r-value
 				let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
 				// Assign
-				if has_parentheses {
+				if *has_parentheses {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
 				}
 				self.complex_variables.insert(name.clone(), r_value);
 			}
 			StatementVariant::AssignString(l_value, r_value_expression) => {
 				// Get what to assign to
-				let (name, _arguments, has_parentheses) = match l_value {
-					StringLValue { name, arguments, uses_fn_keyword: _, has_parentheses, start_column: _ } => (name, arguments, *has_parentheses),
-					//IntExpression { variant: IntExpressionVariant::IntIdentifierOrFunction { name, arguments, uses_fn_keyword: false, has_parentheses }, .. }
-					//	=> (name, arguments, *has_parentheses),
-					//StringLValue { start_column, .. } =>
-					//	return Err(Error { variant: ErrorVariant::InvalidLValue, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				};
+				let StringLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
 				// Get r-value
 				let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
 				// Assign
-				if has_parentheses {
+				if *has_parentheses {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
 				}
 				self.string_variables.insert(name.clone(), r_value);
@@ -264,7 +240,6 @@ impl Machine {
 	}
 
 	fn execute_int_expression(&self, expression: &IntExpression, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
-		//let IntExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
 			IntExpression::CastFromBool(sub_expression) => IntValue {
@@ -314,7 +289,6 @@ impl Machine {
 	}
 
 	fn execute_real_expression(&self, expression: &RealExpression, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
-		//let RealExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression {
 			RealExpression::ConstantValue { value, .. } => value.clone(),
 			RealExpression::CastFromInt(sub_expression) => RealValue::IntValue(
@@ -410,7 +384,6 @@ impl Machine {
 	}
 
 	fn execute_complex_expression(&self, expression: &ComplexExpression, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {
-		//let ComplexExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
 			ComplexExpression::CastFromReal(sub_expression) => ComplexValue {
@@ -447,7 +420,6 @@ impl Machine {
 	}
 
 	fn execute_bool_expression(&self, expression: &BoolExpression, line_number: Option<&BigInt>) -> Result<BoolValue, Error> {
-		//let BoolExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
 			BoolExpression::And { lhs_expression, rhs_expression, .. } => BoolValue {
@@ -584,7 +556,6 @@ impl Machine {
 	}
 
 	fn execute_string_expression(&self, expression: &StringExpression, line_number: Option<&BigInt>) -> Result<StringValue, Error> {
-		//let StringExpression { variant: expression_variant, column: expression_column } = expression;
 		Ok(match expression {
 			StringExpression::ConstantValue { value, .. } => value.clone(),
 			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } => StringValue {
