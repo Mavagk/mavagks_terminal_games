@@ -1612,7 +1612,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 		Some(&tokens_removed[0])
 	}
 
-	pub fn split_at(self: Tokens<'a, 'b>, index: usize) -> (Tokens<'a, 'b>, Tokens<'a, 'b>) {
+	pub fn split_at(self, index: usize) -> (Self, Self) {
 		let (left_tokens, right_tokens) = self.tokens.split_at(index);
 		let split_column = match index {
 			0 => self.last_removed_token_end_column,
