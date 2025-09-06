@@ -706,40 +706,6 @@ impl BoolExpression {
 	}
 }
 
-//#[derive(Debug, PartialEq, Clone)]
-//pub enum BoolExpressionVariant {
-//	ConstantValue(BoolValue),
-//	And(Box<BoolExpression>, Box<BoolExpression>),
-//	Or(Box<BoolExpression>, Box<BoolExpression>),
-//	Not(Box<BoolExpression>),
-//	IntLessThan(Box<IntExpression>, Box<IntExpression>),
-//	IntGreaterThan(Box<IntExpression>, Box<IntExpression>),
-//	IntEqualTo(Box<IntExpression>, Box<IntExpression>),
-//	IntNotEqualTo(Box<IntExpression>, Box<IntExpression>),
-//	IntLessThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
-//	IntGreaterThanOrEqualTo(Box<IntExpression>, Box<IntExpression>),
-//	RealLessThan(Box<RealExpression>, Box<RealExpression>),
-//	RealGreaterThan(Box<RealExpression>, Box<RealExpression>),
-//	RealEqualTo(Box<RealExpression>, Box<RealExpression>),
-//	RealNotEqualTo(Box<RealExpression>, Box<RealExpression>),
-//	RealLessThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
-//	RealGreaterThanOrEqualTo(Box<RealExpression>, Box<RealExpression>),
-//	StringLessThan(Box<StringExpression>, Box<StringExpression>),
-//	StringGreaterThan(Box<StringExpression>, Box<StringExpression>),
-//	StringEqualTo(Box<StringExpression>, Box<StringExpression>),
-//	StringNotEqualTo(Box<StringExpression>, Box<StringExpression>),
-//	StringLessThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
-//	StringGreaterThanOrEqualTo(Box<StringExpression>, Box<StringExpression>),
-//	ComplexEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
-//	ComplexNotEqualTo(Box<ComplexExpression>, Box<ComplexExpression>),
-//	BoolLessThan(Box<BoolExpression>, Box<BoolExpression>),
-//	BoolGreaterThan(Box<BoolExpression>, Box<BoolExpression>),
-//	BoolEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-//	BoolNotEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-//	BoolLessThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-//	BoolGreaterThanOrEqualTo(Box<BoolExpression>, Box<BoolExpression>),
-//}
-
 #[derive(Debug, Clone)]
 pub enum AnyTypeExpression {
 	Int(IntExpression),
