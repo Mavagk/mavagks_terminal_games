@@ -861,28 +861,26 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 	}
 	// Parse each argument
 	'b: loop {
-		// Parse argument
-		let argument_expression = match parse_expression(tokens, line_number)? {
-			// If we did not an argument, why?
-			None => {
-				match tokens.tokens.get(0) {
-					// If it was because there was a comma
-					Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
-						return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-					// If it was because we reached a right parenthesis
-					Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
-						tokens.take_next_token();
-						break 'b;
-					}
-					// If it was because of an invalid separator
-					Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
-						return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
-					_ => unreachable!(),
-				};
+		// If we reach a non-expression token
+		match tokens.tokens.get(0) {
+			// Comma
+			Some(Token { variant: TokenVariant::Comma, start_column, ..}) =>
+				return Err(Error { variant: ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+			// Right parenthesis
+			Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
+				tokens.take_next_token();
+				break 'b;
 			}
-			// If we did get an argument
-			Some(argument_expression) => argument_expression,
-		};
+			// Colon / semicolon
+			Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
+				return Err(Error { variant: ErrorVariant::InvalidSeparatorInFunctionArguments, column_number: Some(*start_column), line_number: line_number.cloned(), line_text: None }),
+			// End of statement without closing parenthesis
+			None =>
+				return Err(Error { variant: ErrorVariant::ExpectedRightParenthesis, column_number: Some(tokens.last_removed_token_end_column), line_number: line_number.cloned(), line_text: None }),
+			_ => {}
+		}
+		// Parse argument
+		let argument_expression = parse_expression(tokens, line_number)?.unwrap();
 		arguments.push(argument_expression);
 		// Parse comma or right parentheses
 		match tokens.tokens.get(0) {
@@ -899,16 +897,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 	// Return
 	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
 		}),
 		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
 		}),
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
 		}),
 	}))
 }
@@ -1610,7 +1608,6 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	// Take the second keyword if there is one
 	let second_keyword_variant = match self.tokens.get(0) {
 		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, .. }) => {
-			self.remove_tokens(1);
 			Some(*keyword)
 		},
 		_ => None,
@@ -1619,6 +1616,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	if let Some(second_keyword_variant) = second_keyword_variant {
 		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
 			if second_keyword_variant == *second_keyword_of_double_word_keyword {
+				self.remove_tokens(1);
 				return Some((*double_word_keyword, first_keyword_start_column));
 			}
 		}
