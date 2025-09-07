@@ -52,7 +52,7 @@ pub enum ErrorVariant {
 	FunctionArgumentsNotCommaSeparated,
 	InvalidOperator,
 	InvalidOperatorSymbol,
-	InvalidLineNumber,
+	InvalidLineNumber(BigInt),
 	NonNumberValueCastToInt(f64),
 	NonRealComplexValueCastToReal(Complex64),
 	StringCastToNumber,
@@ -95,7 +95,7 @@ impl Display for ErrorVariant {
 			Self::FunctionArgumentsNotCommaSeparated => write!(f, "Function parentheses do not contain a comma separated list of arguments."),
 			Self::InvalidOperator => write!(f, "Invalid operator."),
 			Self::InvalidOperatorSymbol => write!(f, "Invalid operator symbol."),
-			Self::InvalidLineNumber => write!(f, "Line not found."),
+			Self::InvalidLineNumber(line_number) => write!(f, "Attempted to jump to line {line_number}, line not found."),
 			Self::NonNumberValueCastToInt(value) => write!(f, "Non-number value {value} cast to int."),
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
@@ -139,11 +139,11 @@ pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
 			execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("Basic error{error}\n")))).unwrap();
 			if let Some(line_number) = error.column_number {
 				if let Some(line_text) = error.line_text {
-					println!("{}", line_text);
+					println!("{line_text}");
 					for _ in 0..line_number.get() - 1 {
 						print!(" ");
 					}
-					println!("^");
+					execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, "^\n"))).unwrap();
 				}
 			}
 			None

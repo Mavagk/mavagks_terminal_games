@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::stdout, rc::Rc};
+use std::{collections::HashMap, io::stdout, num::NonZeroUsize, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero};
@@ -7,8 +7,8 @@ use num_traits::Pow;
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
-	is_executing_unnumbered_line: bool,
-	line_executing: BigInt,
+	line_executing: Option<BigInt>,
+	execution_source: ExecutionSource,
 	real_variables: HashMap<Box<str>, RealValue>,
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
@@ -18,8 +18,8 @@ pub struct Machine {
 impl Machine {
 	pub fn new() -> Self {
 		Self {
-			is_executing_unnumbered_line: false,
-			line_executing: 0.into(),
+			line_executing: None,
+			execution_source: ExecutionSource::ProgramEnded,
 			int_variables: HashMap::new(),
 			real_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
@@ -27,12 +27,20 @@ impl Machine {
 		}
 	}
 
-	fn set_line_executing_to_first_line(&mut self, program: &Program) {
-		self.line_executing = match program.lines.first_key_value() {
-			Some(first_entry) => first_entry.0.clone(),
-			None => BigInt::ZERO,
+	fn set_line_executing(&mut self, program: &Program, goto_line_number: Option<&Rc<BigInt>>, line_number_executed_in: Option<&BigInt>, column_number: NonZeroUsize) -> Result<(), Error> {
+		self.line_executing = match goto_line_number {
+			Some(goto_line_number) =>{
+				if !program.lines.contains_key(goto_line_number) {
+					return Err(Error {
+						variant: ErrorVariant::InvalidLineNumber((**goto_line_number).clone()), line_number: line_number_executed_in.cloned(), column_number: Some(column_number), line_text: None
+					});
+				}
+				Some((**goto_line_number).clone())
+			}
+			None => None,
 		};
-		self.is_executing_unnumbered_line = false;
+		self.execution_source = ExecutionSource::Program;
+		Ok(())
 	}
 
 	fn clear_machine_state(&mut self) {
@@ -43,9 +51,9 @@ impl Machine {
 		self.string_variables = HashMap::new();
 	}
 
-	pub fn line_of_text_entered(&mut self, line: Box<str>, program: &mut Program) -> Result<(), Error> {
+	pub fn line_of_text_entered(&mut self, line_text: Box<str>, program: &mut Program) -> Result<(), Error> {
 		// Parse line
-		let (line_number, tokens, error) = match Token::tokenize_line(&*line) {
+		let (line_number, tokens, error) = match Token::tokenize_line(&*line_text) {
 			(line_number, Ok(tokens)) => (line_number, tokens, None),
 			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 		};
@@ -55,77 +63,107 @@ impl Machine {
 		};
 		// Enter line number into program and run if it does not have a line number
 		match line_number {
+			// If the line has a line number
 			Some(line_number) => {
 				if let Some(error) = &error {
 					let mut error = error.clone();
-					error.line_text = Some(line.clone().into());
+					error.line_text = Some(line_text.clone().into());
 					handle_error::<()>(Err(error));
 				}
 				if statements.is_empty() && error.is_none() {
 					program.lines.remove(&line_number);
 				}
 				else {
-					program.lines.insert(line_number, (statements, error, line));
+					program.lines.insert(line_number, (statements, error, line_text));
 				}
 			}
+			// Run the line in direct mode if it does not have a line number
 			None => {
 				if let Some(mut error) = error {
-					error.line_text = Some(line.into());
+					error.line_text = Some(line_text.into());
 					return Err(error);
 				}
-				program.unnumbered_line = statements;
-				program.unnumbered_line_string = line;
-				self.is_executing_unnumbered_line = true;
-				self.execute(program)?;
+				self.execution_source = ExecutionSource::DirectModeLine;
+				self.execute(program, &statements, &line_text)?;
 			}
 		}
 		Ok(())
 	}
 
-	fn execute(&mut self, program: &mut Program) -> Result<(), Error> {
+	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), Error> {
+		// For each line
 		'lines_loop: loop {
-			// Get the line number to be executed
-			let line_number = match self.is_executing_unnumbered_line {
-				false => Some(self.line_executing.clone()),
-				true => None,
-			};
-			// Get the statements to execute
-			let (statements, mut error, line_text) = match self.is_executing_unnumbered_line {
-				true => (&program.unnumbered_line, None, Some(&*program.unnumbered_line_string)),
-				false => match program.lines.get(&self.line_executing) {
-					Some((statements, error, line_text)) => (statements, error.clone(), Some(&**line_text)),
-					None => return Err(Error { variant: ErrorVariant::InvalidLineNumber, line_number: line_number, column_number: None, line_text: None })
-				}
-			};
-			// Execute statements
-			for statement in statements {
-				let do_skip_other_statements_on_line = match self.execute_statement(statement, line_number.as_ref(), program) {
-					Ok(do_skip_other_statements_on_line) => do_skip_other_statements_on_line,
-					Err(statement_error) => {
-						error = Some(statement_error);
-						break;
+			match self.execution_source {
+				// If we are executing a line in the program
+				ExecutionSource::Program => {
+					// No line executing means that we should execute the first line
+					if self.line_executing.is_none() {
+						self.line_executing = match program.lines.first_key_value() {
+							Some(first_entry) => Some(first_entry.0.clone()),
+							None => {
+								self.execution_source = ExecutionSource::ProgramEnded;
+								continue 'lines_loop;
+							}
+						};
 					}
-				};
-				if do_skip_other_statements_on_line {
-					continue 'lines_loop;
+					let line_number = self.line_executing.as_ref().unwrap().clone();
+					// Execute each statement in the line
+					let (statements, line_error, line_text) = program.lines.get(&line_number).unwrap();
+					for statement in statements {
+						let flow_control_used = match self.execute_statement(statement, Some(&line_number), program) {
+							Ok(flow_control_used) => flow_control_used,
+							Err(mut error) => {
+								error.line_text = Some(line_text.clone().into_string());
+								return Err(error);
+							}
+						};
+						if flow_control_used || self.execution_source != ExecutionSource::Program {
+							continue 'lines_loop;
+						}
+					}
+					// If there is an error at the end of the line, throw the error
+					if let Some(line_error) = line_error {
+						let mut line_error = line_error.clone();
+						line_error.line_text = Some(line_text.clone().into_string());
+						return Err(line_error);
+					}
+					// Jump to the next line
+					self.line_executing = match program.lines.range(line_number..).nth(1) {
+						Some((line_number, _)) => Some(line_number.clone()),
+						None => {
+							self.execution_source = ExecutionSource::ProgramEnded;
+							continue 'lines_loop;
+						}
+					}.clone();
 				}
-			}
-			// Throw the error if there is one
-			if let Some(error) = error {
-				if let Some(line_text) = line_text {
-					let mut error = error.clone();
-					error.line_text = Some(line_text.into());
-					return Err(error.clone())
+				// If we are executing a direct mode line
+				ExecutionSource::DirectModeLine => {
+					// Execute each statement in the direct mode line
+					for direct_mode_statement in direct_mode_statements {
+						let flow_control_used = match self.execute_direct_mode_statement(&direct_mode_statement, program) {
+							Ok(flow_control_used) => flow_control_used,
+							Err(mut error) => {
+								error.line_text = Some(direct_mode_line_text.into());
+								return Err(error);
+							}
+						};
+						if flow_control_used || self.execution_source != ExecutionSource::DirectModeLine {
+							continue 'lines_loop;
+						}
+					}
+					// If we did not jump out of the direct mode line, such as with a RUN, end execution
+					self.execution_source = ExecutionSource::ProgramEnded;
 				}
+				// Return if the program has ended
+				ExecutionSource::ProgramEnded => return Ok(()),
 			}
-			// Decide what to execute next
-			if self.is_executing_unnumbered_line {
-				return Ok(());
-			}
-			self.line_executing = match program.lines.range(&self.line_executing..).nth(1) {
-				Some((line_number, _)) => line_number,
-				None => return Ok(()),
-			}.clone();
+		}
+	}
+
+	fn execute_direct_mode_statement(&mut self, statement: &Statement, program: &mut Program) -> Result<bool, Error> {
+		let Statement { variant, column: _ } = &statement;
+		match variant {
+			_ => self.execute_statement(statement, None, program),
 		}
 	}
 
@@ -153,11 +191,10 @@ impl Machine {
 				// Set the line to be executed next
 				match sub_expression {
 					Some(sub_expression) => {
-						let line_number = self.execute_int_expression(sub_expression, line_number)?.value;
-						self.line_executing = (&*line_number).clone();
-						self.is_executing_unnumbered_line = false;
+						let line_number_to_jump_to = self.execute_int_expression(sub_expression, line_number)?.value;
+						self.set_line_executing(program, Some(&line_number_to_jump_to), line_number, sub_expression.get_start_column())?;
 					}
-					None => self.set_line_executing_to_first_line(&program),
+					None => self.set_line_executing(program, None, line_number, *column)?,
 				}
 				// Clear if this is a RUN statement
 				if matches!(variant, StatementVariant::Run(..)) {
@@ -577,4 +614,11 @@ impl Machine {
 			}
 		})
 	}
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum ExecutionSource {
+	Program,
+	DirectModeLine,
+	ProgramEnded,
 }
