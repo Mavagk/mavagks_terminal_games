@@ -272,7 +272,7 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::OneLineIfElse { condition, then_statement, else_statement } => {
+			StatementVariant::OneLineIf { condition, then_statement, else_statement } => {
 				// Execute condition
 				let condition_value = self.execute_bool_expression(condition, line_number)?;
 				// Execute statement

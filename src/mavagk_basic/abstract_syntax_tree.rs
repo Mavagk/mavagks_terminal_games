@@ -88,7 +88,7 @@ impl Statement {
 					to.print(depth + 1);
 				}
 			}
-			StatementVariant::OneLineIfElse { condition, then_statement, else_statement } => {
+			StatementVariant::OneLineIf { condition, then_statement, else_statement } => {
 				print!("IF (One Line)");
 				println!();
 				condition.print(depth + 1);
@@ -112,7 +112,7 @@ pub enum StatementVariant {
 	AssignComplex(ComplexLValue, ComplexExpression),
 	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
-	OneLineIfElse { condition: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
+	OneLineIf { condition: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 }
 
 #[derive(Debug, Clone)]
