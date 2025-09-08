@@ -59,7 +59,7 @@ pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) ->
 	(out.into(), None)
 }
 
-pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>, _is_root_statement: bool) -> Result<Option<Statement>, Error> {
+pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>, is_root_statement: bool) -> Result<Option<Statement>, Error> {
 	// There should be tokens
 	if tokens.tokens.is_empty() {
 		return Ok(None);
@@ -85,10 +85,6 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 			Some(r_value_expression) => r_value_expression,
 			None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
 		};
-		// There should be no more tokens after the expression
-		if tokens.tokens.len() != 0 {
-			return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None });
-		}
 		// Assemble into statement
 		let l_value_start_column = l_value_expression.get_start_column();
 		let statement = match l_value_expression {
@@ -148,10 +144,6 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
 				Some(l_value_expression) => l_value_expression,
 			};
-			// There should be no more tokens after the expression
-			if !tokens.tokens.is_empty() {
-				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None });
-			}
 			// Assemble into statement
 			match l_value_expression {
 				AnyTypeLValue::Int(l_value) => Statement {
@@ -223,10 +215,6 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				Some(expression) => Some(expression.to_int_expression(line_number)?),
 				None => None,
 			};
-			// There should be nothing after said expression
-			if !tokens.tokens.is_empty() {
-				return Err(Error { variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None });
-			}
 			// Parse depending on keyword
 			let variant = match statement_keyword {
 				Keyword::Run => StatementVariant::Run(expression),
@@ -294,12 +282,6 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				Some(range_end_expression) => Some(range_end_expression.to_int_expression(line_number)?),
 				None => None,
 			};
-			// There should not be any tokens after the range end expression
-			if !tokens.tokens.is_empty() {
-				return Err(Error {
-					variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.tokens[0].start_column), line_text: None
-				});
-			}
 			// Assemble into LIST statement
 			Statement {
 				column: statement_keyword_start_column,
@@ -307,6 +289,9 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 			}
 		}
 		Keyword::If => {
+			if !is_root_statement {
+				return Err(Error { variant: ErrorVariant::StatementCannotBeNested, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None });
+			}
 			// Parse condition
 			let condition_expression = match parse_expression(tokens, line_number)? {
 				Some(condition_expression) => condition_expression.to_bool_expression(line_number)?,
@@ -364,12 +349,6 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 					variant: ErrorVariant::ExpectedElseOrStatementEnd, line_number: line_number.cloned(), column_number: Some(invalid_keyword_start_column), line_text: None
 				}),
 			};
-			// Expect the statement to end
-			if !tokens.tokens.is_empty() {
-				return Err(Error {
-					variant: ErrorVariant::ExpectedElseOrStatementEnd, line_number: line_number.cloned(), column_number: Some(tokens.tokens[0].start_column), line_text: None
-				})
-			}
 			// Assemble into statement
 			Statement {
 				column: statement_keyword_start_column,

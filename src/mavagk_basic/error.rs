@@ -80,6 +80,7 @@ pub enum ErrorVariant {
 	SingleGoKeyword,
 	ExpectedThenKeyword,
 	ExpectedElseOrStatementEnd,
+	StatementCannotBeNested,
 }
 
 impl Display for ErrorVariant {
@@ -127,6 +128,7 @@ impl Display for ErrorVariant {
 			Self::SingleGoKeyword => write!(f, "GO keyword found that was not part of a GO TO or GO SUB word pair."),
 			Self::ExpectedThenKeyword => write!(f, "Expected THEN keyword."),
 			Self::ExpectedElseOrStatementEnd => write!(f, "Expected either an ELSE keyword or for the statement to end."),
+			Self::StatementCannotBeNested => write!(f, "Statement cannot be nested."),
 		}
 	}
 }

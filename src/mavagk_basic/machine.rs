@@ -277,11 +277,11 @@ impl Machine {
 				let condition_value = self.execute_bool_expression(condition, line_number)?;
 				// Execute statement
 				if condition_value.value {
-					self.execute_statement(then_statement, line_number, program)?;
+					return self.execute_statement(then_statement, line_number, program);
 				}
 				else {
 					if let Some(else_statement) = else_statement {
-						self.execute_statement(else_statement, line_number, program)?;
+						return self.execute_statement(else_statement, line_number, program);
 					}
 				}
 			}
