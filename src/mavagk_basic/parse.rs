@@ -300,10 +300,80 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 					variant: ErrorVariant::StatementShouldEnd, line_number: line_number.cloned(), column_number: Some(tokens.tokens[0].start_column), line_text: None
 				});
 			}
-			//// Assemble into LIST statement
+			// Assemble into LIST statement
 			Statement {
 				column: statement_keyword_start_column,
 				variant: StatementVariant::List(range_start_expression, range_end_expression)
+			}
+		}
+		Keyword::If => {
+			// Parse condition
+			let condition_expression = match parse_expression(tokens, line_number)? {
+				Some(condition_expression) => condition_expression.to_bool_expression(line_number)?,
+				None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
+			};
+			// Get then/goto statement
+			let then_statement = Box::new(match tokens.take_keyword() {
+				Some((Keyword::Then, then_start_column)) => {
+					match tokens.tokens.get(0) {
+						Some(Token { variant: TokenVariant::IntegerLiteral(value), start_column, .. }) => {
+							tokens.take_next_token();
+							Statement { variant: StatementVariant::Goto(Some(IntExpression::ConstantValue {
+								value: IntValue { value: Rc::new(value.clone()) }, start_column: *start_column
+							})), column: then_start_column }
+						}
+						_ => match parse_statement(tokens, line_number, false)? {
+							Some(statement) => statement,
+							None => return Err(Error {
+								variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None
+							}),
+						}
+					}
+				}
+				Some((Keyword::Goto, goto_start_column)) => {
+					match parse_expression(tokens, line_number)? {
+						Some(line_number_expression) => Statement { variant: StatementVariant::Goto(Some(line_number_expression.to_int_expression(line_number)?)), column: goto_start_column },
+						None => return Err(Error { variant: ErrorVariant::ExpectedExpression, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
+					}
+				}
+				Some((_, start_column)) => return Err(Error {
+					variant: ErrorVariant::ExpectedThenKeyword, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
+				}),
+				None => return Err(Error { variant: ErrorVariant::ExpectedThenKeyword, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
+			});
+			// Get else statement if it exists
+			let else_statement = match tokens.take_keyword() {
+				Some((Keyword::Else, else_start_column)) => {
+					Some(Box::new(match tokens.tokens.get(0) {
+						Some(Token { variant: TokenVariant::IntegerLiteral(value), start_column, .. }) => {
+							tokens.take_next_token();
+							Statement { variant: StatementVariant::Goto(Some(IntExpression::ConstantValue {
+								value: IntValue { value: Rc::new(value.clone()) }, start_column: *start_column
+							})), column: else_start_column }
+						}
+						_ => match parse_statement(tokens, line_number, false)? {
+							Some(statement) => statement,
+							None => return Err(Error {
+								variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None
+							}),
+						}
+					}))
+				}
+				None => None,
+				Some((_, invalid_keyword_start_column)) => return Err(Error {
+					variant: ErrorVariant::ExpectedElseOrStatementEnd, line_number: line_number.cloned(), column_number: Some(invalid_keyword_start_column), line_text: None
+				}),
+			};
+			// Expect the statement to end
+			if !tokens.tokens.is_empty() {
+				return Err(Error {
+					variant: ErrorVariant::ExpectedElseOrStatementEnd, line_number: line_number.cloned(), column_number: Some(tokens.tokens[0].start_column), line_text: None
+				})
+			}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::OneLineIf { condition: condition_expression, then_statement, else_statement }
 			}
 		}
 		Keyword::Fn => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),
