@@ -88,7 +88,7 @@ impl Statement {
 					to.print(depth + 1);
 				}
 			}
-			StatementVariant::OneLineIf { condition, then_statement, else_statement } => {
+			StatementVariant::OneLineIf { condition_expression: condition, then_statement, else_statement } => {
 				print!("IF (One Line)");
 				println!();
 				condition.print(depth + 1);
@@ -112,7 +112,7 @@ pub enum StatementVariant {
 	AssignComplex(ComplexLValue, ComplexExpression),
 	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
-	OneLineIf { condition: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
+	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 }
 
 #[derive(Debug, Clone)]
@@ -226,8 +226,8 @@ impl RealExpression {
 			Self::ConstantValue { start_column, .. } => *start_column,
 			Self::Negation { start_column, .. } => *start_column,
 			Self::LValue(l_value) => l_value.start_column,
-			Self::CastFromInt(real_expression) => real_expression.get_start_column(),
-			Self::CastFromComplex(bool_expression) => bool_expression.get_start_column(),
+			Self::CastFromInt(int_expression) => int_expression.get_start_column(),
+			Self::CastFromComplex(complex_expression) => complex_expression.get_start_column(),
 			Self::Addition { start_column, .. } => *start_column,
 			Self::Subtraction { start_column, .. } => *start_column,
 			Self::Multiplication { start_column, .. } => *start_column,
@@ -496,6 +496,10 @@ impl StringLValue {
 #[derive(Debug, Clone)]
 pub enum BoolExpression {
 	ConstantValue { value: BoolValue, start_column: NonZeroUsize },
+	IntIsNonZero(Box<IntExpression>),
+	RealIsNonZero(Box<RealExpression>),
+	ComplexIsNonZero(Box<ComplexExpression>),
+	StringIsNotEmpty(Box<StringExpression>),
 	And { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
 	Or { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
 	Not { sub_expression: Box<BoolExpression>, start_column: NonZeroUsize },
@@ -531,6 +535,10 @@ impl BoolExpression {
 	pub fn get_start_column(&self) -> NonZeroUsize {
 		match self {
 			Self::ConstantValue { start_column, .. } => *start_column,
+			Self::IntIsNonZero(int_expression) => int_expression.get_start_column(),
+			Self::RealIsNonZero(int_expression) => int_expression.get_start_column(),
+			Self::ComplexIsNonZero(int_expression) => int_expression.get_start_column(),
+			Self::StringIsNotEmpty(int_expression) => int_expression.get_start_column(),
 			Self::And { start_column, .. } => *start_column,
 			Self::Or { start_column, .. } => *start_column,
 			Self::Not { start_column, .. } => *start_column,
@@ -570,6 +578,22 @@ impl BoolExpression {
 		print!(" {:03}: Bool ", self.get_start_column());
 		match self {
 			Self::ConstantValue { value, .. } => println!("Constant Value {value}"),
+			Self::IntIsNonZero(operand) => {
+				println!("Check Int is not Zero");
+				operand.print(depth + 1);
+			},
+			Self::RealIsNonZero(operand) => {
+				println!("Check Real is not Zero");
+				operand.print(depth + 1);
+			},
+			Self::ComplexIsNonZero(operand) => {
+				println!("Check Complex is not Zero");
+				operand.print(depth + 1);
+			},
+			Self::StringIsNotEmpty(operand) => {
+				println!("Check String is not Empty");
+				operand.print(depth + 1);
+			},
 			Self::And { lhs_expression, rhs_expression, .. } => {
 				println!("Logical AND");
 				lhs_expression.print(depth + 1);
@@ -795,14 +819,14 @@ impl AnyTypeExpression {
 		})
 	}
 
-	pub fn to_bool_expression(self, line_number: Option<&BigInt>) -> Result<BoolExpression, Error> {
+	pub fn to_bool_expression(self, _line_number: Option<&BigInt>) -> Result<BoolExpression, Error> {
 		Ok(match self {
 			Self::Bool(value) => value,
-			Self::String(expression) => return Err(Error {
-				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
-			}),
+			Self::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
+			Self::Real(expression) => BoolExpression::RealIsNonZero(Box::new(expression)),
+			Self::Complex(expression) => BoolExpression::ComplexIsNonZero(Box::new(expression)),
+			Self::String(expression) => BoolExpression::StringIsNotEmpty(Box::new(expression)),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-			_ => todo!(),
 		})
 	}
 

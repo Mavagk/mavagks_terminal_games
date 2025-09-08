@@ -373,7 +373,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 			// Assemble into statement
 			Statement {
 				column: statement_keyword_start_column,
-				variant: StatementVariant::OneLineIf { condition: condition_expression, then_statement, else_statement }
+				variant: StatementVariant::OneLineIf { condition_expression, then_statement, else_statement }
 			}
 		}
 		Keyword::Fn => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),

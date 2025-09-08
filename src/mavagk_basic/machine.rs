@@ -272,7 +272,7 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::OneLineIf { condition, then_statement, else_statement } => {
+			StatementVariant::OneLineIf { condition_expression: condition, then_statement, else_statement } => {
 				// Execute condition
 				let condition_value = self.execute_bool_expression(condition, line_number)?;
 				// Execute statement
@@ -472,6 +472,11 @@ impl Machine {
 	fn execute_bool_expression(&self, expression: &BoolExpression, line_number: Option<&BigInt>) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
+			BoolExpression::IntIsNonZero(int_expression) => BoolValue { value: !self.execute_int_expression(&int_expression, line_number)?.value.is_zero() },
+			BoolExpression::RealIsNonZero(real_expression) => BoolValue { value: !self.execute_real_expression(&real_expression, line_number)?.is_zero() },
+			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue { value: !self.execute_complex_expression(&complex_expression, line_number)?.value.is_zero() },
+			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue { value: !self.execute_string_expression(&string_expression, line_number)?.value.is_empty() },
+
 			BoolExpression::And { lhs_expression, rhs_expression, .. } => BoolValue {
 				value: self.execute_bool_expression(lhs_expression, line_number)?.value && self.execute_bool_expression(rhs_expression, line_number)?.value
 			},
