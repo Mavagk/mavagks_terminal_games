@@ -13,7 +13,7 @@ pub struct Console {
 }
 
 #[cfg(target_os = "windows")]
-pub fn enable_raw_mode_on_linux() {
+pub fn enable_raw_mode_on_unix() {
 
 }
 
@@ -23,7 +23,7 @@ pub fn enable_raw_mode_on_unix() {
 }
 
 #[cfg(target_os = "windows")]
-pub fn disable_raw_mode_on_linux() {
+pub fn disable_raw_mode_on_unix() {
 
 }
 
