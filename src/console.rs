@@ -1,6 +1,6 @@
 use std::{fmt::Display, io::{stdout, Stdout}};
 
-use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetSize}};
+use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen, SetSize}};
 
 pub struct Console {
 	stdout: Stdout,
@@ -26,6 +26,7 @@ impl Console {
 	}
 
 	pub fn new_game_screen(&mut self, size: (u16, u16)) {
+		enable_raw_mode().unwrap();
 		if !self.is_in_alternate_screen {
 			self.main_screen_size = self.get_size();
 			self.main_screen_cursor_pos = self.get_cursor_pos();
@@ -51,6 +52,7 @@ impl Console {
 			self.move_cursor_to(self.main_screen_cursor_pos);
 		}
 		self.is_in_alternate_screen = false;
+		disable_raw_mode().unwrap();
 	}
 
 	pub fn on_game_close(&mut self) {
