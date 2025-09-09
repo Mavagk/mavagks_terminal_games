@@ -1,6 +1,6 @@
-use std::time::Duration;
+use std::{io::{self, Write}, time::Duration};
 
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::{cursor::MoveToNextLine, event::{self, Event, KeyCode, KeyModifiers}, execute};
 
 use crate::{console::{enable_raw_mode_on_unix, Console}, Game};
 
@@ -24,7 +24,9 @@ impl Game for LogEventsTest {
 	}
 
 	fn event(&mut self, event: &event::Event) -> Result<(), String> {
-		println!("{event:?}");
+		print!("{event:?}");
+		io::stdout().flush();
+		execute!(io::stdout(), MoveToNextLine(1)).unwrap();
 		Ok(())
 	}
 
