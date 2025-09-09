@@ -1,6 +1,6 @@
 use std::{fmt::Display, io::{stdout, Stdout}};
 
-use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen}};
+use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen}, terminal::{enable_raw_mode, disable_raw_mode}};
 
 pub struct Console {
 	stdout: Stdout,
