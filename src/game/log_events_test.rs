@@ -1,6 +1,6 @@
 use std::{io::{self, Write}, time::Duration};
 
-use crossterm::{cursor::MoveToNextLine, event::{self, Event, KeyCode, KeyModifiers}, execute};
+use crossterm::{cursor::MoveToColumn, event::{self, Event, KeyCode, KeyModifiers}, execute};
 
 use crate::{console::{enable_raw_mode_on_unix, Console}, Game};
 
@@ -24,9 +24,9 @@ impl Game for LogEventsTest {
 	}
 
 	fn event(&mut self, event: &event::Event) -> Result<(), String> {
-		print!("{event:?}");
-		io::stdout().flush();
-		execute!(io::stdout(), MoveToNextLine(1)).unwrap();
+		println!("{event:?}");
+		io::stdout().flush().unwrap();
+		execute!(io::stdout(), MoveToColumn(0)).unwrap();
 		Ok(())
 	}
 
@@ -43,6 +43,8 @@ impl Game for LogEventsTest {
 			self.time_sum += since_last_tick;
 		}
 		println!("{since_last_tick:?}, Sum: {:?}", self.time_sum);
+		io::stdout().flush().unwrap();
+		execute!(io::stdout(), MoveToColumn(0)).unwrap();
 		Ok(())
 	}
 }

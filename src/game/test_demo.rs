@@ -1,4 +1,6 @@
-use crossterm::{event::{Event, KeyCode, KeyModifiers}, style::ContentStyle};
+use std::io;
+
+use crossterm::{cursor::MoveToColumn, event::{Event, KeyCode, KeyModifiers}, execute, style::ContentStyle};
 
 use crate::{console::Console, Game};
 
@@ -37,6 +39,7 @@ impl Game for TestDemo {
 				}
 			}
 			writer.write('\n', style);
+			execute!(io::stdout(), MoveToColumn(0)).unwrap();
 		}
 		self.should_redraw = false;
 		Ok(())

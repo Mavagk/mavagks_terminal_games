@@ -1,7 +1,7 @@
-use std::{collections::HashSet, mem::take};
+use std::{collections::HashSet, io::{self, Write}, mem::take};
 
 use array2d::Array2D;
-use crossterm::{event::{Event, KeyCode, KeyModifiers, MouseButton}, style::{Color, ContentStyle}};
+use crossterm::{cursor::{MoveTo, MoveToColumn}, event::{Event, KeyCode, KeyModifiers, MouseButton}, execute, style::{Color, ContentStyle}};
 
 use crate::{console::Console, game::game_trait::Game, get_input_value_or_default};
 
@@ -221,25 +221,55 @@ impl Game for Paint {
 					*needs_redraw = false;
 					writer.new_game_screen((20, 40));
 					writer.hide_cursor();
-					writer.move_cursor_to((0, 0));
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveTo(0, 0)).unwrap();
 
 					writer.write("--- Navigation Keys ---\n", ContentStyle::default());
-					writer.move_cursor_to((0, 1));
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Esc]: Go back or exit paint\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[H]elp: Go to this menu\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[C]olor selector\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("--- Tool Keys ---\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[P]: Single cell painter tool\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[K]: Color picker\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("--- Colors ---\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Shift+R]ed  [Shift+G]reen  [Shift+B]lue    [Shift+K] Black\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Shift+C]yan [Shift+Y]ellow [Shift+M]agenta [Shift+W]hite\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Alt+Shift+R] Dark Red     [Alt+Shift+G] Dark Green\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Alt+Shift+B] Dark Blue    [Alt+Shift+B] Dark Gray\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Alt+Shift+C] Dark Cyan    [Alt+Shift+Y] Dark Yellow\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 					writer.write("[Alt+Shift+M] Dark Magenta [Alt+Shift+W] Gray\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 
 					writer.write("\nPress [Esc] to return to painter screen.\n", ContentStyle::default());
+					io::stdout().flush().unwrap();
+					execute!(io::stdout(), MoveToColumn(0)).unwrap();
 				}
 			}
 			Screen::ColorSelector { should_redraw_colors, should_redraw_info_bar } => {
