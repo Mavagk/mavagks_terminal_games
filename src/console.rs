@@ -12,6 +12,26 @@ pub struct Console {
 	game_mouse_zone_size: (u16, u16),
 }
 
+#[cfg(target_os = "windows")]
+pub fn enable_raw_mode_on_linux() {
+
+}
+
+#[cfg(unix)]
+pub fn enable_raw_mode_on_unix() {
+	enable_raw_mode().unwrap();
+}
+
+#[cfg(target_os = "windows")]
+pub fn disable_raw_mode_on_linux() {
+
+}
+
+#[cfg(unix)]
+pub fn disable_raw_mode_on_unix() {
+	disable_raw_mode().unwrap();
+}
+
 impl Console {
 	pub fn new() -> Self {
 		Self {
@@ -26,7 +46,7 @@ impl Console {
 	}
 
 	pub fn new_game_screen(&mut self, size: (u16, u16)) {
-		enable_raw_mode().unwrap();
+		enable_raw_mode_on_unix();
 		if !self.is_in_alternate_screen {
 			self.main_screen_size = self.get_size();
 			self.main_screen_cursor_pos = self.get_cursor_pos();
@@ -52,7 +72,7 @@ impl Console {
 			self.move_cursor_to(self.main_screen_cursor_pos);
 		}
 		self.is_in_alternate_screen = false;
-		disable_raw_mode().unwrap();
+		disable_raw_mode_on_unix();
 	}
 
 	pub fn on_game_close(&mut self) {
@@ -101,7 +121,7 @@ impl Console {
 	}
 
 	pub fn set_size(&mut self, size: (u16, u16)) {
-		execute!(self.stdout, SetSize(size.0, size.1)).unwrap();
+		//execute!(self.stdout, SetSize(size.0, size.1)).unwrap();
 		self.game_mouse_zone_top_left = (0, 0);
 		self.game_mouse_zone_size = size;
 	}

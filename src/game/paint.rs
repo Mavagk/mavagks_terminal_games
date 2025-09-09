@@ -196,7 +196,7 @@ impl Game for Paint {
 					}
 					writer.write(", Tool: ", ContentStyle::default());
 					writer.write(self.tool.name(), ContentStyle::default());
-					writer.write(", Keys: [Esc] Exit [H]elp", ContentStyle::default());
+					writer.write(", Keys: [Esc] [H]elp", ContentStyle::default());
 				}
 				// Draw canvas if we should redraw the entire thing
 				writer.move_cursor_to((1, 1));
@@ -224,6 +224,7 @@ impl Game for Paint {
 					writer.move_cursor_to((0, 0));
 
 					writer.write("--- Navigation Keys ---\n", ContentStyle::default());
+					writer.move_cursor_to((0, 1));
 					writer.write("[Esc]: Go back or exit paint\n", ContentStyle::default());
 					writer.write("[H]elp: Go to this menu\n", ContentStyle::default());
 					writer.write("[C]olor selector\n", ContentStyle::default());

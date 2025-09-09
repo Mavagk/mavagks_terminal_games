@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
-use crate::{console::Console, Game};
+use crate::{console::{enable_raw_mode_on_unix, Console}, Game};
 
 pub struct LogEventsTest {
 	should_close: bool,
@@ -11,6 +11,7 @@ pub struct LogEventsTest {
 
 impl Game for LogEventsTest {
 	fn first_draw(&mut self, writer: &mut Console) -> Result<(), String> {
+		enable_raw_mode_on_unix();
 		writer.enable_mouse_capture();
 		Ok(())
 	}
