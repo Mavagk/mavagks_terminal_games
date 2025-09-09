@@ -28,6 +28,7 @@ impl Game for TestDemo {
 		print!("               ");
 		writer.move_cursor_to((0, 0));
 		writer.write(format!("{:?}\n", self.mouse_pos_in_mouse_zone), style);
+		execute!(io::stdout(), MoveToColumn(0)).unwrap();
 		for y in 0..10 {
 			writer.write(' ', style);
 			for x in 0..12 {
