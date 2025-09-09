@@ -1,6 +1,6 @@
 use std::{fmt::Display, io::{stdout, Stdout}};
 
-use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen}, terminal::{enable_raw_mode, disable_raw_mode}};
+use crossterm::{cursor::{position, Hide, MoveTo, Show}, event::{DisableMouseCapture, EnableMouseCapture}, execute, style::{ContentStyle, PrintStyledContent, StyledContent}, terminal::{size, Clear, ClearType, EnterAlternateScreen, LeaveAlternateScreen}};
 
 pub struct Console {
 	stdout: Stdout,
@@ -14,21 +14,23 @@ pub struct Console {
 
 #[cfg(target_os = "windows")]
 pub fn enable_raw_mode_on_unix() {
-
+	
 }
 
 #[cfg(unix)]
 pub fn enable_raw_mode_on_unix() {
+	use crossterm::terminal::enable_raw_mode;
 	enable_raw_mode().unwrap();
 }
 
 #[cfg(target_os = "windows")]
 pub fn disable_raw_mode_on_unix() {
-
+	
 }
 
 #[cfg(unix)]
 pub fn disable_raw_mode_on_unix() {
+	use crossterm::terminal::disable_raw_mode;
 	disable_raw_mode().unwrap();
 }
 
