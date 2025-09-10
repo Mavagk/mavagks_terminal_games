@@ -82,6 +82,8 @@ pub enum ErrorVariant {
 	ExpectedElseOrStatementEnd,
 	StatementCannotBeNested,
 	NonIntSquareRootOfNegativeNumber,
+	ExpectedOptionArguments,
+	InvalidOptionVariableOrValue,
 }
 
 impl Display for ErrorVariant {
@@ -131,6 +133,8 @@ impl Display for ErrorVariant {
 			Self::ExpectedElseOrStatementEnd => write!(f, "Expected either an ELSE keyword or for the statement to end."),
 			Self::StatementCannotBeNested => write!(f, "Statement cannot be nested."),
 			Self::NonIntSquareRootOfNegativeNumber => write!(f, "Attempted to take the integer square root of a negative number."),
+			Self::ExpectedOptionArguments => write!(f, "Expected two arguments after a OPTION keyword."),
+			Self::InvalidOptionVariableOrValue => write!(f, "Invalid OPTION variable value pair."),
 		}
 	}
 }

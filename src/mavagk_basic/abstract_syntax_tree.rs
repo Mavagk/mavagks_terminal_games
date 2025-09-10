@@ -97,6 +97,23 @@ impl Statement {
 					else_statement.print(depth + 1);
 				}
 			}
+			StatementVariant::Option(option) => {
+				print!("OPTION ");
+				match option {
+					OptionVariableAndValue::Angle(angle_option) => {
+						print!("ANGLE ");
+						match angle_option {
+							AngleOption::Radians => print!("RADIANS"),
+							AngleOption::Degrees => print!("DEGREES"),
+							AngleOption::Gradians => print!("GRADIANS"),
+							AngleOption::Revolutions => print!("REVOLUTIONS"),
+						}
+					}
+					OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
+					OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
+				}
+				println!();
+			}
 		}
 	}
 }
@@ -113,6 +130,22 @@ pub enum StatementVariant {
 	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
+	Option(OptionVariableAndValue),
+}
+
+#[derive(Debug, Clone)]
+pub enum OptionVariableAndValue {
+	Angle(AngleOption),
+	ArithmeticDecimal,
+	ArithmeticNative,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum AngleOption {
+	Radians,
+	Degrees,
+	Gradians,
+	Revolutions,
 }
 
 #[derive(Debug, Clone)]

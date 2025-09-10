@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> (Box<[Statement]>, Option<Error>) {
 	let mut out = Vec::new();
@@ -353,6 +353,32 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 			Statement {
 				column: statement_keyword_start_column,
 				variant: StatementVariant::OneLineIf { condition_expression, then_statement, else_statement }
+			}
+		}
+		Keyword::Option => {
+			// Get the next two keywords
+			let (option_variable, option_variable_start_column) = match tokens.take_keyword() {
+				Some(option_variable) => option_variable,
+				None => return Err(Error { variant: ErrorVariant::ExpectedOptionArguments, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
+			};
+			let (option_value, _) = match tokens.take_keyword() {
+				Some(option_value) => option_value,
+				None => return Err(Error { variant: ErrorVariant::ExpectedOptionArguments, line_number: line_number.cloned(), column_number: Some(tokens.last_removed_token_end_column), line_text: None }),
+			};
+			// Get the option variable/value pair
+			let option_variable_and_value = match (option_variable, option_value) {
+				(Keyword::Angle, Keyword::Radians) => OptionVariableAndValue::Angle(AngleOption::Radians),
+				(Keyword::Angle, Keyword::Degrees) => OptionVariableAndValue::Angle(AngleOption::Degrees),
+				(Keyword::Angle, Keyword::Gradians) => OptionVariableAndValue::Angle(AngleOption::Gradians),
+				(Keyword::Angle, Keyword::Revolutions) => OptionVariableAndValue::Angle(AngleOption::Revolutions),
+				(Keyword::Arithmetic, Keyword::Decimal) => OptionVariableAndValue::ArithmeticDecimal,
+				(Keyword::Arithmetic, Keyword::Native) => OptionVariableAndValue::ArithmeticNative,
+				_ => return Err(Error { variant: ErrorVariant::InvalidOptionVariableOrValue, line_number: line_number.cloned(), column_number: Some(option_variable_start_column), line_text: None }),
+			};
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Option(option_variable_and_value),
 			}
 		}
 		Keyword::Fn => return Err(Error { variant: ErrorVariant::ExpectedStatementKeyword, line_number: line_number.cloned(), column_number: Some(statement_keyword_start_column), line_text: None }),

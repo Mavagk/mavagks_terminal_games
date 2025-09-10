@@ -4,15 +4,19 @@ use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, Styled
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
+	// Program counter
 	line_executing: Option<Rc<BigInt>>,
 	execution_source: ExecutionSource,
+	// Variables
 	real_variables: HashMap<Box<str>, RealValue>,
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
+	// Options
+	angle_option: AngleOption,
 }
 
 impl Machine {
@@ -24,6 +28,7 @@ impl Machine {
 			real_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
+			angle_option: AngleOption::Gradians,
 		}
 	}
 
@@ -283,6 +288,12 @@ impl Machine {
 					if let Some(else_statement) = else_statement {
 						return self.execute_statement(else_statement, line_number, program);
 					}
+				}
+			}
+			StatementVariant::Option(option_variable_and_value) => {
+				match option_variable_and_value {
+					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative => {},
+					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
 				}
 			}
 		}
