@@ -441,15 +441,7 @@ impl Machine {
 			ComplexExpression::Negation { sub_expression, .. } => ComplexValue {
 				value: -self.execute_complex_expression(sub_expression, line_number)?.value
 			},
-			ComplexExpression::LValue(ComplexLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
-				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-				}
-				match self.complex_variables.get(name) {
-					Some(complex_variable) => complex_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				}
-			}
+			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value, line_number)?,
 		})
 	}
 
@@ -605,15 +597,7 @@ impl Machine {
 					lhs_value
 				},
 			},
-			StringExpression::LValue(StringLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
-				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-				}
-				match self.string_variables.get(name) {
-					Some(int_variable) => int_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				}
-			}
+			StringExpression::LValue(l_value) => self.execute_string_l_value_read(l_value, line_number)?,
 		})
 	}
 
@@ -705,6 +689,60 @@ impl Machine {
 		}
 		// Else return zero
 		Ok(RealValue::zero())
+	}
+
+	fn execute_complex_l_value_read(&self, l_value: &ComplexLValue, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {
+		// Unpack
+		let ComplexLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.complex_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Else try to execute a supplied (built-in) function
+		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+			match (supplied_function, arguments) {
+				// SQR#(X)
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
+					let argument_value = match &arguments[0] {
+						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_complex()),
+						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?.to_complex(),
+						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?.to_complex(),
+						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?,
+						AnyTypeExpression::String(_) => break 'a,
+						_ => unreachable!(),
+					};
+					return Ok(ComplexValue::new(argument_value.value.sqrt()))
+				}
+				_ => {}
+			}
+		}
+		// TODO
+		if *has_parentheses || *uses_fn_keyword {
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+		}
+		// Else return zero
+		Ok(ComplexValue::zero())
+	}
+
+	fn execute_string_l_value_read(&self, l_value: &StringLValue, line_number: Option<&BigInt>) -> Result<StringValue, Error> {
+		// Unpack
+		let StringLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.string_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Else try to execute a supplied (built-in) function
+		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+			match (supplied_function, arguments) {
+				_ => {}
+			}
+		}
+		// TODO
+		if *has_parentheses || *uses_fn_keyword {
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+		}
+		// Else return zero
+		Ok(StringValue::empty())
 	}
 }
 
