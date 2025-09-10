@@ -471,13 +471,13 @@ impl Keyword {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum SuppliedFunction {
-	Sqrt,
+	Sqr,
 }
 
 impl SuppliedFunction {
 	pub fn get_names(self) -> &'static [&'static str] {
 		match self {
-			Self::Sqrt => &["SQRT"],
+			Self::Sqr => &["SQR"],
 		}
 	}
 

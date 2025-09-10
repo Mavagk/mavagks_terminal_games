@@ -81,7 +81,7 @@ pub enum ErrorVariant {
 	ExpectedThenKeyword,
 	ExpectedElseOrStatementEnd,
 	StatementCannotBeNested,
-	NonComplexSquareRootOfNegativeNumber,
+	NonIntSquareRootOfNegativeNumber,
 }
 
 impl Display for ErrorVariant {
@@ -130,7 +130,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedThenKeyword => write!(f, "Expected THEN keyword."),
 			Self::ExpectedElseOrStatementEnd => write!(f, "Expected either an ELSE keyword or for the statement to end."),
 			Self::StatementCannotBeNested => write!(f, "Statement cannot be nested."),
-			Self::NonComplexSquareRootOfNegativeNumber => write!(f, "Attempted to take the non-complex square root of a negative number."),
+			Self::NonIntSquareRootOfNegativeNumber => write!(f, "Attempted to take the integer square root of a negative number."),
 		}
 	}
 }

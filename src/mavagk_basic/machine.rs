@@ -4,7 +4,7 @@ use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, Styled
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	line_executing: Option<BigInt>,
@@ -413,15 +413,7 @@ impl Machine {
 				(*int) /= &*rhs_value;
 				RealValue::IntValue(lhs_value)
 			}
-			RealExpression::LValue(RealLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
-				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-				}
-				match self.real_variables.get(name) {
-					Some(real_variable) => real_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				}
-			}
+			RealExpression::LValue(l_value) => self.execute_real_l_value_read(l_value, line_number)?,
 		})
 	}
 
@@ -625,7 +617,7 @@ impl Machine {
 		})
 	}
 
-	fn execute_any_type_expression(&self, expression: &AnyTypeExpression, line_number: Option<&BigInt>) -> Result<AnyTypeValue, Error> {
+	fn _execute_any_type_expression(&self, expression: &AnyTypeExpression, line_number: Option<&BigInt>) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, line_number)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, line_number)?),
@@ -646,21 +638,22 @@ impl Machine {
 		// Else try to execute a supplied (built-in) function
 		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
-				(SuppliedFunction::Sqrt, arguments) if arguments.len() == 1 => {
-					match &arguments[0] {
-						AnyTypeExpression::Int(expression) => {
-							let argument_value = self.execute_int_expression(expression, line_number)?;
-							if argument_value.value.is_negative() {
-								return Err(Error { variant: ErrorVariant::NonComplexSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-							}
-							return Ok(IntValue::new(Rc::new(argument_value.value.sqrt())));
-						}
-						_ => return Err(Error {
-							variant: ErrorVariant::NotYetImplemented("Floored square root of non-int".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
-						}),
+				// SQR%(X)
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
+					let argument_value = match &arguments[0] {
+						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_int()),
+						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?,
+						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?.to_int(line_number, *start_column)?,
+						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?.to_int(line_number, *start_column)?,
+						AnyTypeExpression::String(_) => break 'a,
+						_ => unreachable!(),
+					};
+					if argument_value.value.is_negative() {
+						return Err(Error { variant: ErrorVariant::NonIntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 					}
+					return Ok(IntValue::new(Rc::new(argument_value.value.sqrt())));
 				}
-				_ => todo!()
+				_ => {}
 			}
 		}
 		// TODO
@@ -668,7 +661,50 @@ impl Machine {
 			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 		}
 		// Else return zero
-		Ok(IntValue::new(Rc::new(BigInt::ZERO)))
+		Ok(IntValue::zero())
+	}
+
+	fn execute_real_l_value_read(&self, l_value: &RealLValue, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
+		// Unpack
+		let RealLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.real_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Else try to execute a supplied (built-in) function
+		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+			match (supplied_function, arguments) {
+				// SQR(X)
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
+					let argument_value = match &arguments[0] {
+						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_real()),
+						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?.to_real(),
+						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?,
+						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?.to_real(line_number, *start_column)?,
+						AnyTypeExpression::String(_) => break 'a,
+						_ => unreachable!(),
+					};
+					return Ok(match argument_value {
+						RealValue::FloatValue(value) => RealValue::FloatValue(value.sqrt()),
+						RealValue::IntValue(value) if value.is_negative() => RealValue::FloatValue(int_to_float(&value).sqrt()),
+						RealValue::IntValue(value) => {
+							let floored_sqrt = value.sqrt();
+							match (&*value) == &((&floored_sqrt).pow(2u32)) {
+								true => RealValue::IntValue(Rc::new(floored_sqrt)),
+								false => RealValue::FloatValue(int_to_float(&value).sqrt())
+							}
+						}
+					})
+				}
+				_ => {}
+			}
+		}
+		// TODO
+		if *has_parentheses || *uses_fn_keyword {
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+		}
+		// Else return zero
+		Ok(RealValue::zero())
 	}
 }
 

@@ -78,6 +78,10 @@ impl RealValue {
 		}
 	}
 
+	pub fn zero() -> Self {
+		Self::IntValue(Rc::new(BigInt::ZERO))
+	}
+
 	pub fn to_bool(&self) -> BoolValue {
 		BoolValue::new(!self.is_zero())
 	}
@@ -127,12 +131,16 @@ impl ComplexValue {
 		self.value.is_zero()
 	}
 
+	pub fn zero() -> Self {
+		Self::new(Complex64::zero())
+	}
+
 	pub fn to_bool(&self) -> BoolValue {
 		BoolValue::new(!self.is_zero())
 	}
 
 	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, Error> {
-		if !self.value.re.is_zero() {
+		if !self.value.im.is_zero() {
 			return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		}
 		match float_to_int(self.value.re) {
@@ -144,7 +152,7 @@ impl ComplexValue {
 	}
 
 	pub fn to_real(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<RealValue, Error> {
-		if !self.value.re.is_zero() {
+		if !self.value.im.is_zero() {
 			return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		}
 		Ok(RealValue::FloatValue(self.value.re))
@@ -172,6 +180,14 @@ impl StringValue {
 	pub fn to_bool(&self) -> BoolValue {
 		BoolValue::new(!self.value.is_empty())
 	}
+
+	pub fn is_empty(&self) -> bool {
+		self.value.is_empty()
+	}
+
+	pub fn empty() -> Self {
+		Self::new(Rc::default())
+	}
 }
 
 impl Display for StringValue {
@@ -194,6 +210,10 @@ impl BoolValue {
 
 	pub fn is_zero(self) -> bool {
 		!self.value
+	}
+
+	pub fn zero() -> Self {
+		Self::new(false)
 	}
 
 	pub fn to_bool(self) -> BoolValue {
@@ -248,6 +268,18 @@ impl AnyTypeValue {
 			Self::Real(value) => value.to_bool(),
 			Self::Complex(value) => value.to_bool(),
 			Self::String(value) => value.to_bool(),
+		}
+	}
+
+	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, Error> {
+		match self {
+			Self::Bool(value) => Ok(value.to_int()),
+			Self::Int(value) => Ok(value),
+			Self::Real(value) => value.to_int(line_number, start_column),
+			Self::Complex(value) => value.to_int(line_number, start_column),
+			Self::String(_) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
+			}),
 		}
 	}
 }
