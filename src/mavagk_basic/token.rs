@@ -369,6 +369,9 @@ pub enum Keyword {
 	Arithmetic,
 	Decimal,
 	Native,
+	Math,
+	Ansi,
+	Ieee,
 }
 
 impl Keyword {
@@ -425,6 +428,9 @@ impl Keyword {
 			Self::Native =>      &[("NATIVE",      IdentifierType::UnmarkedNumber)],
 			Self::Radians =>     &[("RADIANS",     IdentifierType::UnmarkedNumber)],
 			Self::Revolutions => &[("REVOLUTIONS", IdentifierType::UnmarkedNumber)],
+			Self::Math =>        &[("MATH",        IdentifierType::UnmarkedNumber)],
+			Self::Ansi =>        &[("ANSI",        IdentifierType::UnmarkedNumber)],
+			Self::Ieee =>        &[("IEEE",        IdentifierType::UnmarkedNumber)],
 		}
 	}
 

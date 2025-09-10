@@ -3,7 +3,7 @@ use std::{fmt::{self, Display, Formatter}, io::{stdout, Write}, num::NonZeroUsiz
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{complex::Complex64, BigInt};
 
-//use crate::mavagk_basic::machine::Value;
+use crate::mavagk_basic::exception::Exception;
 
 #[derive(Debug, Clone)]
 pub struct Error {
@@ -84,6 +84,7 @@ pub enum ErrorVariant {
 	NonIntSquareRootOfNegativeNumber,
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
+	Exception(Exception),
 }
 
 impl Display for ErrorVariant {
@@ -135,6 +136,16 @@ impl Display for ErrorVariant {
 			Self::NonIntSquareRootOfNegativeNumber => write!(f, "Attempted to take the integer square root of a negative number."),
 			Self::ExpectedOptionArguments => write!(f, "Expected two arguments after a OPTION keyword."),
 			Self::InvalidOptionVariableOrValue => write!(f, "Invalid OPTION variable value pair."),
+			Self::Exception(exception) => match exception {
+				Exception::DivisionByZero => write!(f, "Division by zero."),
+				Exception::NegativeNumberRaisedToNonIntegerPower => write!(f, "Negative number raised to non-integer power."),
+				Exception::ZeroRaisedToNegativePower => write!(f, "Zero raised to negative power."),
+				Exception::LogOfNonPositive => write!(f, "Logarithm of non-positive number."),
+				Exception::SquareRootOfNegative => write!(f, "Square root of negative number."),
+				Exception::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
+				Exception::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
+				Exception::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
+			}
 		}
 	}
 }

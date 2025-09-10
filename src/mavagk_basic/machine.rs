@@ -4,7 +4,7 @@ use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, Styled
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
@@ -17,6 +17,7 @@ pub struct Machine {
 	string_variables: HashMap<Box<str>, StringValue>,
 	// Options
 	angle_option: AngleOption,
+	math_option: MathOption,
 }
 
 impl Machine {
@@ -29,6 +30,7 @@ impl Machine {
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
 			angle_option: AngleOption::Gradians,
+			math_option: MathOption::Ansi,
 		}
 	}
 
@@ -294,6 +296,7 @@ impl Machine {
 				match option_variable_and_value {
 					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative => {},
 					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
+					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
 				}
 			}
 		}

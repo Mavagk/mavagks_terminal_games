@@ -109,6 +109,13 @@ impl Statement {
 							AngleOption::Revolutions => print!("REVOLUTIONS"),
 						}
 					}
+					OptionVariableAndValue::Math(math_option) => {
+						print!("MATH ");
+						match math_option {
+							MathOption::Ansi => print!("ANSI"),
+							MathOption::Ieee => print!("IEEE"),
+						}
+					}
 					OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
 					OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
 				}
@@ -136,6 +143,7 @@ pub enum StatementVariant {
 #[derive(Debug, Clone)]
 pub enum OptionVariableAndValue {
 	Angle(AngleOption),
+	Math(MathOption),
 	ArithmeticDecimal,
 	ArithmeticNative,
 }
@@ -146,6 +154,12 @@ pub enum AngleOption {
 	Degrees,
 	Gradians,
 	Revolutions,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum MathOption {
+	Ansi,
+	Ieee,
 }
 
 #[derive(Debug, Clone)]
