@@ -1,10 +1,10 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero};
+use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::Token, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	line_executing: Option<BigInt>,
@@ -206,7 +206,7 @@ impl Machine {
 			StatementVariant::Gosub(_) => return Err(Error { variant: ErrorVariant::NotYetImplemented("GOSUB statement".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None }),
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				// Get what to assign to
-				let IntLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
+				let IntLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_int_expression(&self, r_value_expression, line_number)?;
 				// Assign
@@ -217,7 +217,7 @@ impl Machine {
 			}
 			StatementVariant::AssignReal(l_value, r_value_expression) => {
 				// Get what to assign to
-				let RealLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
+				let RealLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
 				// Assign
@@ -228,7 +228,7 @@ impl Machine {
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				// Get what to assign to
-				let ComplexLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
+				let ComplexLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_complex_expression(&self, r_value_expression, line_number)?;
 				// Assign
@@ -239,7 +239,7 @@ impl Machine {
 			}
 			StatementVariant::AssignString(l_value, r_value_expression) => {
 				// Get what to assign to
-				let StringLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _ } = l_value;
+				let StringLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_string_expression(&self, r_value_expression, line_number)?;
 				// Assign
@@ -326,15 +326,7 @@ impl Machine {
 			IntExpression::BitwiseNot { sub_expression, .. } => IntValue { 
 				value: Rc::new(!&*Self::execute_int_expression(self, sub_expression, line_number)?.value),
 			},
-			IntExpression::LValue(IntLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
-				if *has_parentheses || *uses_fn_keyword {
-					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-				}
-				match self.int_variables.get(name) {
-					Some(int_variable) => int_variable.clone(),
-					None => return Err(Error { variant: ErrorVariant::VariableNotFound, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				}
-			}
+			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value, line_number)?,
 		})
 	}
 
@@ -421,7 +413,7 @@ impl Machine {
 				(*int) /= &*rhs_value;
 				RealValue::IntValue(lhs_value)
 			}
-			RealExpression::LValue(RealLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
+			RealExpression::LValue(RealLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
 				if *has_parentheses || *uses_fn_keyword {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
@@ -457,7 +449,7 @@ impl Machine {
 			ComplexExpression::Negation { sub_expression, .. } => ComplexValue {
 				value: -self.execute_complex_expression(sub_expression, line_number)?.value
 			},
-			ComplexExpression::LValue(ComplexLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
+			ComplexExpression::LValue(ComplexLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
 				if *has_parentheses || *uses_fn_keyword {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
@@ -621,7 +613,7 @@ impl Machine {
 					lhs_value
 				},
 			},
-			StringExpression::LValue(StringLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column }) => {
+			StringExpression::LValue(StringLValue { name, arguments: _, uses_fn_keyword, has_parentheses, start_column, .. }) => {
 				if *has_parentheses || *uses_fn_keyword {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 				}
@@ -631,6 +623,52 @@ impl Machine {
 				}
 			}
 		})
+	}
+
+	fn execute_any_type_expression(&self, expression: &AnyTypeExpression, line_number: Option<&BigInt>) -> Result<AnyTypeValue, Error> {
+		Ok(match expression {
+			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, line_number)?),
+			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, line_number)?),
+			AnyTypeExpression::Real(expression) => AnyTypeValue::Real(self.execute_real_expression(expression, line_number)?),
+			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, line_number)?),
+			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression, line_number)?),
+			_ => unreachable!(),
+		})
+	}
+
+	fn execute_int_l_value_read(&self, l_value: &IntLValue, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
+		// Unpack
+		let IntLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.int_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Else try to execute a supplied (built-in) function
+		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+			match (supplied_function, arguments) {
+				(SuppliedFunction::Sqrt, arguments) if arguments.len() == 1 => {
+					match &arguments[0] {
+						AnyTypeExpression::Int(expression) => {
+							let argument_value = self.execute_int_expression(expression, line_number)?;
+							if argument_value.value.is_negative() {
+								return Err(Error { variant: ErrorVariant::NonComplexSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+							}
+							return Ok(IntValue::new(Rc::new(argument_value.value.sqrt())));
+						}
+						_ => return Err(Error {
+							variant: ErrorVariant::NotYetImplemented("Floored square root of non-int".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+						}),
+					}
+				}
+				_ => todo!()
+			}
+		}
+		// TODO
+		if *has_parentheses || *uses_fn_keyword {
+			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+		}
+		// Else return zero
+		Ok(IntValue::new(Rc::new(BigInt::ZERO)))
 	}
 }
 

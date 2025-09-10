@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use num::BigInt;
 
-use crate::mavagk_basic::{error::{Error, ErrorVariant}, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::SuppliedFunction, value::{BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -184,6 +184,7 @@ pub struct IntLValue {
 	pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
+	pub supplied_function: Option<SuppliedFunction>,
 }
 
 impl IntLValue {
@@ -302,6 +303,7 @@ pub struct RealLValue {
 	pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
+	pub supplied_function: Option<SuppliedFunction>,
 }
 
 impl RealLValue {
@@ -407,6 +409,7 @@ pub struct ComplexLValue {
 	pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
+	pub supplied_function: Option<SuppliedFunction>,
 }
 
 impl ComplexLValue {
@@ -472,6 +475,7 @@ pub struct StringLValue {
 	pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
+	pub supplied_function: Option<SuppliedFunction>,
 }
 
 impl StringLValue {

@@ -558,8 +558,8 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 		Some(token_after_fn) => token_after_fn,
 		None => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*first_token_end_column), line_number: line_number.cloned(), line_text: None }),
 	};
-	let (identifier_name, identifier_type, identifier_is_optional) = match token_after_fn_variant {
-		TokenVariant::Identifier { name, identifier_type, is_optional, .. } => (name, identifier_type, is_optional),
+	let (identifier_name, identifier_type, identifier_is_optional, supplied_function) = match token_after_fn_variant {
+		TokenVariant::Identifier { name, identifier_type, is_optional, supplied_function, .. } => (name, identifier_type, is_optional, *supplied_function),
 		_ => return Err(Error { variant: ErrorVariant::ExpectedFunctionNameAfterFn, column_number: Some(*token_after_fn_start_column), line_number: line_number.cloned(), line_text: None }),
 	};
 	if *identifier_is_optional {
@@ -571,16 +571,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
 		_ => return Ok(Some(match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column
+				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 		})),
 	}
@@ -632,16 +632,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 	// Return
 	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column
+			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 	}))
 }
