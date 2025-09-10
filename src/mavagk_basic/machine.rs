@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::stdout, num::NonZeroUsize, rc::Rc};
+use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
@@ -7,7 +7,7 @@ use num_traits::Pow;
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
-	line_executing: Option<BigInt>,
+	line_executing: Option<Rc<BigInt>>,
 	execution_source: ExecutionSource,
 	real_variables: HashMap<Box<str>, RealValue>,
 	complex_variables: HashMap<Box<str>, ComplexValue>,
@@ -27,15 +27,15 @@ impl Machine {
 		}
 	}
 
-	fn set_line_executing(&mut self, program: &Program, goto_line_number: Option<&Rc<BigInt>>, line_number_executed_in: Option<&BigInt>, column_number: NonZeroUsize) -> Result<(), Error> {
+	fn set_line_executing(&mut self, program: &Program, goto_line_number: Option<Rc<BigInt>>, line_number_executed_in: Option<&BigInt>, column_number: NonZeroUsize) -> Result<(), Error> {
 		self.line_executing = match goto_line_number {
 			Some(goto_line_number) =>{
-				if !program.lines.contains_key(goto_line_number) {
+				if !program.lines.contains_key(&goto_line_number) {
 					return Err(Error {
-						variant: ErrorVariant::InvalidLineNumber((**goto_line_number).clone()), line_number: line_number_executed_in.cloned(), column_number: Some(column_number), line_text: None
+						variant: ErrorVariant::InvalidLineNumber((*goto_line_number).clone()), line_number: line_number_executed_in.cloned(), column_number: Some(column_number), line_text: None
 					});
 				}
-				Some((**goto_line_number).clone())
+				Some(goto_line_number)
 			}
 			None => None,
 		};
@@ -74,7 +74,7 @@ impl Machine {
 					program.lines.remove(&line_number);
 				}
 				else {
-					program.lines.insert(line_number, (statements, error, line_text));
+					program.lines.insert(Rc::new(line_number), (statements, error, line_text));
 				}
 			}
 			// Run the line in direct mode if it does not have a line number
@@ -192,7 +192,7 @@ impl Machine {
 				match sub_expression {
 					Some(sub_expression) => {
 						let line_number_to_jump_to = self.execute_int_expression(sub_expression, line_number)?.value;
-						self.set_line_executing(program, Some(&line_number_to_jump_to), line_number, sub_expression.get_start_column())?;
+						self.set_line_executing(program, Some(line_number_to_jump_to), line_number, sub_expression.get_start_column())?;
 					}
 					None => self.set_line_executing(program, None, line_number, *column)?,
 				}
@@ -258,10 +258,10 @@ impl Machine {
 					None => None,
 				};
 				let range = match (range_start_value, range_end_value) {
-					(None, None) => program.lines.range(..),
-					(Some(range_start_value), None) => program.lines.range(range_start_value..),
-					(None, Some(range_end_value)) => program.lines.range(..=range_end_value),
-					(Some(range_start_value), Some(range_end_value)) => program.lines.range(range_start_value..=range_end_value),
+					(None, None) => program.lines.range::<BigInt, RangeFull>(..),
+					(Some(range_start_value), None) => program.lines.range::<BigInt, RangeFrom<&BigInt>>(range_start_value..),
+					(None, Some(range_end_value)) => program.lines.range::<BigInt, RangeToInclusive<&BigInt>>(..=range_end_value),
+					(Some(range_start_value), Some(range_end_value)) => program.lines.range::<BigInt, RangeInclusive<&BigInt>>(range_start_value..=range_end_value),
 				};
 				for (_line, (_statements, error, code_text)) in range {
 					if let Some(_) = error {
