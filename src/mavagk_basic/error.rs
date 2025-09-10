@@ -137,6 +137,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedOptionArguments => write!(f, "Expected two arguments after a OPTION keyword."),
 			Self::InvalidOptionVariableOrValue => write!(f, "Invalid OPTION variable value pair."),
 			Self::Exception(exception) => match exception {
+				Exception::ValueOverflow => write!(f, "Value overflow."),
 				Exception::DivisionByZero => write!(f, "Division by zero."),
 				Exception::NegativeNumberRaisedToNonIntegerPower => write!(f, "Negative number raised to non-integer power."),
 				Exception::ZeroRaisedToNegativePower => write!(f, "Zero raised to negative power."),

@@ -104,6 +104,23 @@ impl RealValue {
 			Self::IntValue(value) => ComplexValue::new(Complex64::new(int_to_float(&value), 0.)),
 		}
 	}
+
+	pub fn add(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		match (self, rhs) {
+			(Self::IntValue(mut lhs_value), Self::IntValue(rhs_value)) => Some(Self::IntValue({
+				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+				(*int) += &*rhs_value;
+				lhs_value
+			})),
+			(lhs_value, rhs_value) => {
+				let float_result = lhs_value.get_float() + rhs_value.get_float();
+				match float_result.is_finite() || allow_overflow {
+					true => Some(Self::FloatValue(float_result)),
+					false => None,
+				}
+			}
+		}
+	}
 }
 
 impl Display for RealValue {

@@ -4,7 +4,7 @@ use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, Styled
 use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
 use num_traits::Pow;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
@@ -358,13 +358,9 @@ impl Machine {
 				value.re
 			}),
 			RealExpression::Addition { lhs_expression, rhs_expression, .. } => {
-				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
-					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
-						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-						(*int) += &*rhs_value;
-						lhs_value
-					}),
-					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() + rhs_value.get_float()),
+				match self.execute_real_expression(lhs_expression, line_number)?.add(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
 			}
 			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } => {

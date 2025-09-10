@@ -1,5 +1,6 @@
 #[derive(Debug, Clone)]
 pub enum Exception {
+	ValueOverflow = 1002,
 	DivisionByZero = 3001,
 	NegativeNumberRaisedToNonIntegerPower = 3002,
 	ZeroRaisedToNegativePower = 3003,
