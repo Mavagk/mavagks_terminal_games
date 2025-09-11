@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{error::handle_error, machine::Machine, parse::parse_line, program::Program, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{error::handle_error, machine::Machine, optimize::optimize_statement, parse::parse_line, program::Program, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
@@ -51,6 +51,30 @@ impl Game for MavagkBasicTerminal {
 					println!("Error{error}");
 				}
 			}
+			// ASTO prints the abstract syntax trees received from tokenizing and then parsing the text entered and optimizing the result
+			Some(TerminalCommands::ASTOptimized) => {
+				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
+					(line_number, Ok(tokens)) => (line_number, tokens, None),
+					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+				};
+				if let Some(error) = error {
+					handle_error::<()>(Err(error));
+					return Ok(());
+				}
+				let (mut trees, error) = parse_line(&*tokens, line_number.as_ref());
+				for tree in trees.iter_mut() {
+					optimize_statement(tree);
+				}
+				if let Some(line_number) = line_number {
+					println!("Line: {line_number}");
+				}
+				for tree in trees {
+					tree.print(0);
+				}
+				if let Some(error) = error {
+					println!("Error{error}");
+				}
+			}
 			// If a terminal command was not entered, enter the line of text into the MavagkBasic virtual machine
 			None => {
 				handle_error(self.machine.line_of_text_entered(input, &mut self.program));
@@ -79,6 +103,7 @@ pub enum TerminalCommands {
 	Exit,
 	Tokens,
 	AST,
+	ASTOptimized,
 }
 
 impl TerminalCommands {
@@ -87,6 +112,7 @@ impl TerminalCommands {
 			Self::Exit => &["exit", "quit"],
 			Self::Tokens => &["tokens", "token"],
 			Self::AST => &["ast", "asts", "tree", "trees"],
+			Self::ASTOptimized => &["asto"],
 		}
 	}
 

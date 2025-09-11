@@ -1,6 +1,7 @@
 use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::NonZeroUsize, rc::Rc};
 
-use num::{complex::Complex64, BigInt, FromPrimitive, ToPrimitive, Zero, Signed};
+use num::{complex::Complex64, BigInt, BigUint, FromPrimitive, Integer, Signed, ToPrimitive, Zero};
+use num_traits::Pow;
 
 use crate::mavagk_basic::error::{Error, ErrorVariant};
 
@@ -49,6 +50,39 @@ impl IntValue {
 	pub fn to_complex(&self) -> ComplexValue {
 		ComplexValue::new(Complex64::new(int_to_float(&self.value), 0.))
 	}
+
+	pub fn floored_div(mut self, rhs: Self) -> Option<RealValue> {
+		match rhs.is_zero() {
+			false => Some({
+				let int = Rc::<BigInt>::make_mut(&mut self.value);
+				(*int) /= &*rhs.value;
+				RealValue::IntValue(self.value)
+			}),
+			true => None,
+		}
+	}
+
+	pub fn and(mut self, rhs: Self) -> Self {
+		let int = Rc::<BigInt>::make_mut(&mut self.value);
+		(*int) &= &*rhs.value;
+		self
+	}
+
+	pub fn or(mut self, rhs: Self) -> Self {
+		let int = Rc::<BigInt>::make_mut(&mut self.value);
+		(*int) |= &*rhs.value;
+		self
+	}
+
+	pub fn xor(mut self, rhs: Self) -> Self {
+		let int = Rc::<BigInt>::make_mut(&mut self.value);
+		(*int) ^= &*rhs.value;
+		self
+	}
+
+	pub fn not(self) -> Self {
+		Self::new(Rc::new(!&*self.value))
+	}
 }
 
 impl Display for IntValue {
@@ -75,6 +109,20 @@ impl RealValue {
 		match self {
 			Self::FloatValue(float_value) => float_value.is_zero(),
 			Self::IntValue(int_value) => int_value.is_zero(),
+		}
+	}
+
+	pub fn is_negative(&self) -> bool {
+		match self {
+			Self::FloatValue(float_value) => float_value.is_negative(),
+			Self::IntValue(int_value) => int_value.is_negative(),
+		}
+	}
+
+	pub fn is_integer(&self) -> bool {
+		match self {
+			Self::FloatValue(float_value) => float_value.fract().is_zero(),
+			Self::IntValue(_) => true,
 		}
 	}
 
@@ -119,6 +167,89 @@ impl RealValue {
 					false => None,
 				}
 			}
+		}
+	}
+
+	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		match (self, rhs) {
+			(Self::IntValue(mut lhs_value), Self::IntValue(rhs_value)) => Some(Self::IntValue({
+				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+				(*int) -= &*rhs_value;
+				lhs_value
+			})),
+			(lhs_value, rhs_value) => {
+				let float_result = lhs_value.get_float() - rhs_value.get_float();
+				match float_result.is_finite() || allow_overflow {
+					true => Some(Self::FloatValue(float_result)),
+					false => None,
+				}
+			}
+		}
+	}
+
+	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		match (self, rhs) {
+			(Self::IntValue(mut lhs_value), Self::IntValue(rhs_value)) => Some(Self::IntValue({
+				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+				(*int) *= &*rhs_value;
+				lhs_value
+			})),
+			(lhs_value, rhs_value) => {
+				let float_result = lhs_value.get_float() * rhs_value.get_float();
+				match float_result.is_finite() || allow_overflow {
+					true => Some(Self::FloatValue(float_result)),
+					false => None,
+				}
+			}
+		}
+	}
+
+	pub fn div(self, rhs: Self, allow_overflow_and_div_by_zero: bool) -> Option<Self> {
+		match (self, rhs) {
+			(lhs_value, rhs_value) if rhs_value.is_zero() => match allow_overflow_and_div_by_zero {
+				true => Some(RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float())),
+				false => None,
+			},
+			(lhs_value, rhs_value) if matches!((&lhs_value, &rhs_value), (RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) if !lhs_int.is_multiple_of(rhs_int)) => {
+				let float_result = lhs_value.get_float() / rhs_value.get_float();
+				match float_result.is_finite() || allow_overflow_and_div_by_zero {
+					true => Some(Self::FloatValue(float_result)),
+					false => None,
+				}
+			}
+			(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => Some(RealValue::IntValue({
+				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
+				(*int) /= &*rhs_value;
+				lhs_value
+			})),
+			(lhs_value, rhs_value) => {
+				let float_result = lhs_value.get_float() / rhs_value.get_float();
+				match float_result.is_finite() || allow_overflow_and_div_by_zero {
+					true => Some(Self::FloatValue(float_result)),
+					false => None,
+				}
+			}
+		}
+	}
+
+	pub fn pow(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		match (&self, &rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) if rhs_int.is_positive() =>
+				Some(RealValue::IntValue(Rc::new(Pow::<BigUint>::pow(&**lhs_int, rhs_int.to_biguint().unwrap())))),
+			(lhs_value, rhs_value) => {
+				let float_result = lhs_value.get_float().powf(rhs_value.get_float());
+				match float_result.is_finite() || allow_overflow {
+					true => Some(RealValue::FloatValue(float_result)),
+					false => None,
+				}
+			}
+		}
+	}
+
+	pub fn neg(self) -> Self {
+		match self {
+			RealValue::IntValue(int_value) => RealValue::IntValue(Rc::new(-&*int_value)),
+			RealValue::FloatValue(float_value) => RealValue::FloatValue(-float_value),
 		}
 	}
 }

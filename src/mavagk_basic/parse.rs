@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> (Box<[Statement]>, Option<Error>) {
 	let mut out = Vec::new();
@@ -373,6 +373,8 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				(Keyword::Angle, Keyword::Revolutions) => OptionVariableAndValue::Angle(AngleOption::Revolutions),
 				(Keyword::Arithmetic, Keyword::Decimal) => OptionVariableAndValue::ArithmeticDecimal,
 				(Keyword::Arithmetic, Keyword::Native) => OptionVariableAndValue::ArithmeticNative,
+				(Keyword::Math, Keyword::Ansi) => OptionVariableAndValue::Math(MathOption::Ansi),
+				(Keyword::Math, Keyword::Ieee) => OptionVariableAndValue::Math(MathOption::Ieee),
 				_ => return Err(Error { variant: ErrorVariant::InvalidOptionVariableOrValue, line_number: line_number.cloned(), column_number: Some(option_variable_start_column), line_text: None }),
 			};
 			// Assemble into statement

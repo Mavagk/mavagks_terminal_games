@@ -1,10 +1,9 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Complex, FromPrimitive, Integer, BigUint, Zero, Signed};
-use num_traits::Pow;
+use num::{BigInt, Complex, Zero, Signed};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
@@ -64,10 +63,13 @@ impl Machine {
 			(line_number, Ok(tokens)) => (line_number, tokens, None),
 			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 		};
-		let (statements, error) = match error {
+		let (mut statements, error) = match error {
 			None => parse_line(&*tokens, line_number.as_ref()),
 			Some(error) => (Box::default(), Some(error)),
 		};
+		for statement in statements.iter_mut() {
+			optimize_statement(statement);
+		}
 		// Enter line number into program and run if it does not have a line number
 		match line_number {
 			// If the line has a line number
@@ -306,40 +308,13 @@ impl Machine {
 	fn execute_int_expression(&self, expression: &IntExpression, line_number: Option<&BigInt>) -> Result<IntValue, Error> {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
-			IntExpression::CastFromBool(sub_expression) => IntValue {
-				value: Rc::new(match Self::execute_bool_expression(&self, sub_expression, line_number)?.value {
-					true => -1,
-					false => 0,
-				}.try_into().unwrap()),
-			},
-			IntExpression::CastFromReal(sub_expression) => IntValue {
-				value: match Self::execute_real_expression(&self, sub_expression, line_number)? {
-					RealValue::IntValue(value) => value,
-					RealValue::FloatValue(value) => Rc::new(match BigInt::from_f64(value) {
-						Some(value) => value,
-						None => return Err(Error { variant: ErrorVariant::NonNumberValueCastToInt(value), line_number: line_number.cloned(), column_number: Some(sub_expression.get_start_column()), line_text: None }),
-					}),
-				}
-			},
-			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } => IntValue {
-				value: {
-					let mut lhs_value = Self::execute_int_expression(self, lhs_expression, line_number)?.value;
-					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-					(*int) &= &*Self::execute_int_expression(self, rhs_expression, line_number)?.value;
-					lhs_value
-				},
-			},
-			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } => IntValue {
-				value: {
-					let mut lhs_value = Self::execute_int_expression(self, lhs_expression, line_number)?.value;
-					let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-					(*int) |= &*Self::execute_int_expression(self, rhs_expression, line_number)?.value;
-					lhs_value
-				},
-			},
-			IntExpression::BitwiseNot { sub_expression, .. } => IntValue { 
-				value: Rc::new(!&*Self::execute_int_expression(self, sub_expression, line_number)?.value),
-			},
+			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression, line_number)?.to_int(),
+			IntExpression::CastFromReal(sub_expression) => self.execute_real_expression(sub_expression, line_number)?.to_int(line_number, sub_expression.get_start_column())?,
+			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.and(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.or(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::BitwiseNot { sub_expression, .. } => self.execute_int_expression(sub_expression, line_number)?.not(),
 			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value, line_number)?,
 		})
 	}
@@ -347,16 +322,9 @@ impl Machine {
 	fn execute_real_expression(&self, expression: &RealExpression, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
 		Ok(match expression {
 			RealExpression::ConstantValue { value, .. } => value.clone(),
-			RealExpression::CastFromInt(sub_expression) => RealValue::IntValue(
-				Self::execute_int_expression(&self, sub_expression, line_number)?.value
-			),
-			RealExpression::CastFromComplex(sub_expression) => RealValue::FloatValue({
-				let value = Self::execute_complex_expression(&self, sub_expression, line_number)?.value;
-				if value.im != 0. {
-					return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(value), line_number: line_number.cloned(), column_number: Some(sub_expression.get_start_column()), line_text: None });
-				}
-				value.re
-			}),
+			RealExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, line_number)?.to_real(),
+			RealExpression::CastFromComplex(sub_expression) =>
+				self.execute_complex_expression(sub_expression, line_number)?.to_real(line_number, sub_expression.get_start_column())?,
 			RealExpression::Addition { lhs_expression, rhs_expression, .. } => {
 				match self.execute_real_expression(lhs_expression, line_number)?.add(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
@@ -364,64 +332,57 @@ impl Machine {
 				}
 			}
 			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } => {
-				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
-					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
-						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-						(*int) -= &*rhs_value;
-						lhs_value
-					}),
-					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() - rhs_value.get_float()),
+				match self.execute_real_expression(lhs_expression, line_number)?.sub(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
 			}
 			RealExpression::Multiplication { lhs_expression, rhs_expression, .. } => {
-				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
-					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
-						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-						(*int) *= &*rhs_value;
-						lhs_value
-					}),
-					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() * rhs_value.get_float()),
+				match self.execute_real_expression(lhs_expression, line_number)?.mul(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
 			}
 			RealExpression::Division { lhs_expression, rhs_expression, .. } => {
-				match (self.execute_real_expression(lhs_expression, line_number)?, self.execute_real_expression(rhs_expression, line_number)?) {
-					(lhs_value, rhs_value) if rhs_value.is_zero() => RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
-					(lhs_value, rhs_value) if matches!((&lhs_value, &rhs_value), (RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) if !lhs_int.is_multiple_of(rhs_int)) =>
-						RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
-					(RealValue::IntValue(mut lhs_value), RealValue::IntValue(rhs_value)) => RealValue::IntValue({
-						let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-						(*int) /= &*rhs_value;
-						lhs_value
-					}),
-					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float() / rhs_value.get_float()),
+				let rhs = self.execute_real_expression(rhs_expression, line_number)?;
+				let rhs_is_zero = rhs.is_zero();
+				match self.execute_real_expression(lhs_expression, line_number)?.div(rhs, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => match rhs_is_zero {
+						true => return Err(Error {
+							variant: ErrorVariant::Exception(Exception::DivisionByZero), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None
+						}),
+						false => return Err(Error {
+							variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None
+						}),
+					}
 				}
 			}
 			RealExpression::Exponentiation { lhs_expression, rhs_expression, .. } => {
 				let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+				let lhs_is_negative = lhs_value.is_negative();
 				let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-				match (&lhs_value, &rhs_value) {
-					(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => {
-						match rhs_int.to_biguint() {
-							Some(rhs_uint) => RealValue::IntValue(Rc::new(Pow::<BigUint>::pow(&**lhs_int, rhs_uint))),
-							None => RealValue::FloatValue((&lhs_value).get_float().powf((&rhs_value).get_float())),
-						}
-					},
-					(lhs_value, rhs_value) => RealValue::FloatValue(lhs_value.get_float().powf(rhs_value.get_float())),
+				let rhs_is_int = lhs_value.is_integer();
+				match lhs_value.pow(rhs_value, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => match lhs_is_negative && rhs_is_int {
+						true => return Err(Error {
+							variant: ErrorVariant::Exception(Exception::NegativeNumberRaisedToNonIntegerPower), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None
+						}),
+						false => return Err(Error {
+							variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None
+						}),
+					}
 				}
 			}
-			RealExpression::Negation { sub_expression, .. } => match self.execute_real_expression(&sub_expression, line_number)? {
-				RealValue::IntValue(int_value) => RealValue::IntValue(Rc::new(-&*int_value)),
-				RealValue::FloatValue(float_value) => RealValue::FloatValue(-float_value),
-			}
+			RealExpression::Negation { sub_expression, .. } => self.execute_real_expression(&sub_expression, line_number)?.neg(),
 			RealExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } => {
-				let mut lhs_value = self.execute_int_expression(lhs_expression, line_number)?.value;
-				let rhs_value = self.execute_int_expression(rhs_expression, line_number)?.value;
-				if rhs_value.is_zero() {
-					return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+				let lhs_value = self.execute_int_expression(lhs_expression, line_number)?;
+				let rhs_value = self.execute_int_expression(rhs_expression, line_number)?;
+				match lhs_value.floored_div(rhs_value) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
-				let int = Rc::<BigInt>::make_mut(&mut lhs_value);
-				(*int) /= &*rhs_value;
-				RealValue::IntValue(lhs_value)
 			}
 			RealExpression::LValue(l_value) => self.execute_real_l_value_read(l_value, line_number)?,
 		})
