@@ -6,7 +6,7 @@ use num_traits::Pow;
 use crate::mavagk_basic::error::{Error, ErrorVariant};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
-	BigInt::from_f64(float_value)
+	BigInt::from_f64((float_value + 0.5).floor())
 }
 
 pub fn int_to_float(int_value: &BigInt) -> f64 {

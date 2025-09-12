@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Zero};
+use num::{BigInt, Zero, Signed, FromPrimitive};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
@@ -550,6 +550,36 @@ impl Machine {
 							Err(Error { variant: ErrorVariant::IntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 						result => Ok(IntValue::new(Rc::new(result.value.sqrt())))
 					},
+				// ABS%(X)
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return Ok(IntValue::new(Rc::new(self.execute_any_type_expression(&arguments[0], line_number)?.to_int(line_number, *start_column)?.value.abs()))),
+				// TRUE%
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 0 => return Ok(IntValue::new(Rc::new((-1i8).into()))),
+				// FALSE%
+				(SuppliedFunction::False, arguments) if arguments.len() == 0 => return Ok(IntValue::zero()),
+				// INT%(X)
+				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return Ok({
+						let value = self.execute_any_type_expression(&arguments[0], line_number)?;
+						match value {
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) | AnyTypeValue::Real(RealValue::IntValue(_)) => value.to_int(line_number, *start_column)?,
+							_ => {
+								let float_value = value.to_real(line_number, *start_column)?.get_float().floor();
+								match BigInt::from_f64(float_value) {
+									Some(result) => IntValue::new(Rc::new(result)),
+									None => return Err(Error{
+										variant: ErrorVariant::NonNumberValueCastToInt(float_value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+									}),
+								}
+							}
+						}
+					}),
+				// LEN%(X$)
+				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
+					AnyTypeExpression::String(string_expression) =>
+						return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression, line_number)?.value.len()).unwrap()))),
+					_ => {},
+				}
 				_ => {}
 			}
 		}

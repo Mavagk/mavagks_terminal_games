@@ -455,13 +455,25 @@ impl Keyword {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum SuppliedFunction {
+	Abs,
 	Sqr,
+	True,
+	False,
+	Int,
+	Len,
+	Sgn,
 }
 
 impl SuppliedFunction {
 	pub fn get_names(self) -> &'static [&'static str] {
 		match self {
+			Self::Abs => &["ABS"],
 			Self::Sqr => &["SQR"],
+			Self::True => &["TRUE"],
+			Self::False => &["FALSE"],
+			Self::Int => &["INT"],
+			Self::Len => &["LEN"],
+			Self::Sgn => &["SGN"],
 		}
 	}
 
