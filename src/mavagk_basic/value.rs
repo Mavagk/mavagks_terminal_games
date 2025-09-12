@@ -374,27 +374,27 @@ impl ComplexValue {
 
 	pub fn add(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
 		let result = self.value + rhs.value;
-		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+		(allow_overflow || result.is_finite()).then_some(Self::new(result))
 	}
 
 	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
 		let result = self.value - rhs.value;
-		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+		(allow_overflow || result.is_finite()).then_some(Self::new(result))
 	}
 
 	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
 		let result = self.value * rhs.value;
-		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+		(allow_overflow || result.is_finite()).then_some(Self::new(result))
 	}
 
 	pub fn div(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
 		let result = self.value / rhs.value;
-		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+		(allow_overflow || result.is_finite()).then_some(Self::new(result))
 	}
 
 	pub fn pow(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
 		let result = self.value.powc(rhs.value);
-		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+		(allow_overflow || result.is_finite()).then_some(Self::new(result))
 	}
 
 	pub fn neg(self) -> Self {

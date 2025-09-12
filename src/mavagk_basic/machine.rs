@@ -538,7 +538,7 @@ impl Machine {
 						_ => unreachable!(),
 					};
 					if argument_value.value.is_negative() {
-						return Err(Error { variant: ErrorVariant::NonIntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
+						return Err(Error { variant: ErrorVariant::IntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 					}
 					return Ok(IntValue::new(Rc::new(argument_value.value.sqrt())));
 				}
@@ -574,13 +574,29 @@ impl Machine {
 						_ => unreachable!(),
 					};
 					return Ok(match argument_value {
-						RealValue::FloatValue(value) => RealValue::FloatValue(value.sqrt()),
-						RealValue::IntValue(value) if value.is_negative() => RealValue::FloatValue(int_to_float(&value).sqrt()),
+						RealValue::FloatValue(value) => {
+							let result = value.sqrt();
+							match !result.is_finite() && self.math_option == MathOption::Ansi {
+								true => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+								false => RealValue::FloatValue(result),
+							}
+						}
+						RealValue::IntValue(value) if value.is_negative() && self.math_option == MathOption::Ansi =>
+							return Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+						RealValue::IntValue(value) if value.is_negative() && self.math_option == MathOption::Ieee => RealValue::FloatValue(int_to_float(&value).sqrt()),
 						RealValue::IntValue(value) => {
 							let floored_sqrt = value.sqrt();
 							match (&*value) == &((&floored_sqrt).pow(2u32)) {
 								true => RealValue::IntValue(Rc::new(floored_sqrt)),
-								false => RealValue::FloatValue(int_to_float(&value).sqrt())
+								false => {
+									let result = int_to_float(&*value).sqrt();
+									match !result.is_finite() && self.math_option == MathOption::Ansi {
+										true => return Err(Error {
+											variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+										}),
+										false => RealValue::FloatValue(result),
+									}
+								}
 							}
 						}
 					})
@@ -616,7 +632,11 @@ impl Machine {
 						AnyTypeExpression::String(_) => break 'a,
 						_ => unreachable!(),
 					};
-					return Ok(ComplexValue::new(argument_value.value.sqrt()))
+					match argument_value.value.sqrt() {
+						value if !value.is_finite() && self.math_option == MathOption::Ansi =>
+							return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+						value => return Ok(ComplexValue::new(value))
+					}
 				}
 				_ => {}
 			}
