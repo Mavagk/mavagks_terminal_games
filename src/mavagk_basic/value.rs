@@ -83,6 +83,30 @@ impl IntValue {
 	pub fn not(self) -> Self {
 		Self::new(Rc::new(!&*self.value))
 	}
+
+	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value == rhs.value)
+	}
+
+	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value != rhs.value)
+	}
+
+	pub fn less_than(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value < rhs.value)
+	}
+
+	pub fn less_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value <= rhs.value)
+	}
+
+	pub fn greater_than(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value > rhs.value)
+	}
+
+	pub fn greater_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value >= rhs.value)
+	}
 }
 
 impl Display for IntValue {
@@ -252,6 +276,48 @@ impl RealValue {
 			RealValue::FloatValue(float_value) => RealValue::FloatValue(-float_value),
 		}
 	}
+
+	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int == **rhs_int,
+			(_, _) => self.get_float() == rhs.get_float(),
+		})
+	}
+
+	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int != **rhs_int,
+			(_, _) => self.get_float() != rhs.get_float(),
+		})
+	}
+
+	pub fn less_than(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int < **rhs_int,
+			(_, _) => self.get_float() < rhs.get_float(),
+		})
+	}
+	
+	pub fn less_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int <= **rhs_int,
+			(_, _) => self.get_float() <= rhs.get_float(),
+		})
+	}
+	
+	pub fn greater_than(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int > **rhs_int,
+			(_, _) => self.get_float() > rhs.get_float(),
+		})
+	}
+	
+	pub fn greater_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(match (self, rhs) {
+			(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int >= **rhs_int,
+			(_, _) => self.get_float() >= rhs.get_float(),
+		})
+	}
 }
 
 impl Display for RealValue {
@@ -305,6 +371,43 @@ impl ComplexValue {
 		}
 		Ok(RealValue::FloatValue(self.value.re))
 	}
+
+	pub fn add(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		let result = self.value + rhs.value;
+		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+	}
+
+	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		let result = self.value - rhs.value;
+		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+	}
+
+	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		let result = self.value * rhs.value;
+		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+	}
+
+	pub fn div(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		let result = self.value / rhs.value;
+		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+	}
+
+	pub fn pow(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+		let result = self.value.powc(rhs.value);
+		(allow_overflow && result.is_finite()).then_some(Self::new(result))
+	}
+
+	pub fn neg(self) -> Self {
+		Self::new(-self.value)
+	}
+
+	pub fn equal_to(self, rhs: Self) -> BoolValue {
+		BoolValue::new(self.value == rhs.value)
+	}
+
+	pub fn not_equal_to(self, rhs: Self) -> BoolValue {
+		BoolValue::new(self.value != rhs.value)
+	}
 }
 
 impl Display for ComplexValue {
@@ -335,6 +438,20 @@ impl StringValue {
 
 	pub fn empty() -> Self {
 		Self::new(Rc::default())
+	}
+
+	pub fn concat(mut self, rhs: Self) -> Self {
+		let string = Rc::<String>::make_mut(&mut self.value);
+		string.push_str(&rhs.value);
+		self
+	}
+
+	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value == rhs.value)
+	}
+
+	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
+		BoolValue::new(self.value != rhs.value)
 	}
 }
 
@@ -387,6 +504,42 @@ impl BoolValue {
 			true => 0.,
 			false => -1.,
 		}, 0.))
+	}
+
+	pub fn and(self, rhs: Self) -> Self {
+		Self::new(self.value && rhs.value)
+	}
+
+	pub fn or(self, rhs: Self) -> Self {
+		Self::new(self.value || rhs.value)
+	}
+
+	pub fn not(self) -> Self {
+		Self::new(!self.value)
+	}
+
+	pub fn equal_to(self, rhs: Self) -> Self {
+		Self::new(self.value == rhs.value)
+	}
+
+	pub fn not_equal_to(self, rhs: Self) -> Self {
+		Self::new(self.value != rhs.value)
+	}
+
+	pub fn less_than(self, rhs: Self) -> Self {
+		Self::new(self.value < rhs.value)
+	}
+
+	pub fn less_than_or_equal_to(self, rhs: Self) -> Self {
+		Self::new(self.value <= rhs.value)
+	}
+
+	pub fn greater_than(self, rhs: Self) -> Self {
+		Self::new(self.value > rhs.value)
+	}
+
+	pub fn greater_than_or_equal_to(self, rhs: Self) -> Self {
+		Self::new(self.value >= rhs.value)
 	}
 }
 

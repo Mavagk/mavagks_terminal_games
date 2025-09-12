@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Complex, Zero, Signed};
+use num::{BigInt, Zero, Signed};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
@@ -325,24 +325,21 @@ impl Machine {
 			RealExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, line_number)?.to_real(),
 			RealExpression::CastFromComplex(sub_expression) =>
 				self.execute_complex_expression(sub_expression, line_number)?.to_real(line_number, sub_expression.get_start_column())?,
-			RealExpression::Addition { lhs_expression, rhs_expression, .. } => {
+			RealExpression::Addition { lhs_expression, rhs_expression, .. } =>
 				match self.execute_real_expression(lhs_expression, line_number)?.add(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			}
-			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } => {
+			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
 				match self.execute_real_expression(lhs_expression, line_number)?.sub(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			}
-			RealExpression::Multiplication { lhs_expression, rhs_expression, .. } => {
+			RealExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
 				match self.execute_real_expression(lhs_expression, line_number)?.mul(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			}
 			RealExpression::Division { lhs_expression, rhs_expression, .. } => {
 				let rhs = self.execute_real_expression(rhs_expression, line_number)?;
 				let rhs_is_zero = rhs.is_zero();
@@ -376,14 +373,11 @@ impl Machine {
 				}
 			}
 			RealExpression::Negation { sub_expression, .. } => self.execute_real_expression(&sub_expression, line_number)?.neg(),
-			RealExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } => {
-				let lhs_value = self.execute_int_expression(lhs_expression, line_number)?;
-				let rhs_value = self.execute_int_expression(rhs_expression, line_number)?;
-				match lhs_value.floored_div(rhs_value) {
+			RealExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } =>
+				match self.execute_int_expression(lhs_expression, line_number)?.floored_div(self.execute_int_expression(rhs_expression, line_number)?) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 				}
-			}
 			RealExpression::LValue(l_value) => self.execute_real_l_value_read(l_value, line_number)?,
 		})
 	}
@@ -391,27 +385,41 @@ impl Machine {
 	fn execute_complex_expression(&self, expression: &ComplexExpression, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
-			ComplexExpression::CastFromReal(sub_expression) => ComplexValue {
-				value: Complex { re: self.execute_real_expression(sub_expression, line_number)?.get_float(), im: 0. }
-			},
-			ComplexExpression::Addition { lhs_expression, rhs_expression, .. } => ComplexValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value + self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
-			ComplexExpression::Subtraction { lhs_expression, rhs_expression, .. } => ComplexValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value - self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
-			ComplexExpression::Multiplication { lhs_expression, rhs_expression, .. } => ComplexValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value * self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
-			ComplexExpression::Division { lhs_expression, rhs_expression, .. } => ComplexValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value / self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
-			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, .. } => ComplexValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value.powc(self.execute_complex_expression(rhs_expression, line_number)?.value)
-			},
-			ComplexExpression::Negation { sub_expression, .. } => ComplexValue {
-				value: -self.execute_complex_expression(sub_expression, line_number)?.value
-			},
+			ComplexExpression::CastFromReal(sub_expression) => self.execute_real_expression(sub_expression, line_number)?.to_complex(),
+			ComplexExpression::Addition { lhs_expression, rhs_expression, .. } =>
+				match self.execute_complex_expression(lhs_expression, line_number)?.add(self.execute_complex_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
+				}
+			ComplexExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
+				match self.execute_complex_expression(lhs_expression, line_number)?.sub(self.execute_complex_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
+				}
+			ComplexExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
+				match self.execute_complex_expression(lhs_expression, line_number)?.mul(self.execute_complex_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
+				}
+			ComplexExpression::Division { lhs_expression, rhs_expression, .. } => {
+				let rhs_value = self.execute_complex_expression(rhs_expression, line_number)?;
+				match self.execute_complex_expression(lhs_expression, line_number)?.div(rhs_value, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error {
+						variant: match rhs_value.is_zero() {
+							true => ErrorVariant::Exception(Exception::DivisionByZero),
+							false => ErrorVariant::Exception(Exception::ValueOverflow)
+						},
+						line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None
+					}),
+				}
+			}
+			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, .. } =>
+				match self.execute_complex_expression(lhs_expression, line_number)?.pow(self.execute_complex_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
+				}
+			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression, line_number)?.neg(),
 			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value, line_number)?,
 		})
 	}
@@ -419,133 +427,65 @@ impl Machine {
 	fn execute_bool_expression(&self, expression: &BoolExpression, line_number: Option<&BigInt>) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
-			BoolExpression::IntIsNonZero(int_expression) => BoolValue { value: !self.execute_int_expression(&int_expression, line_number)?.value.is_zero() },
-			BoolExpression::RealIsNonZero(real_expression) => BoolValue { value: !self.execute_real_expression(&real_expression, line_number)?.is_zero() },
-			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue { value: !self.execute_complex_expression(&complex_expression, line_number)?.value.is_zero() },
-			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue { value: !self.execute_string_expression(&string_expression, line_number)?.value.is_empty() },
+			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression, line_number)?.value.is_zero()),
+			BoolExpression::RealIsNonZero(real_expression) => BoolValue::new(!self.execute_real_expression(&real_expression, line_number)?.is_zero()),
+			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue::new(!self.execute_complex_expression(&complex_expression, line_number)?.value.is_zero()),
+			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue::new(!self.execute_string_expression(&string_expression, line_number)?.value.is_empty()),
 
-			BoolExpression::And { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value && self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::Or { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value || self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::Not { sub_expression, .. } => BoolValue {
-				value: !self.execute_bool_expression(sub_expression, line_number)?.value
-			},
+			BoolExpression::And { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.and(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::Or { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.or(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::Not { sub_expression, .. } => self.execute_bool_expression(sub_expression, line_number)?.not(),
 
-			BoolExpression::BoolEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value == self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::BoolNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value != self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::BoolLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value < self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::BoolLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value <= self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::BoolGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value > self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::BoolGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_bool_expression(lhs_expression, line_number)?.value >= self.execute_bool_expression(rhs_expression, line_number)?.value
-			},
+			BoolExpression::BoolEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.equal_to(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::BoolNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.not_equal_to(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::BoolLessThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.less_than(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::BoolLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.less_than_or_equal_to(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::BoolGreaterThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.greater_than(self.execute_bool_expression(rhs_expression, line_number)?),
+			BoolExpression::BoolGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_bool_expression(lhs_expression, line_number)?.greater_than_or_equal_to(self.execute_bool_expression(rhs_expression, line_number)?),
 			
-			BoolExpression::IntEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value == *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::IntNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value != *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::IntLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value < *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::IntLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value <= *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::IntGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value > *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_int_expression(lhs_expression, line_number)?.value >= *self.execute_int_expression(rhs_expression, line_number)?.value
-			},
+			BoolExpression::IntEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.equal_to(&self.execute_int_expression(rhs_expression, line_number)?),
+			BoolExpression::IntNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.not_equal_to(&self.execute_int_expression(rhs_expression, line_number)?),
+			BoolExpression::IntLessThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.less_than(&self.execute_int_expression(rhs_expression, line_number)?),
+			BoolExpression::IntLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.less_than_or_equal_to(&self.execute_int_expression(rhs_expression, line_number)?),
+			BoolExpression::IntGreaterThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.greater_than(&self.execute_int_expression(rhs_expression, line_number)?),
+			BoolExpression::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.greater_than_or_equal_to(&self.execute_int_expression(rhs_expression, line_number)?),
 
-			BoolExpression::RealEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int == **rhs_int,
-						(_, _) => lhs_value.get_float() == rhs_value.get_float(),
-					}
-				}
-			},
-			BoolExpression::RealNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int != **rhs_int,
-						(_, _) => lhs_value.get_float() != rhs_value.get_float(),
-					}
-				}
-			},
-			BoolExpression::RealLessThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int < **rhs_int,
-						(_, _) => lhs_value.get_float() < rhs_value.get_float(),
-					}
-				}
-			},
-			BoolExpression::RealLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int <= **rhs_int,
-						(_, _) => lhs_value.get_float() <= rhs_value.get_float(),
-					}
-				}
-			},
-			BoolExpression::RealGreaterThan { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int > **rhs_int,
-						(_, _) => lhs_value.get_float() > rhs_value.get_float(),
-					}
-				}
-			},
-			BoolExpression::RealGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: {
-					let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
-					let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-					match (&lhs_value, &rhs_value) {
-						(RealValue::IntValue(lhs_int), RealValue::IntValue(rhs_int)) => **lhs_int >= **rhs_int,
-						(_, _) => lhs_value.get_float() >= rhs_value.get_float(),
-					}
-				}
-			},
+			BoolExpression::RealEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::RealNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.not_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::RealLessThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.less_than(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::RealLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.less_than_or_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::RealGreaterThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.greater_than(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::RealGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_real_expression(lhs_expression, line_number)?.greater_than_or_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
 
-			BoolExpression::ComplexEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value == self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::ComplexNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: self.execute_complex_expression(lhs_expression, line_number)?.value != self.execute_complex_expression(rhs_expression, line_number)?.value
-			},
+			BoolExpression::ComplexEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_complex_expression(lhs_expression, line_number)?.equal_to(self.execute_complex_expression(rhs_expression, line_number)?),
+			BoolExpression::ComplexNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_complex_expression(lhs_expression, line_number)?.not_equal_to(self.execute_complex_expression(rhs_expression, line_number)?),
 
-			BoolExpression::StringEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_string_expression(lhs_expression, line_number)?.value == *self.execute_string_expression(rhs_expression, line_number)?.value
-			},
-			BoolExpression::StringNotEqualTo { lhs_expression, rhs_expression, .. } => BoolValue {
-				value: *self.execute_string_expression(lhs_expression, line_number)?.value != *self.execute_string_expression(rhs_expression, line_number)?.value
-			},
+			BoolExpression::StringEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_string_expression(lhs_expression, line_number)?.equal_to(&self.execute_string_expression(rhs_expression, line_number)?),
+			BoolExpression::StringNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_string_expression(lhs_expression, line_number)?.not_equal_to(&self.execute_string_expression(rhs_expression, line_number)?),
 			BoolExpression::StringLessThan { lhs_expression: _, rhs_expression: _, start_column } =>
 				return Err(Error { variant: ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
 			BoolExpression::StringLessThanOrEqualTo { lhs_expression: _, rhs_expression: _, start_column } =>
@@ -560,14 +500,8 @@ impl Machine {
 	fn execute_string_expression(&self, expression: &StringExpression, line_number: Option<&BigInt>) -> Result<StringValue, Error> {
 		Ok(match expression {
 			StringExpression::ConstantValue { value, .. } => value.clone(),
-			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } => StringValue {
-				value: {
-					let mut lhs_value = Self::execute_string_expression(self, lhs_expression, line_number)?.value;
-					let string = Rc::<String>::make_mut(&mut lhs_value);
-					string.push_str(&*Self::execute_string_expression(self, rhs_expression, line_number)?.value);
-					lhs_value
-				},
-			},
+			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } =>
+				self.execute_string_expression(lhs_expression, line_number)?.concat(self.execute_string_expression(rhs_expression, line_number)?),
 			StringExpression::LValue(l_value) => self.execute_string_l_value_read(l_value, line_number)?,
 		})
 	}
