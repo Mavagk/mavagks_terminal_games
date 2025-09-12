@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Zero, Signed};
+use num::{BigInt, Zero};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
 
@@ -97,6 +97,22 @@ impl Machine {
 			}
 		}
 		Ok(())
+	}
+
+	/// Returns true if taking the real square root of a negative number should throw an error, returns false if it should return NaN.
+	const fn real_square_root_of_negative_is_error(&self) -> bool {
+		match self.math_option {
+			MathOption::Ieee => false,
+			MathOption::Ansi => true,
+		}
+	}
+
+	/// Returns true if numeric overflow should throw an error, returns false if it should return a non finite value.
+	const fn overflow_is_error(&self) -> bool {
+		match self.math_option {
+			MathOption::Ieee => false,
+			MathOption::Ansi => true,
+		}
 	}
 
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), Error> {
@@ -506,7 +522,7 @@ impl Machine {
 		})
 	}
 
-	fn _execute_any_type_expression(&self, expression: &AnyTypeExpression, line_number: Option<&BigInt>) -> Result<AnyTypeValue, Error> {
+	fn execute_any_type_expression(&self, expression: &AnyTypeExpression, line_number: Option<&BigInt>) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, line_number)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, line_number)?),
@@ -528,20 +544,12 @@ impl Machine {
 		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR%(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
-					let argument_value = match &arguments[0] {
-						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_int()),
-						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?,
-						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?.to_int(line_number, *start_column)?,
-						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?.to_int(line_number, *start_column)?,
-						AnyTypeExpression::String(_) => break 'a,
-						_ => unreachable!(),
-					};
-					if argument_value.value.is_negative() {
-						return Err(Error { variant: ErrorVariant::IntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
-					}
-					return Ok(IntValue::new(Rc::new(argument_value.value.sqrt())));
-				}
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return match self.execute_any_type_expression(&arguments[0], line_number)?.to_int(line_number, *start_column)? {
+						result if result.is_negative() =>
+							Err(Error { variant: ErrorVariant::IntSquareRootOfNegativeNumber, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+						result => Ok(IntValue::new(Rc::new(result.value.sqrt())))
+					},
 				_ => {}
 			}
 		}
@@ -564,43 +572,30 @@ impl Machine {
 		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
-					let argument_value = match &arguments[0] {
-						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_real()),
-						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?.to_real(),
-						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?,
-						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?.to_real(line_number, *start_column)?,
-						AnyTypeExpression::String(_) => break 'a,
-						_ => unreachable!(),
-					};
-					return Ok(match argument_value {
-						RealValue::FloatValue(value) => {
-							let result = value.sqrt();
-							match !result.is_finite() && self.math_option == MathOption::Ansi {
-								true => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-								false => RealValue::FloatValue(result),
-							}
-						}
-						RealValue::IntValue(value) if value.is_negative() && self.math_option == MathOption::Ansi =>
-							return Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-						RealValue::IntValue(value) if value.is_negative() && self.math_option == MathOption::Ieee => RealValue::FloatValue(int_to_float(&value).sqrt()),
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return match self.execute_any_type_expression(&arguments[0], line_number)?.to_real(line_number, *start_column)? {
+						// If the input is negative and that is not allowed
+						value if value.is_negative() && self.real_square_root_of_negative_is_error() =>
+							Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+						// Else square root floats
+						RealValue::FloatValue(value) => Ok(RealValue::FloatValue(value.sqrt())),
+						// Try to get the exact integer square root of an integer
 						RealValue::IntValue(value) => {
 							let floored_sqrt = value.sqrt();
-							match (&*value) == &((&floored_sqrt).pow(2u32)) {
-								true => RealValue::IntValue(Rc::new(floored_sqrt)),
-								false => {
-									let result = int_to_float(&*value).sqrt();
-									match !result.is_finite() && self.math_option == MathOption::Ansi {
-										true => return Err(Error {
-											variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
-										}),
-										false => RealValue::FloatValue(result),
-									}
+							match (&*value) == &(floored_sqrt.pow(2u32)) {
+								// If it exists
+								true => Ok(RealValue::IntValue(Rc::new(floored_sqrt))),
+								// Else get the float square root
+								false => match int_to_float(&value).sqrt() {
+									// If the integer input is larger than what can be stored in a float and overflow is an error
+									value if !value.is_finite() && self.overflow_is_error() =>
+										Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+									// Else get the float square root
+									value => Ok(RealValue::FloatValue(value)),
 								}
 							}
 						}
-					})
-				}
+					},
 				_ => {}
 			}
 		}
@@ -623,21 +618,12 @@ impl Machine {
 		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR#(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => 'a: {
-					let argument_value = match &arguments[0] {
-						AnyTypeExpression::Bool(expression) => return Ok(self.execute_bool_expression(expression, line_number)?.to_complex()),
-						AnyTypeExpression::Int(expression) => self.execute_int_expression(expression, line_number)?.to_complex(),
-						AnyTypeExpression::Real(expression) => self.execute_real_expression(expression, line_number)?.to_complex(),
-						AnyTypeExpression::Complex(expression) => self.execute_complex_expression(expression, line_number)?,
-						AnyTypeExpression::String(_) => break 'a,
-						_ => unreachable!(),
-					};
-					match argument_value.value.sqrt() {
-						value if !value.is_finite() && self.math_option == MathOption::Ansi =>
-							return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-						value => return Ok(ComplexValue::new(value))
-					}
-				}
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return match self.execute_any_type_expression(&arguments[0], line_number)?.to_complex(line_number, *start_column)?.value.sqrt() {
+						value if !value.is_finite() && self.overflow_is_error() =>
+							Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+						value => Ok(ComplexValue::new(value)),
+					},
 				_ => {}
 			}
 		}

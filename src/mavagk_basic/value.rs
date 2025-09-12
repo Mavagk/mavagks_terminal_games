@@ -38,6 +38,10 @@ impl IntValue {
 	pub fn is_zero(&self) -> bool {
 		self.value.is_zero()
 	}
+
+	pub fn is_negative(&self) -> bool {
+		self.value.is_negative()
+	}
 	
 	pub fn to_bool(&self) -> BoolValue {
 		BoolValue::new(!self.is_zero())
@@ -138,7 +142,7 @@ impl RealValue {
 
 	pub fn is_negative(&self) -> bool {
 		match self {
-			Self::FloatValue(float_value) => float_value.is_negative(),
+			Self::FloatValue(float_value) => *float_value < 0.,
 			Self::IntValue(int_value) => int_value.is_negative(),
 		}
 	}
@@ -578,6 +582,30 @@ impl AnyTypeValue {
 			Self::Int(value) => Ok(value),
 			Self::Real(value) => value.to_int(line_number, start_column),
 			Self::Complex(value) => value.to_int(line_number, start_column),
+			Self::String(_) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
+			}),
+		}
+	}
+
+	pub fn to_real(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<RealValue, Error> {
+		match self {
+			Self::Bool(value) => Ok(value.to_real()),
+			Self::Int(value) => Ok(value.to_real()),
+			Self::Real(value) => Ok(value),
+			Self::Complex(value) => value.to_real(line_number, start_column),
+			Self::String(_) => return Err(Error {
+				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
+			}),
+		}
+	}
+
+	pub fn to_complex(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<ComplexValue, Error> {
+		match self {
+			Self::Bool(value) => Ok(value.to_complex()),
+			Self::Int(value) => Ok(value.to_complex()),
+			Self::Real(value) => Ok(value.to_complex()),
+			Self::Complex(value) => Ok(value),
 			Self::String(_) => return Err(Error {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),

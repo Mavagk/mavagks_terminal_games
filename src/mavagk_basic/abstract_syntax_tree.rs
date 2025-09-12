@@ -917,6 +917,14 @@ impl AnyTypeExpression {
 			}
 		}
 	}
+
+	pub fn is_numeric(&self) -> bool {
+		match self {
+			AnyTypeExpression::Bool(_) | AnyTypeExpression::Int(_) | AnyTypeExpression::Real(_) | AnyTypeExpression::Complex(_) => true,
+			AnyTypeExpression::String(_) => false,
+			AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => unreachable!(),
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
