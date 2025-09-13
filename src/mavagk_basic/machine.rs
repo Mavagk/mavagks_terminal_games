@@ -1,7 +1,7 @@
 use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{BigInt, Zero, Signed, FromPrimitive};
+use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, FloatExpression, FloatLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, IntValue, FloatValue, StringValue}};
 
@@ -589,21 +589,26 @@ impl Machine {
 				}
 				// SGN%(X)
 				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
-					return Ok({
+					return Ok(IntValue::new(Rc::new({
 						let value = self.execute_any_type_expression(&arguments[0], line_number)?;
 						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => value.to_int(line_number, *start_column)?,
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => match value.to_int(line_number, *start_column)?.value.sign() {
+								Sign::Minus => (-1).into(),
+								Sign::NoSign => 0.into(),
+								Sign::Plus => 1.into(),
+							},
 							_ => {
-								let float_value = value.to_float(line_number, *start_column)?.value.floor();
-								match BigInt::from_f64(float_value) {
-									Some(result) => IntValue::new(Rc::new(result)),
-									None => return Err(Error{
-										variant: ErrorVariant::NonNumberValueCastToInt(float_value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+								match value.to_float(line_number, *start_column)? {
+									value if value.is_zero() => 0.into(),
+									value if value.is_negative() => (-1).into(),
+									value if value.is_positive() => 1.into(),
+									value => return Err(Error{
+										variant: ErrorVariant::NonNumberValueCastToInt(value.value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
 									}),
 								}
 							}
 						}
-					}),
+					}))),
 				_ => {}
 			}
 		}

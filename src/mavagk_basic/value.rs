@@ -160,6 +160,10 @@ impl FloatValue {
 		self.value < 0.
 	}
 
+	pub fn is_positive(self) -> bool {
+		self.value > 0.
+	}
+
 	pub fn zero() -> Self {
 		Self::new(0.)
 	}

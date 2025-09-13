@@ -1,6 +1,6 @@
 use std::mem::replace;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, IntExpression, FloatExpression, Statement, StatementVariant, StringExpression}, value::{BoolValue, ComplexValue, IntValue, FloatValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, IntExpression, FloatExpression, Statement, StatementVariant, StringExpression}, value::{BoolValue, ComplexValue, IntValue, StringValue}};
 
 pub fn optimize_statement(statement: &mut Statement) {
 	match &mut statement.variant {
@@ -163,19 +163,9 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 			optimize_int_expression(lhs_expression);
 			optimize_int_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(IntExpression::ConstantValue { .. }, IntExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, IntExpression::ConstantValue { value: IntValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						IntExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(IntExpression::ConstantValue { value: lhs_value, .. }, IntExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.floored_div(rhs_value) {
-						Some(result) => *expression = IntExpression::ConstantValue { value: result, start_column },
+				(IntExpression::ConstantValue { value: lhs_value, .. }, IntExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.clone().floored_div(rhs_value.clone()) {
+						Some(result) => *expression = IntExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -556,19 +546,9 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_float_expression(lhs_expression);
 			optimize_float_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(FloatExpression::ConstantValue { .. }, FloatExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						FloatExpression::Addition { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.add(rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column },
+				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.add(*rhs_value, false) {
+						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -579,19 +559,9 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_float_expression(lhs_expression);
 			optimize_float_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(FloatExpression::ConstantValue { .. }, FloatExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						FloatExpression::Subtraction { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.sub(rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column },
+				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.sub(*rhs_value, false) {
+						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -602,19 +572,9 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_float_expression(lhs_expression);
 			optimize_float_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(FloatExpression::ConstantValue { .. }, FloatExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						FloatExpression::Multiplication { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.mul(rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column },
+				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.mul(*rhs_value, false) {
+						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -625,19 +585,9 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_float_expression(lhs_expression);
 			optimize_float_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(FloatExpression::ConstantValue { .. }, FloatExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						FloatExpression::Division { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.div(rhs_value, false, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column },
+				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.div(*rhs_value, false, false) {
+						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -648,19 +598,9 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_float_expression(lhs_expression);
 			optimize_float_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
-				(FloatExpression::ConstantValue { .. }, FloatExpression::ConstantValue { .. }) => {
-					let (lhs_expression, rhs_expression, start_column) =
-						match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() })
-					{
-						FloatExpression::Exponentiation { lhs_expression, rhs_expression, start_column } => (lhs_expression, rhs_expression, start_column),
-						_ => unreachable!(),
-					};
-					let (lhs_value, rhs_value) = match (*lhs_expression, *rhs_expression) {
-						(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
-						_ => unreachable!(),
-					};
-					match lhs_value.pow(rhs_value, false, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column },
+				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
+					match lhs_value.pow(*rhs_value, false, false) {
+						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
 						None => {}
 					}
 				}
@@ -670,16 +610,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 		FloatExpression::Negation { sub_expression, .. } => {
 			optimize_float_expression(sub_expression);
 			match &**sub_expression {
-				FloatExpression::ConstantValue { .. } => {
-					let (sub_expression, start_column) = match replace(expression, FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() }) {
-						FloatExpression::Negation { sub_expression, start_column, .. } => (sub_expression, start_column),
-						_ => unreachable!(),
-					};
-					let value = match *sub_expression {
-						FloatExpression::ConstantValue { value, .. } => value,
-						_ => unreachable!(),
-					};
-					*expression = FloatExpression::ConstantValue { value: value.neg(), start_column };
+				FloatExpression::ConstantValue { value, .. } => {
+					*expression = FloatExpression::ConstantValue { value: value.neg(), start_column: expression.get_start_column() };
 				}
 				_ => {}
 			}
