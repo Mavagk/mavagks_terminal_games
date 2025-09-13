@@ -142,7 +142,7 @@ impl Display for IntValue {
 
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub struct FloatValue {
-	value: f64,
+	pub value: f64,
 }
 
 impl FloatValue {

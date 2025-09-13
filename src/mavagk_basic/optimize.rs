@@ -266,7 +266,7 @@ pub fn optimize_bool_expression(expression: &mut BoolExpression) {
 				_ => {}
 			}
 		}
-		BoolExpression::RealIsNonZero(sub_expression) => {
+		BoolExpression::FloatIsNonZero(sub_expression) => {
 			optimize_float_expression(sub_expression);
 			match &**sub_expression {
 				FloatExpression::ConstantValue { value, start_column } =>

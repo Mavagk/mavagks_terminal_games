@@ -575,7 +575,7 @@ impl StringLValue {
 pub enum BoolExpression {
 	ConstantValue { value: BoolValue, start_column: NonZeroUsize },
 	IntIsNonZero(Box<IntExpression>),
-	RealIsNonZero(Box<FloatExpression>),
+	FloatIsNonZero(Box<FloatExpression>),
 	ComplexIsNonZero(Box<ComplexExpression>),
 	StringIsNotEmpty(Box<StringExpression>),
 	And { lhs_expression: Box<BoolExpression>, rhs_expression: Box<BoolExpression>, start_column: NonZeroUsize },
@@ -614,7 +614,7 @@ impl BoolExpression {
 		match self {
 			Self::ConstantValue { start_column, .. } => *start_column,
 			Self::IntIsNonZero(int_expression) => int_expression.get_start_column(),
-			Self::RealIsNonZero(int_expression) => int_expression.get_start_column(),
+			Self::FloatIsNonZero(int_expression) => int_expression.get_start_column(),
 			Self::ComplexIsNonZero(int_expression) => int_expression.get_start_column(),
 			Self::StringIsNotEmpty(int_expression) => int_expression.get_start_column(),
 			Self::And { start_column, .. } => *start_column,
@@ -660,7 +660,7 @@ impl BoolExpression {
 				println!("Check Int is not Zero");
 				operand.print(depth + 1);
 			},
-			Self::RealIsNonZero(operand) => {
+			Self::FloatIsNonZero(operand) => {
 				println!("Check Real is not Zero");
 				operand.print(depth + 1);
 			},
@@ -901,7 +901,7 @@ impl AnyTypeExpression {
 		Ok(match self {
 			Self::Bool(value) => value,
 			Self::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
-			Self::Float(expression) => BoolExpression::RealIsNonZero(Box::new(expression)),
+			Self::Float(expression) => BoolExpression::FloatIsNonZero(Box::new(expression)),
 			Self::Complex(expression) => BoolExpression::ComplexIsNonZero(Box::new(expression)),
 			Self::String(expression) => BoolExpression::StringIsNotEmpty(Box::new(expression)),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
