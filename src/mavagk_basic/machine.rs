@@ -3,14 +3,14 @@ use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{BigInt, Zero, Signed, FromPrimitive};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, FloatExpression, FloatLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant}, exception::Exception, optimize::optimize_statement, parse::parse_line, program::Program, token::{SuppliedFunction, Token}, value::{int_to_float, AnyTypeValue, BoolValue, ComplexValue, IntValue, FloatValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
 	line_executing: Option<Rc<BigInt>>,
 	execution_source: ExecutionSource,
 	// Variables
-	real_variables: HashMap<Box<str>, RealValue>,
+	real_variables: HashMap<Box<str>, FloatValue>,
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
@@ -200,7 +200,7 @@ impl Machine {
 					match sub_expression {
 						AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression, line_number)?),
 						AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression, line_number)?),
-						AnyTypeExpression::Real(sub_expression) => print!("{}", self.execute_real_expression(sub_expression, line_number)?),
+						AnyTypeExpression::Float(sub_expression) => print!("{}", self.execute_float_expression(sub_expression, line_number)?),
 						AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression, line_number)?),
 						AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression, line_number)?),
 						AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
@@ -242,9 +242,9 @@ impl Machine {
 			}
 			StatementVariant::AssignReal(l_value, r_value_expression) => {
 				// Get what to assign to
-				let RealLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
+				let FloatLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
-				let r_value = Self::execute_real_expression(&self, r_value_expression, line_number)?;
+				let r_value = Self::execute_float_expression(&self, r_value_expression, line_number)?;
 				// Assign
 				if *has_parentheses {
 					return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays".into()), line_number: line_number.cloned(), column_number: Some(*column), line_text: None });
@@ -325,41 +325,53 @@ impl Machine {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
 			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression, line_number)?.to_int(),
-			IntExpression::CastFromReal(sub_expression) => self.execute_real_expression(sub_expression, line_number)?.to_int(line_number, sub_expression.get_start_column())?,
+			IntExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression, line_number)?.to_int(line_number, sub_expression.get_start_column())?,
 			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression, line_number)?.and(self.execute_int_expression(rhs_expression, line_number)?),
 			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression, line_number)?.or(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::Addition { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.add(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.sub(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
+				self.execute_int_expression(lhs_expression, line_number)?.mul(self.execute_int_expression(rhs_expression, line_number)?),
+			IntExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } =>
+				match self.execute_int_expression(lhs_expression, line_number)?.floored_div(self.execute_int_expression(rhs_expression, line_number)?) {
+					Some(result) => result,
+					None => return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+				}
 			IntExpression::BitwiseNot { sub_expression, .. } => self.execute_int_expression(sub_expression, line_number)?.not(),
+			IntExpression::Negation { sub_expression, .. } => self.execute_int_expression(sub_expression, line_number)?.neg(),
 			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value, line_number)?,
 		})
 	}
 
-	fn execute_real_expression(&self, expression: &RealExpression, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
+	fn execute_float_expression(&self, expression: &FloatExpression, line_number: Option<&BigInt>) -> Result<FloatValue, Error> {
 		Ok(match expression {
-			RealExpression::ConstantValue { value, .. } => value.clone(),
-			RealExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, line_number)?.to_real(),
-			RealExpression::CastFromComplex(sub_expression) =>
-				self.execute_complex_expression(sub_expression, line_number)?.to_real(line_number, sub_expression.get_start_column())?,
-			RealExpression::Addition { lhs_expression, rhs_expression, .. } =>
-				match self.execute_real_expression(lhs_expression, line_number)?.add(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+			FloatExpression::ConstantValue { value, .. } => value.clone(),
+			FloatExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, line_number)?.to_float(),
+			FloatExpression::CastFromComplex(sub_expression) =>
+				self.execute_complex_expression(sub_expression, line_number)?.to_float(line_number, sub_expression.get_start_column())?,
+			FloatExpression::Addition { lhs_expression, rhs_expression, .. } =>
+				match self.execute_float_expression(lhs_expression, line_number)?.add(self.execute_float_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			RealExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
-				match self.execute_real_expression(lhs_expression, line_number)?.sub(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+			FloatExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
+				match self.execute_float_expression(lhs_expression, line_number)?.sub(self.execute_float_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			RealExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
-				match self.execute_real_expression(lhs_expression, line_number)?.mul(self.execute_real_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
+			FloatExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
+				match self.execute_float_expression(lhs_expression, line_number)?.mul(self.execute_float_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => return Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(expression.get_start_column()), line_text: None }),
 				}
-			RealExpression::Division { lhs_expression, rhs_expression, .. } => {
-				let rhs = self.execute_real_expression(rhs_expression, line_number)?;
+			FloatExpression::Division { lhs_expression, rhs_expression, .. } => {
+				let rhs = self.execute_float_expression(rhs_expression, line_number)?;
 				let rhs_is_zero = rhs.is_zero();
-				match self.execute_real_expression(lhs_expression, line_number)?.div(rhs, self.math_option == MathOption::Ieee) {
+				match self.execute_float_expression(lhs_expression, line_number)?.div(rhs, self.math_option == MathOption::Ieee, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => match rhs_is_zero {
 						true => return Err(Error {
@@ -371,12 +383,12 @@ impl Machine {
 					}
 				}
 			}
-			RealExpression::Exponentiation { lhs_expression, rhs_expression, .. } => {
-				let lhs_value = self.execute_real_expression(lhs_expression, line_number)?;
+			FloatExpression::Exponentiation { lhs_expression, rhs_expression, .. } => {
+				let lhs_value = self.execute_float_expression(lhs_expression, line_number)?;
 				let lhs_is_negative = lhs_value.is_negative();
-				let rhs_value = self.execute_real_expression(rhs_expression, line_number)?;
-				let rhs_is_int = lhs_value.is_integer();
-				match lhs_value.pow(rhs_value, self.math_option == MathOption::Ieee) {
+				let rhs_value = self.execute_float_expression(rhs_expression, line_number)?;
+				let rhs_is_int = lhs_value.is_int();
+				match lhs_value.pow(rhs_value, self.math_option == MathOption::Ieee, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
 					None => match lhs_is_negative && rhs_is_int {
 						true => return Err(Error {
@@ -388,20 +400,15 @@ impl Machine {
 					}
 				}
 			}
-			RealExpression::Negation { sub_expression, .. } => self.execute_real_expression(&sub_expression, line_number)?.neg(),
-			RealExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } =>
-				match self.execute_int_expression(lhs_expression, line_number)?.floored_div(self.execute_int_expression(rhs_expression, line_number)?) {
-					Some(result) => result,
-					None => return Err(Error { variant: ErrorVariant::FlooredDivisionByZero, line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-				}
-			RealExpression::LValue(l_value) => self.execute_real_l_value_read(l_value, line_number)?,
+			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression, line_number)?.neg(),
+			FloatExpression::LValue(l_value) => self.execute_real_l_value_read(l_value, line_number)?,
 		})
 	}
 
 	fn execute_complex_expression(&self, expression: &ComplexExpression, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
-			ComplexExpression::CastFromReal(sub_expression) => self.execute_real_expression(sub_expression, line_number)?.to_complex(),
+			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression, line_number)?.to_complex(),
 			ComplexExpression::Addition { lhs_expression, rhs_expression, .. } =>
 				match self.execute_complex_expression(lhs_expression, line_number)?.add(self.execute_complex_expression(rhs_expression, line_number)?, self.math_option == MathOption::Ieee) {
 					Some(result) => result,
@@ -444,7 +451,7 @@ impl Machine {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
 			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression, line_number)?.value.is_zero()),
-			BoolExpression::RealIsNonZero(real_expression) => BoolValue::new(!self.execute_real_expression(&real_expression, line_number)?.is_zero()),
+			BoolExpression::RealIsNonZero(real_expression) => BoolValue::new(!self.execute_float_expression(&real_expression, line_number)?.is_zero()),
 			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue::new(!self.execute_complex_expression(&complex_expression, line_number)?.value.is_zero()),
 			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue::new(!self.execute_string_expression(&string_expression, line_number)?.value.is_empty()),
 
@@ -480,18 +487,18 @@ impl Machine {
 			BoolExpression::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression, line_number)?.greater_than_or_equal_to(&self.execute_int_expression(rhs_expression, line_number)?),
 
-			BoolExpression::RealEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
-			BoolExpression::RealNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.not_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
-			BoolExpression::RealLessThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.less_than(&self.execute_real_expression(rhs_expression, line_number)?),
-			BoolExpression::RealLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.less_than_or_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
-			BoolExpression::RealGreaterThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.greater_than(&self.execute_real_expression(rhs_expression, line_number)?),
-			BoolExpression::RealGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_real_expression(lhs_expression, line_number)?.greater_than_or_equal_to(&self.execute_real_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.equal_to(&self.execute_float_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatNotEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.not_equal_to(&self.execute_float_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatLessThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.less_than(&self.execute_float_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.less_than_or_equal_to(&self.execute_float_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatGreaterThan { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.greater_than(&self.execute_float_expression(rhs_expression, line_number)?),
+			BoolExpression::FloatGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
+				self.execute_float_expression(lhs_expression, line_number)?.greater_than_or_equal_to(&self.execute_float_expression(rhs_expression, line_number)?),
 
 			BoolExpression::ComplexEqualTo { lhs_expression, rhs_expression, .. } =>
 				self.execute_complex_expression(lhs_expression, line_number)?.equal_to(self.execute_complex_expression(rhs_expression, line_number)?),
@@ -526,7 +533,7 @@ impl Machine {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, line_number)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, line_number)?),
-			AnyTypeExpression::Real(expression) => AnyTypeValue::Real(self.execute_real_expression(expression, line_number)?),
+			AnyTypeExpression::Float(expression) => AnyTypeValue::Real(self.execute_float_expression(expression, line_number)?),
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, line_number)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression, line_number)?),
 			_ => unreachable!(),
@@ -557,29 +564,46 @@ impl Machine {
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 0 => return Ok(IntValue::new(Rc::new((-1i8).into()))),
 				// FALSE%
 				(SuppliedFunction::False, arguments) if arguments.len() == 0 => return Ok(IntValue::zero()),
-				// INT%(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
-					return Ok({
-						let value = self.execute_any_type_expression(&arguments[0], line_number)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) | AnyTypeValue::Real(RealValue::IntValue(_)) => value.to_int(line_number, *start_column)?,
-							_ => {
-								let float_value = value.to_real(line_number, *start_column)?.get_float().floor();
-								match BigInt::from_f64(float_value) {
-									Some(result) => IntValue::new(Rc::new(result)),
-									None => return Err(Error{
-										variant: ErrorVariant::NonNumberValueCastToInt(float_value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
-									}),
-								}
-							}
-						}
-					}),
-				// LEN%(X$)
-				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
-					AnyTypeExpression::String(string_expression) =>
-						return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression, line_number)?.value.len()).unwrap()))),
-					_ => {},
-				}
+				//// INT%(X)
+				//(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				//	return Ok({
+				//		let value = self.execute_any_type_expression(&arguments[0], line_number)?;
+				//		match value {
+				//			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) | AnyTypeValue::Real(FloatValue::IntValue(_)) => value.to_int(line_number, *start_column)?,
+				//			_ => {
+				//				let float_value = value.to_float(line_number, *start_column)?.get_float().floor();
+				//				match BigInt::from_f64(float_value) {
+				//					Some(result) => IntValue::new(Rc::new(result)),
+				//					None => return Err(Error{
+				//						variant: ErrorVariant::NonNumberValueCastToInt(float_value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+				//					}),
+				//				}
+				//			}
+				//		}
+				//	}),
+				//// LEN%(X$)
+				//(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
+				//	AnyTypeExpression::String(string_expression) =>
+				//		return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression, line_number)?.value.len()).unwrap()))),
+				//	_ => {},
+				//}
+				//// SGN%(X)
+				//(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				//	return Ok({
+				//		let value = self.execute_any_type_expression(&arguments[0], line_number)?;
+				//		match value {
+				//			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) | AnyTypeValue::Real(FloatValue::IntValue(_)) => value.to_int(line_number, *start_column)?,
+				//			_ => {
+				//				let float_value = value.to_float(line_number, *start_column)?.get_float().floor();
+				//				match BigInt::from_f64(float_value) {
+				//					Some(result) => IntValue::new(Rc::new(result)),
+				//					None => return Err(Error{
+				//						variant: ErrorVariant::NonNumberValueCastToInt(float_value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+				//					}),
+				//				}
+				//			}
+				//		}
+				//	}),
 				_ => {}
 			}
 		}
@@ -591,9 +615,9 @@ impl Machine {
 		Ok(IntValue::zero())
 	}
 
-	fn execute_real_l_value_read(&self, l_value: &RealLValue, line_number: Option<&BigInt>) -> Result<RealValue, Error> {
+	fn execute_real_l_value_read(&self, l_value: &FloatLValue, line_number: Option<&BigInt>) -> Result<FloatValue, Error> {
 		// Unpack
-		let RealLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		let FloatLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.real_variables.get(name) {
 			return Ok(variable.clone());
@@ -601,31 +625,31 @@ impl Machine {
 		// Else try to execute a supplied (built-in) function
 		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
-				// SQR(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
-					return match self.execute_any_type_expression(&arguments[0], line_number)?.to_real(line_number, *start_column)? {
-						// If the input is negative and that is not allowed
-						value if value.is_negative() && self.real_square_root_of_negative_is_error() =>
-							Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-						// Else square root floats
-						RealValue::FloatValue(value) => Ok(RealValue::FloatValue(value.sqrt())),
-						// Try to get the exact integer square root of an integer
-						RealValue::IntValue(value) => {
-							let floored_sqrt = value.sqrt();
-							match (&*value) == &(floored_sqrt.pow(2u32)) {
-								// If it exists
-								true => Ok(RealValue::IntValue(Rc::new(floored_sqrt))),
-								// Else get the float square root
-								false => match int_to_float(&value).sqrt() {
-									// If the integer input is larger than what can be stored in a float and overflow is an error
-									value if !value.is_finite() && self.overflow_is_error() =>
-										Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
-									// Else get the float square root
-									value => Ok(RealValue::FloatValue(value)),
-								}
-							}
-						}
-					},
+				//// SQR(X)
+				//(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				//	return match self.execute_any_type_expression(&arguments[0], line_number)?.to_float(line_number, *start_column)? {
+				//		// If the input is negative and that is not allowed
+				//		value if value.is_negative() && self.real_square_root_of_negative_is_error() =>
+				//			Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+				//		// Else square root floats
+				//		FloatValue::FloatValue(value) => Ok(FloatValue::FloatValue(value.sqrt())),
+				//		// Try to get the exact integer square root of an integer
+				//		FloatValue::IntValue(value) => {
+				//			let floored_sqrt = value.sqrt();
+				//			match (&*value) == &(floored_sqrt.pow(2u32)) {
+				//				// If it exists
+				//				true => Ok(FloatValue::IntValue(Rc::new(floored_sqrt))),
+				//				// Else get the float square root
+				//				false => match int_to_float(&value).sqrt() {
+				//					// If the integer input is larger than what can be stored in a float and overflow is an error
+				//					value if !value.is_finite() && self.overflow_is_error() =>
+				//						Err(Error { variant: ErrorVariant::Exception(Exception::ValueOverflow), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+				//					// Else get the float square root
+				//					value => Ok(FloatValue::FloatValue(value)),
+				//				}
+				//			}
+				//		}
+				//	},
 				_ => {}
 			}
 		}
@@ -634,7 +658,7 @@ impl Machine {
 			return Err(Error { variant: ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None });
 		}
 		// Else return zero
-		Ok(RealValue::zero())
+		Ok(FloatValue::zero())
 	}
 
 	fn execute_complex_l_value_read(&self, l_value: &ComplexLValue, line_number: Option<&BigInt>) -> Result<ComplexValue, Error> {

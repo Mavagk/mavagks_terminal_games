@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, RealExpression, RealLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, RealValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, FloatExpression, FloatLValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, IntValue, FloatValue, StringValue}};
 
 pub fn parse_line<'a>(mut tokens: &[Token<'a>], line_number: Option<&BigInt>) -> (Box<[Statement]>, Option<Error>) {
 	let mut out = Vec::new();
@@ -99,7 +99,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 				column: l_value_start_column,
 				variant: StatementVariant::AssignReal(
 					l_value,
-					r_value_expression.to_real_expression(line_number)?
+					r_value_expression.to_float_expression(line_number)?
 				),
 			},
 			AnyTypeLValue::Complex(l_value) => Statement {
@@ -157,7 +157,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignReal(
 						l_value,
-						r_value_expression.to_real_expression(line_number)?
+						r_value_expression.to_float_expression(line_number)?
 					),
 				},
 				AnyTypeLValue::Complex(l_value) => Statement {
@@ -514,7 +514,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option
 		TokenVariant::FloatLiteral { value, is_imaginary } => {
 			tokens.take_next_token();
 			match *is_imaginary {
-				false => AnyTypeExpression::Real(RealExpression::ConstantValue { value: RealValue::FloatValue(*value), start_column: *first_token_start_column }),
+				false => AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::new(*value), start_column: *first_token_start_column }),
 				true => AnyTypeExpression::Complex(ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }),
 			}
 		}
@@ -546,7 +546,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option
 		TokenVariant::Identifier { .. } => {
 			match parse_l_value(tokens, line_number)? {
 				Some(AnyTypeLValue::Int(l_value)) => AnyTypeExpression::Int(IntExpression::LValue(l_value)),
-				Some(AnyTypeLValue::Real(l_value)) => AnyTypeExpression::Real(RealExpression::LValue(l_value)),
+				Some(AnyTypeLValue::Real(l_value)) => AnyTypeExpression::Float(FloatExpression::LValue(l_value)),
 				Some(AnyTypeLValue::Complex(l_value)) => AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)),
 				Some(AnyTypeLValue::String(l_value)) => AnyTypeExpression::String(StringExpression::LValue(l_value)),
 				None => return Ok(None),
@@ -601,7 +601,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
-			IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
+			IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(FloatLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
@@ -662,7 +662,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
-		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(RealLValue {
+		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(FloatLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
@@ -703,10 +703,16 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::AdditionConcatenation => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression::Addition {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
+					AnyTypeExpression::Int(IntExpression::Addition {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Float(FloatExpression::Addition {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -727,7 +733,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::Concatenation => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					return Err(Error { variant: ErrorVariant::CannotConcatenateNumbers, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::String(StringExpression::Concatenation {
@@ -741,10 +747,16 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::Subtraction => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression::Subtraction {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
+					AnyTypeExpression::Int(IntExpression::Subtraction {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Float(FloatExpression::Subtraction {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -761,10 +773,16 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::Multiplication => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression::Multiplication {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
+					AnyTypeExpression::Int(IntExpression::Multiplication {
+						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
+						start_column,
+					}),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Float(FloatExpression::Subtraction {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -781,10 +799,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::Division => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression::Division {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Float(FloatExpression::Division {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -801,10 +819,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::Exponentiation => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Real(RealExpression::Exponentiation {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Float(FloatExpression::Exponentiation {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -821,8 +839,8 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::DoubleSlash => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Real(RealExpression::FlooredDivision {
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Int(IntExpression::FlooredDivision {
 						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
@@ -835,8 +853,8 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 		BinaryOperator::BackSlash => {
 			let (lhs, rhs) = lhs.upcast(rhs, line_number)?;
 			match (&lhs, &rhs) {
-				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Real(RealExpression::FlooredDivision {
+				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Int(IntExpression::FlooredDivision {
 						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
@@ -861,10 +879,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealEqualTo {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatEqualTo {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -897,10 +915,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealNotEqualTo {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatNotEqualTo {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
@@ -933,10 +951,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealGreaterThan {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatGreaterThan {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -963,10 +981,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealGreaterThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatGreaterThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -993,10 +1011,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealLessThan {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatLessThan {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -1023,10 +1041,10 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
-					AnyTypeExpression::Bool(BoolExpression::RealLessThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_real_expression(line_number)?),
-						rhs_expression: Box::new(rhs.to_real_expression(line_number)?),
+				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+					AnyTypeExpression::Bool(BoolExpression::FloatLessThanOrEqualTo {
+						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
+						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -1047,7 +1065,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::BitwiseAnd {
 						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
@@ -1067,7 +1085,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						rhs_expression: Box::new(rhs.to_bool_expression(line_number)?),
 						start_column,
 					}),
-				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Real(..), AnyTypeExpression::Real(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
+				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::BitwiseOr {
 						lhs_expression: Box::new(lhs.to_int_expression(line_number)?),
 						rhs_expression: Box::new(rhs.to_int_expression(line_number)?),
@@ -1084,11 +1102,11 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option<&BigInt>, start_column: NonZeroUsize, operand: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match &operator {
 		UnaryOperator::Negation  => match operand {
-			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) =>
-				//AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::Negation(Box::new(operand.to_real_expression(line_number)?)), column: start_column }),
-				AnyTypeExpression::Real(RealExpression::Negation { sub_expression: Box::new(operand.to_real_expression(line_number)?), start_column }),
+			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) =>
+				AnyTypeExpression::Int(IntExpression::Negation { sub_expression: Box::new(operand.to_int_expression(line_number)?), start_column }),
+			AnyTypeExpression::Float(..) =>
+				AnyTypeExpression::Float(FloatExpression::Negation { sub_expression: Box::new(operand.to_float_expression(line_number)?), start_column }),
 			AnyTypeExpression::Complex(..) =>
-				//AnyTypeExpression::Complex(ComplexExpression { variant: ComplexExpressionVariant::Negation(Box::new(operand.to_complex_expression(line_number)?)), column: start_column }),
 				AnyTypeExpression::Complex(ComplexExpression::Negation { sub_expression: Box::new(operand.to_complex_expression(line_number)?), start_column }),
 			AnyTypeExpression::String(..) =>
 				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
@@ -1097,10 +1115,8 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, line_number: Option
 		UnaryOperator::UnaryPlus  => operand,
 		UnaryOperator::Not  => match operand {
 			AnyTypeExpression::Bool(..) =>
-				//AnyTypeExpression::Bool(BoolExpression { variant: BoolExpressionVariant::Not(Box::new(operand.to_bool_expression(line_number)?)), column: start_column }),
 				AnyTypeExpression::Bool(BoolExpression::Not { sub_expression: Box::new(operand.to_bool_expression(line_number)?), start_column }),
-			AnyTypeExpression::Int(..) | AnyTypeExpression::Real(..) | AnyTypeExpression::Complex(..) =>
-				//AnyTypeExpression::Real(RealExpression { variant: RealExpressionVariant::BitwiseNot(Box::new(operand.to_int_expression(line_number)?)), column: start_column }),
+			AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) =>
 				AnyTypeExpression::Int(IntExpression::BitwiseNot { sub_expression: Box::new(operand.to_int_expression(line_number)?), start_column }),
 			AnyTypeExpression::String(..) =>
 				return Err(Error { variant: ErrorVariant::CannotUseThisOperatorOnAString, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None }),
