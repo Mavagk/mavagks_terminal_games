@@ -240,7 +240,7 @@ impl Machine {
 				}
 				self.int_variables.insert(name.clone(), r_value);
 			}
-			StatementVariant::AssignReal(l_value, r_value_expression) => {
+			StatementVariant::AssignFloat(l_value, r_value_expression) => {
 				// Get what to assign to
 				let FloatLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
@@ -533,7 +533,7 @@ impl Machine {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, line_number)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, line_number)?),
-			AnyTypeExpression::Float(expression) => AnyTypeValue::Real(self.execute_float_expression(expression, line_number)?),
+			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression, line_number)?),
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, line_number)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression, line_number)?),
 			_ => unreachable!(),

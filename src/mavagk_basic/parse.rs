@@ -95,9 +95,9 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 					r_value_expression.to_int_expression(line_number)?
 				),
 			},
-			AnyTypeLValue::Real(l_value) => Statement {
+			AnyTypeLValue::Float(l_value) => Statement {
 				column: l_value_start_column,
-				variant: StatementVariant::AssignReal(
+				variant: StatementVariant::AssignFloat(
 					l_value,
 					r_value_expression.to_float_expression(line_number)?
 				),
@@ -153,9 +153,9 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>
 						r_value_expression.to_int_expression(line_number)?
 					),
 				},
-				AnyTypeLValue::Real(l_value) => Statement {
+				AnyTypeLValue::Float(l_value) => Statement {
 					column: statement_keyword_start_column,
-					variant: StatementVariant::AssignReal(
+					variant: StatementVariant::AssignFloat(
 						l_value,
 						r_value_expression.to_float_expression(line_number)?
 					),
@@ -546,7 +546,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens, line_number: Option
 		TokenVariant::Identifier { .. } => {
 			match parse_l_value(tokens, line_number)? {
 				Some(AnyTypeLValue::Int(l_value)) => AnyTypeExpression::Int(IntExpression::LValue(l_value)),
-				Some(AnyTypeLValue::Real(l_value)) => AnyTypeExpression::Float(FloatExpression::LValue(l_value)),
+				Some(AnyTypeLValue::Float(l_value)) => AnyTypeExpression::Float(FloatExpression::LValue(l_value)),
 				Some(AnyTypeLValue::Complex(l_value)) => AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)),
 				Some(AnyTypeLValue::String(l_value)) => AnyTypeExpression::String(StringExpression::LValue(l_value)),
 				None => return Ok(None),
@@ -601,7 +601,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
-			IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(FloatLValue {
+			IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
 				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
@@ -662,7 +662,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens, line_number: Option<&BigInt>)-
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
-		IdentifierType::UnmarkedNumber => AnyTypeLValue::Real(FloatLValue {
+		IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
 			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {

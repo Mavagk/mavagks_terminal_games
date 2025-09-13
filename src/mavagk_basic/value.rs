@@ -492,7 +492,7 @@ impl Display for BoolValue {
 #[derive(Debug, Clone)]
 pub enum AnyTypeValue {
 	Int(IntValue),
-	Real(FloatValue),
+	Float(FloatValue),
 	Complex(ComplexValue),
 	Bool(BoolValue),
 	String(StringValue),
@@ -503,7 +503,7 @@ impl AnyTypeValue {
 		match self {
 			Self::Bool(value) => *value,
 			Self::Int(value) => value.to_bool(),
-			Self::Real(value) => value.to_bool(),
+			Self::Float(value) => value.to_bool(),
 			Self::Complex(value) => value.to_bool(),
 			Self::String(value) => value.to_bool(),
 		}
@@ -513,7 +513,7 @@ impl AnyTypeValue {
 		match self {
 			Self::Bool(value) => Ok(value.to_int()),
 			Self::Int(value) => Ok(value),
-			Self::Real(value) => value.to_int(line_number, start_column),
+			Self::Float(value) => value.to_int(line_number, start_column),
 			Self::Complex(value) => value.to_int(line_number, start_column),
 			Self::String(_) => return Err(Error {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
@@ -525,7 +525,7 @@ impl AnyTypeValue {
 		match self {
 			Self::Bool(value) => Ok(value.to_float()),
 			Self::Int(value) => Ok(value.to_float()),
-			Self::Real(value) => Ok(value),
+			Self::Float(value) => Ok(value),
 			Self::Complex(value) => value.to_float(line_number, start_column),
 			Self::String(_) => return Err(Error {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
@@ -537,7 +537,7 @@ impl AnyTypeValue {
 		match self {
 			Self::Bool(value) => Ok(value.to_complex()),
 			Self::Int(value) => Ok(value.to_complex()),
-			Self::Real(value) => Ok(value.to_complex()),
+			Self::Float(value) => Ok(value.to_complex()),
 			Self::Complex(value) => Ok(value),
 			Self::String(_) => return Err(Error {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None

@@ -36,7 +36,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 			}
 			optimize_int_expression(r_value);
 		}
-		StatementVariant::AssignReal(l_value, r_value) => {
+		StatementVariant::AssignFloat(l_value, r_value) => {
 			for l_value_argument in l_value.arguments.iter_mut() {
 				optimize_any_type_expression(l_value_argument);
 			}
@@ -233,9 +233,9 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 				_ => {}
 			}
 		}
-		IntExpression::CastFromFloat(real_expression) => {
-			optimize_float_expression(real_expression);
-			match &**real_expression {
+		IntExpression::CastFromFloat(float_expression) => {
+			optimize_float_expression(float_expression);
+			match &**float_expression {
 				FloatExpression::ConstantValue { value, start_column } => {
 					match value.clone().to_int(None, 1.try_into().unwrap()) {
 						Ok(value) => *expression = IntExpression::ConstantValue { value: value, start_column: *start_column },

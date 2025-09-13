@@ -51,8 +51,8 @@ impl Statement {
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
-			StatementVariant::AssignReal(l_value, r_value) => {
-				print!("LET (Real)");
+			StatementVariant::AssignFloat(l_value, r_value) => {
+				print!("LET (Float)");
 				println!();
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
@@ -132,7 +132,7 @@ pub enum StatementVariant {
 	Goto(Option<IntExpression>),
 	Gosub(Option<IntExpression>),
 	AssignInt(IntLValue, IntExpression),
-	AssignReal(FloatLValue, FloatExpression),
+	AssignFloat(FloatLValue, FloatExpression),
 	AssignComplex(ComplexLValue, ComplexExpression),
 	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
@@ -224,7 +224,7 @@ impl IntExpression {
 				operand.print(depth + 1);
 			},
 			Self::CastFromFloat(operand) => {
-				println!("Cast from Real");
+				println!("Cast from Float");
 				operand.print(depth + 1);
 			},
 			Self::LValue(l_value_expression) => {
@@ -462,7 +462,7 @@ impl ComplexExpression {
 				rhs_expression.print(depth + 1);
 			},
 			Self::CastFromFloat(operand) => {
-				println!("Cast from Real");
+				println!("Cast from Float");
 				operand.print(depth + 1);
 			},
 			Self::Negation { sub_expression, .. } => {
@@ -661,7 +661,7 @@ impl BoolExpression {
 				operand.print(depth + 1);
 			},
 			Self::FloatIsNonZero(operand) => {
-				println!("Check Real is not Zero");
+				println!("Check Float is not Zero");
 				operand.print(depth + 1);
 			},
 			Self::ComplexIsNonZero(operand) => {
@@ -719,32 +719,32 @@ impl BoolExpression {
 			},
 
 			Self::FloatEqualTo { lhs_expression, rhs_expression, .. } => {
-				println!("Real Equal To");
+				println!("Float Equal To");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
 			Self::FloatNotEqualTo { lhs_expression, rhs_expression, .. } => {
-				println!("Real Not Equal To");
+				println!("Float Not Equal To");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
 			Self::FloatLessThan { lhs_expression, rhs_expression, .. } => {
-				println!("Real Less Than");
+				println!("Float Less Than");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
 			Self::FloatLessThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
-				println!("Real Less Than or Equal To");
+				println!("Float Less Than or Equal To");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
 			Self::FloatGreaterThan { lhs_expression, rhs_expression, .. } => {
-				println!("Real Greater Than");
+				println!("Float Greater Than");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
 			Self::FloatGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } => {
-				println!("Real Greater Than or Equal To");
+				println!("Float Greater Than or Equal To");
 				lhs_expression.print(depth + 1);
 				rhs_expression.print(depth + 1);
 			},
@@ -957,7 +957,7 @@ impl AnyTypeExpression {
 #[derive(Debug, Clone)]
 pub enum AnyTypeLValue {
 	Int(IntLValue),
-	Real(FloatLValue),
+	Float(FloatLValue),
 	Complex(ComplexLValue),
 	String(StringLValue),
 }
@@ -966,7 +966,7 @@ impl AnyTypeLValue {
 	pub fn get_start_column(&self) -> NonZeroUsize {
 		match self {
 			Self::Int(l_value) => l_value.start_column,
-			Self::Real(l_value) => l_value.start_column,
+			Self::Float(l_value) => l_value.start_column,
 			Self::Complex(l_value) => l_value.start_column,
 			Self::String(l_value) => l_value.start_column,
 		}
