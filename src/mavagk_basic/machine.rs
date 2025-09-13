@@ -640,6 +640,7 @@ impl Machine {
 						value => Ok(FloatValue::new(value.value.sqrt())),
 					},
 				// ABS(X)
+				// TODO: complex
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
 					return Ok(FloatValue::new(self.execute_any_type_expression(&arguments[0], line_number)?.to_float(line_number, *start_column)?.value.abs())),
 				// LEN(X$)
