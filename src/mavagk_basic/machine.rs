@@ -639,6 +639,37 @@ impl Machine {
 						// Else square root floats
 						value => Ok(FloatValue::new(value.value.sqrt())),
 					},
+				// ABS(X)
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return Ok(FloatValue::new(self.execute_any_type_expression(&arguments[0], line_number)?.to_float(line_number, *start_column)?.value.abs())),
+				// LEN(X$)
+				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
+					AnyTypeExpression::String(string_expression) =>
+						return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression, line_number)?.value.len()).unwrap())).to_float()),
+					_ => {},
+				}
+				// SGN(X)
+				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+					return Ok(FloatValue::new({
+						let value = self.execute_any_type_expression(&arguments[0], line_number)?;
+						match value {
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => match value.to_int(line_number, *start_column)?.value.sign() {
+								Sign::Minus => -1.,
+								Sign::NoSign => 0.,
+								Sign::Plus => 1.,
+							},
+							_ => {
+								match value.to_float(line_number, *start_column)? {
+									value if value.is_zero() => 0.,
+									value if value.is_negative() => -1.,
+									value if value.is_positive() => 1.,
+									value => return Err(Error{
+										variant: ErrorVariant::NonNumberValueCastToInt(value.value), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None
+									}),
+								}
+							}
+						}
+					})),
 				_ => {}
 			}
 		}

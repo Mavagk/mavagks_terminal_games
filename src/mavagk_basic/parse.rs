@@ -780,7 +780,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, line_number: Opti
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
-					AnyTypeExpression::Float(FloatExpression::Subtraction {
+					AnyTypeExpression::Float(FloatExpression::Multiplication {
 						lhs_expression: Box::new(lhs.to_float_expression(line_number)?),
 						rhs_expression: Box::new(rhs.to_float_expression(line_number)?),
 						start_column,
