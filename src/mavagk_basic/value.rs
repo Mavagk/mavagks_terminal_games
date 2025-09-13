@@ -262,6 +262,10 @@ impl FloatValue {
 	pub fn greater_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value >= rhs.value)
 	}
+
+	pub fn abs(self) -> Self {
+		Self::new(self.value.abs())
+	}
 }
 
 impl Display for FloatValue {
@@ -348,6 +352,13 @@ impl ComplexValue {
 
 	pub fn not_equal_to(self, rhs: Self) -> BoolValue {
 		BoolValue::new(self.value != rhs.value)
+	}
+
+	pub fn abs(self, allow_overflow: bool) -> Option<FloatValue> {
+		match self.value.norm() {
+			value if value.is_infinite() && !allow_overflow => None,
+			value => Some(FloatValue::new(value)),
+		}
 	}
 }
 

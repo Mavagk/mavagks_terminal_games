@@ -952,6 +952,13 @@ impl AnyTypeExpression {
 			AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => unreachable!(),
 		}
 	}
+
+	pub fn is_complex(&self) -> bool {
+		match self {
+			AnyTypeExpression::Complex(_) => true,
+			_ => false,
+		}
+	}
 }
 
 #[derive(Debug, Clone)]

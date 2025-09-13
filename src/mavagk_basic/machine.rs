@@ -639,14 +639,19 @@ impl Machine {
 						// Else square root floats
 						value => Ok(FloatValue::new(value.value.sqrt())),
 					},
+				// ABS(X#)
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_complex() =>
+					return Ok(match self.execute_any_type_expression(&arguments[0], line_number)?.to_complex(line_number, *start_column)?.abs(!self.overflow_is_error()) {
+						Some(result) => result,
+						None => return Err(Error { variant: ErrorVariant::Exception(Exception::SquareRootOfNegative), line_number: line_number.cloned(), column_number: Some(*start_column), line_text: None }),
+					}),
 				// ABS(X)
-				// TODO: complex
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
-					return Ok(FloatValue::new(self.execute_any_type_expression(&arguments[0], line_number)?.to_float(line_number, *start_column)?.value.abs())),
+					return Ok(self.execute_any_type_expression(&arguments[0], line_number)?.to_float(line_number, *start_column)?.abs()),
 				// LEN(X$)
 				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
 					AnyTypeExpression::String(string_expression) =>
-						return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression, line_number)?.value.len()).unwrap())).to_float()),
+						return Ok(FloatValue::new(self.execute_string_expression(string_expression, line_number)?.value.len() as f64)),
 					_ => {},
 				}
 				// SGN(X)
