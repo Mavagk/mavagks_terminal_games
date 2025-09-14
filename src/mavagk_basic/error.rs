@@ -3,17 +3,34 @@ use std::{fmt::{self, Display, Formatter}, io::{stdout, Write}, num::NonZeroUsiz
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{complex::Complex64, BigInt};
 
-use crate::mavagk_basic::exception::Exception;
-
+/// An error that may have a column number attached.
 #[derive(Debug, Clone)]
 pub struct Error {
+	pub variant: ErrorVariant,
+	pub column_number: Option<NonZeroUsize>,
+}
+
+impl Error {
+	pub fn to_full_error(self, line_number: Option<BigInt>, line_text: Option<String>) -> FullError {
+		FullError {
+			variant: self.variant,
+			column_number: self.column_number,
+			line_number,
+			line_text,
+		}
+	}
+}
+
+/// An error with that may have a line and column as well as the source code of the line that the error occurred on.
+#[derive(Debug, Clone)]
+pub struct FullError {
 	pub variant: ErrorVariant,
 	pub line_number: Option<BigInt>,
 	pub column_number: Option<NonZeroUsize>,
 	pub line_text: Option<String>,
 }
 
-impl Error {
+impl FullError {
 	pub fn set_line_number(mut self, line_number: Option<&BigInt>) -> Self {
 		self.line_number = line_number.cloned();
 		self
@@ -25,7 +42,7 @@ impl Error {
 	}
 }
 
-impl Display for Error {
+impl Display for FullError {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match (&self.line_number, self.column_number) {
 			(None, None) => write!(f, ": {}", self.variant),
@@ -37,6 +54,7 @@ impl Display for Error {
 }
 
 #[derive(Debug, Clone)]
+#[repr(u16)]
 pub enum ErrorVariant {
 	InvalidTokenFirstChar(char),
 	InvalidToken,
@@ -84,7 +102,31 @@ pub enum ErrorVariant {
 	IntSquareRootOfNegativeNumber,
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
-	Exception(Exception),
+	ValueOverflow = 1002,
+	DivisionByZero = 3001,
+	NegativeNumberRaisedToNonIntegerPower = 3002,
+	ZeroRaisedToNegativePower = 3003,
+	LogOfNonPositive = 3004,
+	SquareRootOfNegative = 3005,
+	ModOrRemainderByZero = 3006,
+	ACosOrASinOutOfRange = 3007,
+	AngleOfZeroZero = 3008,
+}
+
+impl ErrorVariant {
+	pub fn at_column(self, column_number: NonZeroUsize) -> Error {
+		Error {
+			variant: self,
+			column_number: Some(column_number),
+		}
+	}
+
+	pub fn error(self) -> Error {
+		Error {
+			variant: self,
+			column_number: None,
+		}
+	}
 }
 
 impl Display for ErrorVariant {
@@ -136,23 +178,21 @@ impl Display for ErrorVariant {
 			Self::IntSquareRootOfNegativeNumber => write!(f, "Attempted to take the integer square root of a negative number."),
 			Self::ExpectedOptionArguments => write!(f, "Expected two arguments after a OPTION keyword."),
 			Self::InvalidOptionVariableOrValue => write!(f, "Invalid OPTION variable value pair."),
-			Self::Exception(exception) => match exception {
-				Exception::ValueOverflow => write!(f, "Value overflow."),
-				Exception::DivisionByZero => write!(f, "Division by zero."),
-				Exception::NegativeNumberRaisedToNonIntegerPower => write!(f, "Negative number raised to non-integer power."),
-				Exception::ZeroRaisedToNegativePower => write!(f, "Zero raised to negative power."),
-				Exception::LogOfNonPositive => write!(f, "Logarithm of non-positive number."),
-				Exception::SquareRootOfNegative => write!(f, "Square root of negative number."),
-				Exception::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
-				Exception::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
-				Exception::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
-			}
+			Self::ValueOverflow => write!(f, "Value overflow."),
+			Self::DivisionByZero => write!(f, "Division by zero."),
+			Self::NegativeNumberRaisedToNonIntegerPower => write!(f, "Negative number raised to non-integer power."),
+			Self::ZeroRaisedToNegativePower => write!(f, "Zero raised to negative power."),
+			Self::LogOfNonPositive => write!(f, "Logarithm of non-positive number."),
+			Self::SquareRootOfNegative => write!(f, "Square root of negative number."),
+			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
+			Self::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
+			Self::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
 		}
 	}
 }
 
 /// Takes in a `Result` value that may have an error, prints the error if it exists.
-pub fn handle_error<T>(maybe_error: Result<T, Error>) -> Option<T> {
+pub fn handle_error<T>(maybe_error: Result<T, FullError>) -> Option<T> {
 	match maybe_error {
 		Ok(not_error) => Some(not_error),
 		Err(error) => {

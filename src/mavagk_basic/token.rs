@@ -4,7 +4,7 @@ use num::{BigInt, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::error::{Error, ErrorVariant};
+use crate::mavagk_basic::error::{FullError, ErrorVariant};
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
@@ -36,7 +36,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, Error> {
+	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, FullError> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -59,7 +59,7 @@ impl<'a> Token<'a> {
 				let binary_operator = BinaryOperator::from_symbol(token_string);
 				let unary_operator = UnaryOperator::from_symbol(token_string);
 				if binary_operator.is_none() && unary_operator.is_none() {
-					return Err(Error { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None });
+					return Err(FullError { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None });
 				}
 				(TokenVariant::Operator(binary_operator, unary_operator), rest_of_string_with_token_removed)
 			}
@@ -221,7 +221,7 @@ impl<'a> Token<'a> {
 				}
 			}
 			// TODO: Quoteless string literals in DATA statements
-			_ => return Err(Error { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			_ => return Err(FullError { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		};
 		// Get the end column of the char
 		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
@@ -232,7 +232,7 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a (line number, list of tokens) pair.
-	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, Error>) {
+	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, FullError>) {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line_text.chars().next() {
@@ -243,7 +243,7 @@ impl<'a> Token<'a> {
 				column_number = column_number.saturating_add(length_of_line_number);
 				match line_number_string.parse::<BigInt>() {
 					Ok(line_number) => Some(line_number),
-					Err(_) => return (None, Err(Error { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number), line_text: None })),
+					Err(_) => return (None, Err(FullError { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number), line_text: None })),
 				}
 			}
 			_ => None,

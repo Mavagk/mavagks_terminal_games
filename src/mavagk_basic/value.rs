@@ -2,7 +2,7 @@ use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::N
 
 use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::error::{Error, ErrorVariant};
+use crate::mavagk_basic::error::{FullError, ErrorVariant};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -176,10 +176,10 @@ impl FloatValue {
 		BoolValue::new(!self.is_zero())
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, Error> {
+	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
 		match float_to_int(self.value) {
 			Some(result) => Ok(IntValue::new(Rc::new(result))),
-			None => Err(Error{
+			None => Err(FullError{
 				variant: ErrorVariant::NonNumberValueCastToInt(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),
 		}
@@ -298,21 +298,21 @@ impl ComplexValue {
 		BoolValue::new(!self.is_zero())
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, Error> {
+	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
 		if !self.value.im.is_zero() {
-			return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			return Err(FullError { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		}
 		match float_to_int(self.value.re) {
 			Some(result) => Ok(IntValue::new(Rc::new(result))),
-			None => Err(Error{
+			None => Err(FullError{
 				variant: ErrorVariant::NonNumberValueCastToInt(self.value.re), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),
 		}
 	}
 
-	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, Error> {
+	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, FullError> {
 		if !self.value.im.is_zero() {
-			return Err(Error { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			return Err(FullError { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
 		}
 		Ok(FloatValue::new(self.value.re))
 	}
@@ -404,6 +404,10 @@ impl StringValue {
 
 	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value != rhs.value)
+	}
+
+	pub fn count_chars(&self) -> usize {
+		self.value.chars().count()
 	}
 }
 
@@ -524,37 +528,37 @@ impl AnyTypeValue {
 		}
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, Error> {
+	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
 		match self {
 			Self::Bool(value) => Ok(value.to_int()),
 			Self::Int(value) => Ok(value),
 			Self::Float(value) => value.to_int(line_number, start_column),
 			Self::Complex(value) => value.to_int(line_number, start_column),
-			Self::String(_) => return Err(Error {
+			Self::String(_) => return Err(FullError {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),
 		}
 	}
 
-	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, Error> {
+	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, FullError> {
 		match self {
 			Self::Bool(value) => Ok(value.to_float()),
 			Self::Int(value) => Ok(value.to_float()),
 			Self::Float(value) => Ok(value),
 			Self::Complex(value) => value.to_float(line_number, start_column),
-			Self::String(_) => return Err(Error {
+			Self::String(_) => return Err(FullError {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),
 		}
 	}
 
-	pub fn to_complex(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<ComplexValue, Error> {
+	pub fn to_complex(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<ComplexValue, FullError> {
 		match self {
 			Self::Bool(value) => Ok(value.to_complex()),
 			Self::Int(value) => Ok(value.to_complex()),
 			Self::Float(value) => Ok(value.to_complex()),
 			Self::Complex(value) => Ok(value),
-			Self::String(_) => return Err(Error {
+			Self::String(_) => return Err(FullError {
 				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
 			}),
 		}

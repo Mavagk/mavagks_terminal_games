@@ -5,5 +5,4 @@ pub mod error;
 pub mod abstract_syntax_tree;
 pub mod parse;
 pub mod value;
-pub mod exception;
 pub mod optimize;
