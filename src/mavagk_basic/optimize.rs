@@ -165,8 +165,8 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(IntExpression::ConstantValue { value: lhs_value, .. }, IntExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.clone().floored_div(rhs_value.clone()) {
-						Some(result) => *expression = IntExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = IntExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -227,7 +227,7 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 			optimize_float_expression(float_expression);
 			match &**float_expression {
 				FloatExpression::ConstantValue { value, start_column } => {
-					match value.clone().to_int(None, 1.try_into().unwrap()) {
+					match value.clone().to_int() {
 						Ok(value) => *expression = IntExpression::ConstantValue { value: value, start_column: *start_column },
 						_ => {}
 					}
@@ -532,10 +532,10 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_complex_expression(sub_expression);
 			match &mut **sub_expression {
 				ComplexExpression::ConstantValue { value, start_column } => {
-					let result = replace(value, ComplexValue::zero()).to_float(None, 1.try_into().unwrap());
+					let result = replace(value, ComplexValue::zero()).to_float();
 					match result {
 						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: *start_column },
-						Err(_) => {}
+						_ => {}
 					}
 				}
 				_ => {}
@@ -548,8 +548,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.add(*rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -561,8 +561,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.sub(*rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -574,8 +574,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.mul(*rhs_value, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -587,8 +587,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.div(*rhs_value, false, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -600,8 +600,8 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			match (&**lhs_expression, &**rhs_expression) {
 				(FloatExpression::ConstantValue { value: lhs_value, .. }, FloatExpression::ConstantValue { value: rhs_value, .. }) => {
 					match lhs_value.pow(*rhs_value, false, false) {
-						Some(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
-						None => {}
+						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: expression.get_start_column() },
+						_ => {}
 					}
 				}
 				_ => {}
@@ -646,7 +646,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			optimize_complex_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
 				(ComplexExpression::ConstantValue { value: lhs_value, .. }, ComplexExpression::ConstantValue { value: rhs_value, .. }) => {
-					if let Some(result) = lhs_value.add(*rhs_value, false) {
+					if let Ok(result) = lhs_value.add(*rhs_value, false) {
 						*expression = ComplexExpression::ConstantValue { value: result, start_column: *start_column };
 					}
 				}
@@ -658,7 +658,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			optimize_complex_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
 				(ComplexExpression::ConstantValue { value: lhs_value, .. }, ComplexExpression::ConstantValue { value: rhs_value, .. }) => {
-					if let Some(result) = lhs_value.sub(*rhs_value, false) {
+					if let Ok(result) = lhs_value.sub(*rhs_value, false) {
 						*expression = ComplexExpression::ConstantValue { value: result, start_column: *start_column };
 					}
 				}
@@ -670,7 +670,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			optimize_complex_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
 				(ComplexExpression::ConstantValue { value: lhs_value, .. }, ComplexExpression::ConstantValue { value: rhs_value, .. }) => {
-					if let Some(result) = lhs_value.mul(*rhs_value, false) {
+					if let Ok(result) = lhs_value.mul(*rhs_value, false) {
 						*expression = ComplexExpression::ConstantValue { value: result, start_column: *start_column };
 					}
 				}
@@ -682,7 +682,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			optimize_complex_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
 				(ComplexExpression::ConstantValue { value: lhs_value, .. }, ComplexExpression::ConstantValue { value: rhs_value, .. }) => {
-					if let Some(result) = lhs_value.div(*rhs_value, false) {
+					if let Ok(result) = lhs_value.div(*rhs_value, false, false) {
 						*expression = ComplexExpression::ConstantValue { value: result, start_column: *start_column };
 					}
 				}
@@ -694,7 +694,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			optimize_complex_expression(rhs_expression);
 			match (&**lhs_expression, &**rhs_expression) {
 				(ComplexExpression::ConstantValue { value: lhs_value, .. }, ComplexExpression::ConstantValue { value: rhs_value, .. }) => {
-					if let Some(result) = lhs_value.pow(*rhs_value, false) {
+					if let Ok(result) = lhs_value.pow(*rhs_value, false) {
 						*expression = ComplexExpression::ConstantValue { value: result, start_column: *start_column };
 					}
 				}

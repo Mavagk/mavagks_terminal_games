@@ -1,8 +1,8 @@
-use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, num::NonZeroUsize, rc::Rc};
+use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::error::{FullError, ErrorVariant};
+use crate::mavagk_basic::error::ErrorVariant;
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -54,14 +54,14 @@ impl IntValue {
 		ComplexValue::new(Complex64::new(int_to_float(&self.value), 0.))
 	}
 
-	pub fn floored_div(mut self, rhs: Self) -> Option<IntValue> {
+	pub fn floored_div(mut self, rhs: Self) -> Result<IntValue, ErrorVariant> {
 		match rhs.is_zero() {
-			false => Some({
+			false => Ok({
 				let int = Rc::<BigInt>::make_mut(&mut self.value);
 				(*int) /= &*rhs.value;
 				Self::new(self.value)
 			}),
-			true => None,
+			true => Err(ErrorVariant::FlooredDivisionByZero),
 		}
 	}
 
@@ -176,12 +176,10 @@ impl FloatValue {
 		BoolValue::new(!self.is_zero())
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
+	pub fn to_int(self) -> Result<IntValue, ErrorVariant> {
 		match float_to_int(self.value) {
 			Some(result) => Ok(IntValue::new(Rc::new(result))),
-			None => Err(FullError{
-				variant: ErrorVariant::NonNumberValueCastToInt(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
-			}),
+			None => Err(ErrorVariant::NonNumberValueCastToInt(self.value)),
 		}
 	}
 
@@ -189,49 +187,49 @@ impl FloatValue {
 		ComplexValue::new(Complex64::new(self.value, 0.))
 	}
 
-	pub fn add(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn add(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value + rhs.value;
 		match float_result.is_finite() || allow_overflow {
-			true => Some(Self::new(float_result)),
-			false => None,
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value - rhs.value;
 		match float_result.is_finite() || allow_overflow {
-			true => Some(Self::new(float_result)),
-			false => None,
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value * rhs.value;
 		match float_result.is_finite() || allow_overflow {
-			true => Some(Self::new(float_result)),
-			false => None,
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Option<Self> {
+	pub fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Result<Self, ErrorVariant> {
 		if rhs.is_zero() && !allow_div_by_zero {
-			return None;
+			return Err(ErrorVariant::DivisionByZero);
 		}
 		let float_result = self.value / rhs.value;
 		match float_result.is_finite() || allow_overflow {
-			true => Some(Self::new(float_result)),
-			false => None,
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn pow(self, rhs: Self, allow_overflow: bool, allow_neg_to_non_int_power: bool) -> Option<Self> {
+	pub fn pow(self, rhs: Self, allow_overflow: bool, allow_neg_to_non_int_power: bool) -> Result<Self, ErrorVariant> {
 		if self.is_negative() && !rhs.is_int() && !allow_neg_to_non_int_power {
-			return None;
+			return Err(ErrorVariant::NegativeNumberRaisedToNonIntegerPower);
 		}
 		let float_result = self.value / rhs.value;
 		match float_result.is_finite() || allow_overflow {
-			true => Some(Self::new(float_result)),
-			false => None,
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
@@ -298,48 +296,64 @@ impl ComplexValue {
 		BoolValue::new(!self.is_zero())
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
+	pub fn to_int(self) -> Result<IntValue, ErrorVariant> {
 		if !self.value.im.is_zero() {
-			return Err(FullError { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			return Err(ErrorVariant::NonRealComplexValueCastToReal(self.value));
 		}
 		match float_to_int(self.value.re) {
 			Some(result) => Ok(IntValue::new(Rc::new(result))),
-			None => Err(FullError{
-				variant: ErrorVariant::NonNumberValueCastToInt(self.value.re), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
-			}),
+			None => Err(ErrorVariant::NonNumberValueCastToInt(self.value.re)),
 		}
 	}
 
-	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, FullError> {
+	pub fn to_float(self) -> Result<FloatValue, ErrorVariant> {
 		if !self.value.im.is_zero() {
-			return Err(FullError { variant: ErrorVariant::NonRealComplexValueCastToReal(self.value), line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			return Err(ErrorVariant::NonRealComplexValueCastToReal(self.value))
 		}
 		Ok(FloatValue::new(self.value.re))
 	}
 
-	pub fn add(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn add(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let result = self.value + rhs.value;
-		(allow_overflow || result.is_finite()).then_some(Self::new(result))
+		match allow_overflow || result.is_finite() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
 	}
 
-	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let result = self.value - rhs.value;
-		(allow_overflow || result.is_finite()).then_some(Self::new(result))
+		match allow_overflow || result.is_finite() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
 	}
 
-	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let result = self.value * rhs.value;
-		(allow_overflow || result.is_finite()).then_some(Self::new(result))
+		match allow_overflow || result.is_finite() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
 	}
 
-	pub fn div(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Result<Self, ErrorVariant> {
+		if rhs.is_zero() && !allow_div_by_zero {
+			return Err(ErrorVariant::DivisionByZero);
+		}
 		let result = self.value / rhs.value;
-		(allow_overflow || result.is_finite()).then_some(Self::new(result))
+		match allow_overflow || result.is_finite() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
 	}
 
-	pub fn pow(self, rhs: Self, allow_overflow: bool) -> Option<Self> {
+	pub fn pow(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let result = self.value.powc(rhs.value);
-		(allow_overflow || result.is_finite()).then_some(Self::new(result))
+		match allow_overflow || result.is_finite() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
 	}
 
 	pub fn neg(self) -> Self {
@@ -354,10 +368,10 @@ impl ComplexValue {
 		BoolValue::new(self.value != rhs.value)
 	}
 
-	pub fn abs(self, allow_overflow: bool) -> Option<FloatValue> {
+	pub fn abs(self, allow_overflow: bool) -> Result<FloatValue, ErrorVariant> {
 		match self.value.norm() {
-			value if value.is_infinite() && !allow_overflow => None,
-			value => Some(FloatValue::new(value)),
+			value if value.is_infinite() && !allow_overflow => Err(ErrorVariant::ValueOverflow),
+			value => Ok(FloatValue::new(value)),
 		}
 	}
 }
@@ -528,39 +542,33 @@ impl AnyTypeValue {
 		}
 	}
 
-	pub fn to_int(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<IntValue, FullError> {
+	pub fn to_int(self) -> Result<IntValue, ErrorVariant> {
 		match self {
 			Self::Bool(value) => Ok(value.to_int()),
 			Self::Int(value) => Ok(value),
-			Self::Float(value) => value.to_int(line_number, start_column),
-			Self::Complex(value) => value.to_int(line_number, start_column),
-			Self::String(_) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
-			}),
+			Self::Float(value) => value.to_int(),
+			Self::Complex(value) => value.to_int(),
+			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
 		}
 	}
 
-	pub fn to_float(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<FloatValue, FullError> {
+	pub fn to_float(self) -> Result<FloatValue, ErrorVariant> {
 		match self {
 			Self::Bool(value) => Ok(value.to_float()),
 			Self::Int(value) => Ok(value.to_float()),
 			Self::Float(value) => Ok(value),
-			Self::Complex(value) => value.to_float(line_number, start_column),
-			Self::String(_) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
-			}),
+			Self::Complex(value) => value.to_float(),
+			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
 		}
 	}
 
-	pub fn to_complex(self, line_number: Option<&BigInt>, start_column: NonZeroUsize) -> Result<ComplexValue, FullError> {
+	pub fn to_complex(self) -> Result<ComplexValue, ErrorVariant> {
 		match self {
 			Self::Bool(value) => Ok(value.to_complex()),
 			Self::Int(value) => Ok(value.to_complex()),
 			Self::Float(value) => Ok(value.to_complex()),
 			Self::Complex(value) => Ok(value),
-			Self::String(_) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None
-			}),
+			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
 		}
 	}
 }
