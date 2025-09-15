@@ -548,7 +548,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>
 		Some(first_token) => first_token,
 		None => return Ok(None),
 	};
-	let (keyword, is_reserved) = match first_token_variant {
+	let (_keyword, is_reserved) = match first_token_variant {
 		TokenVariant::Identifier { keyword, is_reserved_keyword, .. } => (*keyword, *is_reserved_keyword),
 		_ => return Err(ErrorVariant::InvalidLValue.at_column(*first_token_start_column)),
 	};
@@ -557,13 +557,13 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>
 		return Ok(None);
 	}
 	// Get if this is a FN function
-	let uses_fn_keyword = keyword == Some(Keyword::Fn);
-	match uses_fn_keyword {
-		false => {}
-		true => {
-			tokens.take_next_token();
-		}
-	}
+	//let uses_fn_keyword = keyword == Some(Keyword::Fn);
+	//match uses_fn_keyword {
+	//	false => {}
+	//	true => {
+	//		tokens.take_next_token();
+	//	}
+	//}
 	// Get identifier name
 	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: _ } = match tokens.tokens.get(0) {
 		Some(token_after_fn) => token_after_fn,
@@ -582,16 +582,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>
 		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
 		_ => return Ok(Some(match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: (*identifier_name).into(), arguments: Box::default(), uses_fn_keyword, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 		})),
 	}
@@ -640,16 +640,16 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>
 	// Return
 	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: (*identifier_name).into(), arguments: arguments.into(), uses_fn_keyword, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 	}))
 }

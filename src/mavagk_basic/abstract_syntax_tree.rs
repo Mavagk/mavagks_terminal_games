@@ -260,7 +260,7 @@ impl IntExpression {
 pub struct IntLValue {
 	pub name: Box<str>,
 	pub arguments: Box<[AnyTypeExpression]>,
-	pub uses_fn_keyword: bool,
+	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
@@ -272,9 +272,9 @@ impl IntLValue {
 			print!("-");
 		}
 		print!(" {:03}: Int L-Value \"{}\"", self.start_column, self.name);
-		if self.uses_fn_keyword {
-			print!(", Fn");
-		}
+		//if self.uses_fn_keyword {
+		//	print!(", Fn");
+		//}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}
@@ -372,7 +372,7 @@ impl FloatExpression {
 pub struct FloatLValue {
 	pub name: Box<str>,
 	pub arguments: Box<[AnyTypeExpression]>,
-	pub uses_fn_keyword: bool,
+	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
@@ -384,9 +384,9 @@ impl FloatLValue {
 			print!("-");
 		}
 		print!(" {:03}: Float L-Value \"{}\"", self.start_column, self.name);
-		if self.uses_fn_keyword {
-			print!(", Fn");
-		}
+		//if self.uses_fn_keyword {
+		//	print!(", Fn");
+		//}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}
@@ -478,7 +478,7 @@ impl ComplexExpression {
 pub struct ComplexLValue {
 	pub name: Box<str>,
 	pub arguments: Box<[AnyTypeExpression]>,
-	pub uses_fn_keyword: bool,
+	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
@@ -490,9 +490,9 @@ impl ComplexLValue {
 			print!("-");
 		}
 		print!(" {:03}: Complex L-Value \"{}\"", self.start_column, self.name);
-		if self.uses_fn_keyword {
-			print!(", Fn");
-		}
+		//if self.uses_fn_keyword {
+		//	print!(", Fn");
+		//}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}
@@ -544,7 +544,7 @@ impl StringExpression {
 pub struct StringLValue {
 	pub name: Box<str>,
 	pub arguments: Box<[AnyTypeExpression]>,
-	pub uses_fn_keyword: bool,
+	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
@@ -556,9 +556,9 @@ impl StringLValue {
 			print!("-");
 		}
 		print!(" {:03}: String L-Value \"{}\"", self.start_column, self.name);
-		if self.uses_fn_keyword {
-			print!(", Fn");
-		}
+		//if self.uses_fn_keyword {
+		//	print!(", Fn");
+		//}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}

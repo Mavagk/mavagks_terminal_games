@@ -216,7 +216,7 @@ impl Machine {
 			StatementVariant::Gosub(_) => return Err(ErrorVariant::NotYetImplemented("GOSUB statement".into()).at_column(*column)),
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				// Get what to assign to
-				let IntLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
+				let IntLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_int_expression(&self, r_value_expression)?;
 				// Assign
@@ -227,7 +227,7 @@ impl Machine {
 			}
 			StatementVariant::AssignFloat(l_value, r_value_expression) => {
 				// Get what to assign to
-				let FloatLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
+				let FloatLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_float_expression(&self, r_value_expression)?;
 				// Assign
@@ -238,7 +238,7 @@ impl Machine {
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				// Get what to assign to
-				let ComplexLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
+				let ComplexLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_complex_expression(&self, r_value_expression)?;
 				// Assign
@@ -249,7 +249,7 @@ impl Machine {
 			}
 			StatementVariant::AssignString(l_value, r_value_expression) => {
 				// Get what to assign to
-				let StringLValue { name, arguments: _, uses_fn_keyword: _, has_parentheses, start_column: _, .. } = l_value;
+				let StringLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
 				// Get r-value
 				let r_value = Self::execute_string_expression(&self, r_value_expression)?;
 				// Assign
@@ -479,13 +479,13 @@ impl Machine {
 
 	fn execute_int_l_value_read(&self, l_value: &IntLValue) -> Result<IntValue, Error> {
 		// Unpack
-		let IntLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.int_variables.get(name) {
+		if !*has_parentheses /*&& !*uses_fn_keyword*/ && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+		if /* !*uses_fn_keyword && */ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR%(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
@@ -553,7 +553,7 @@ impl Machine {
 			}
 		}
 		// TODO
-		if *has_parentheses || *uses_fn_keyword {
+		if *has_parentheses /*|| *uses_fn_keyword*/ {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -562,13 +562,13 @@ impl Machine {
 
 	fn execute_float_l_value_read(&self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
 		// Unpack
-		let FloatLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		let FloatLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.float_variables.get(name) {
+		if !*has_parentheses/* && !*uses_fn_keyword*/ && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+		if /* !*uses_fn_keyword && */ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
@@ -622,7 +622,7 @@ impl Machine {
 			}
 		}
 		// TODO
-		if *has_parentheses || *uses_fn_keyword {
+		if *has_parentheses/* || *uses_fn_keyword*/ {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -631,13 +631,13 @@ impl Machine {
 
 	fn execute_complex_l_value_read(&self, l_value: &ComplexLValue) -> Result<ComplexValue, Error> {
 		// Unpack
-		let ComplexLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.complex_variables.get(name) {
+		if !*has_parentheses/* && !*uses_fn_keyword*/ && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR#(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
@@ -648,7 +648,7 @@ impl Machine {
 			}
 		}
 		// TODO
-		if *has_parentheses || *uses_fn_keyword {
+		if *has_parentheses/* || *uses_fn_keyword*/ {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -657,19 +657,19 @@ impl Machine {
 
 	fn execute_string_l_value_read(&self, l_value: &StringLValue) -> Result<StringValue, Error> {
 		// Unpack
-		let StringLValue { name, arguments, uses_fn_keyword, has_parentheses, start_column, supplied_function } = l_value;
+		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && !*uses_fn_keyword && let Some(variable) = self.string_variables.get(name) {
+		if !*has_parentheses /* && !*uses_fn_keyword*/ && let Some(variable) = self.string_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if !*uses_fn_keyword && let Some(supplied_function) = supplied_function {
+		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				_ => {}
 			}
 		}
 		// TODO
-		if *has_parentheses || *uses_fn_keyword {
+		if *has_parentheses/* || *uses_fn_keyword*/ {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
