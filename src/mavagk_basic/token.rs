@@ -4,7 +4,7 @@ use num::{BigInt, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::error::{FullError, ErrorVariant};
+use crate::mavagk_basic::error::{Error, ErrorVariant};
 
 #[derive(Debug, PartialEq)]
 pub struct Token<'a> {
@@ -36,7 +36,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, line_number: Option<&BigInt>) -> Result<Option<(Self, &'a str)>, FullError> {
+	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -59,7 +59,7 @@ impl<'a> Token<'a> {
 				let binary_operator = BinaryOperator::from_symbol(token_string);
 				let unary_operator = UnaryOperator::from_symbol(token_string);
 				if binary_operator.is_none() && unary_operator.is_none() {
-					return Err(FullError { variant: ErrorVariant::InvalidOperatorSymbol, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None });
+					return Err(ErrorVariant::InvalidOperatorSymbol.at_column(column_number));
 				}
 				(TokenVariant::Operator(binary_operator, unary_operator), rest_of_string_with_token_removed)
 			}
@@ -221,7 +221,7 @@ impl<'a> Token<'a> {
 				}
 			}
 			// TODO: Quoteless string literals in DATA statements
-			_ => return Err(FullError { variant: ErrorVariant::InvalidToken, line_number: line_number.cloned(), column_number: Some(start_column), line_text: None })
+			_ => return Err(ErrorVariant::InvalidToken.at_column(column_number))
 		};
 		// Get the end column of the char
 		let token_length_in_bytes = line_starting_with_token.len() - rest_of_string_with_token_removed.len();
@@ -232,7 +232,7 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a (line number, list of tokens) pair.
-	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, FullError>) {
+	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, Error>) {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line_text.chars().next() {
@@ -243,7 +243,7 @@ impl<'a> Token<'a> {
 				column_number = column_number.saturating_add(length_of_line_number);
 				match line_number_string.parse::<BigInt>() {
 					Ok(line_number) => Some(line_number),
-					Err(_) => return (None, Err(FullError { variant: ErrorVariant::MalformedLineNumber(line_number_string.into()), line_number: None, column_number: Some(column_number), line_text: None })),
+					Err(_) => return (None, Err(ErrorVariant::MalformedLineNumber(line_number_string.into()).at_column(column_number))),
 				}
 			}
 			_ => None,
@@ -251,7 +251,7 @@ impl<'a> Token<'a> {
 		// Parse tokens from line until there are none left
 		let mut tokens = Vec::new();
 		loop {
-			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, line_number.as_ref()) {
+			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number) {
 				Err(error) => return (line_number, Err(error)),
 				Ok(None) => break,
 				Ok(Some(result)) => result,
@@ -609,77 +609,77 @@ mod tests {
 	#[test]
 	fn test_parse_single_token_from_str() {
 		// Empty string
-		assert_eq!(Token::parse_single_token_from_str("", 1.try_into().unwrap(), None).unwrap(), None);
-		assert_eq!(Token::parse_single_token_from_str(" ", 1.try_into().unwrap(), None).unwrap(), None);
-		assert_eq!(Token::parse_single_token_from_str("rem", 1.try_into().unwrap(), None).unwrap(), None);
-		assert_eq!(Token::parse_single_token_from_str("ReM stuff after REM", 1.try_into().unwrap(), None).unwrap(), None);
-		assert_eq!(Token::parse_single_token_from_str("	ReM stuff after REM", 1.try_into().unwrap(), None).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("", 1.try_into().unwrap()).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str(" ", 1.try_into().unwrap()).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("rem", 1.try_into().unwrap()).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("ReM stuff after REM", 1.try_into().unwrap()).unwrap(), None);
+		assert_eq!(Token::parse_single_token_from_str("	ReM stuff after REM", 1.try_into().unwrap()).unwrap(), None);
 		// Identifiers
 		assert_eq!(
-			Token::parse_single_token_from_str("a", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("a", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap()
 			}, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("_num = 8.5", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("_num = 8.5", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "_num", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap()
 			}, " = 8.5"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" var$", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" var$", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "var", identifier_type: IdentifierType::String, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 6.try_into().unwrap()
 			}, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("	my_iNt%0", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("	my_iNt%0", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "my_iNt", identifier_type: IdentifierType::Integer, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 9.try_into().unwrap()
 			}, "0"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("		 MyComp# = 2i", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("		 MyComp# = 2i", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "MyComp", identifier_type: IdentifierType::ComplexNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 4.try_into().unwrap(), end_column: 11.try_into().unwrap()
 			}, " = 2i"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("a0?=2E5", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("a0?=2E5", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "a0", identifier_type: IdentifierType::UnmarkedNumber, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
 			}, "=2E5"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("a%?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("a%?(val)", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("a%?(val)", 10.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("a%?(val)", 10.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 10.try_into().unwrap(), end_column: 13.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" _aA_01Z29_$?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" _aA_01Z29_$?(val)", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "_aA_01Z29_", identifier_type: IdentifierType::String, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 14.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("VAL#?(val)", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("VAL#?(val)", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
 				variant: TokenVariant::Identifier { name: "VAL", identifier_type: IdentifierType::ComplexNumber, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
@@ -687,231 +687,231 @@ mod tests {
 		);
 		// Operators
 		assert_eq!(
-			Token::parse_single_token_from_str("++", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("++", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" //+", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" //+", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::DoubleSlash), None), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("<=-", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("<=-", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::LessThanOrEqualTo), None), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "-"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("&+", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("&+", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::Concatenation), None), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "+"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("=<", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("=<", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::LessThanOrEqualTo), None), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("/ /", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("/ /", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Operator(Some(BinaryOperator::Division), None), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, " /"))
 		);
 		// Separators
 		assert_eq!(
-			Token::parse_single_token_from_str("()", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("()", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::LeftParenthesis, start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ")"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(")", 2.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(")", 2.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::RightParenthesis, start_column: 2.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" : ", 50.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" : ", 50.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::Colon, start_column: 51.try_into().unwrap(), end_column: 52.try_into().unwrap() }, " "))
 		);
 		// Integers
 		assert_eq!(
-			Token::parse_single_token_from_str(" 420 + 420", 50.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" 420 + 420", 50.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(420.into()), start_column: 51.try_into().unwrap(), end_column: 54.try_into().unwrap() }, " + 420"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("6a", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("6a", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(6.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" ..", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" ..", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0.into()), start_column: 2.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "."))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(" .0.", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" .0.", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0.into()), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "."))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("6.00000k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("6.00000k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(6.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00E+0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00E+0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("00060.00E+0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("00060.00E+0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00E+000k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00E+000k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 11.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00E-0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00E-0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00E+k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00E+k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00E-k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00E-k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("60.00Ek", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("60.00Ek", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 7.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$7Ek", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$7Ek", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x7E.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$7ek", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$7ek", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x7E.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$7F.k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$7F.k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x7F.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$.0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$.0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$10.0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$10.0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("$.", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("$.", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%1001k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%1001k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b1001.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%10.k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%10.k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%.0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%.0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%10.0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%10.0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%00010.0k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%00010.0k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%.", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%.", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%.2", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%.2", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "2"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%0010E+", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%0010E+", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%0010E+2", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%0010E+2", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "2"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%001050", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%001050", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "50"))
 		);
 		// Floats
 		assert_eq!(
-			Token::parse_single_token_from_str("2.5", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("2.5", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 2.5, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("2.5i", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("2.5i", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 2.5, is_imaginary: true }, start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("2.5000k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("2.5000k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 2.5, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 7.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str(".000760k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(".000760k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 0.00076, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("00900.000760k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("00900.000760k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 900.00076, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("040.0777E3k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("040.0777E3k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 040.0777E3, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 11.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("040.0777e+3.k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("040.0777e+3.k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 040.0777E3, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ".k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("040.0777E+3I.k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("040.0777E+3I.k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 040.0777E3, is_imaginary: true }, start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, ".k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("040.0777E-3.k", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("040.0777E-3.k", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 040.0777E-3, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ".k"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%010.010", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%010.010", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 2.25, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("%0.10010E10", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("%0.10010E10", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::FloatLiteral { value: 2.25, is_imaginary: false }, start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
 		);
 		// Strings
 		assert_eq!(
-			Token::parse_single_token_from_str(" \"\"a", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str(" \"\"a", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral(""), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("\"REM ±Hello\"a", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("\"REM ±Hello\"a", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("\"REM ±Hello\"a\"", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("\"REM ±Hello\"a\"", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a\""))
 		);
 		assert_eq!(
-			Token::parse_single_token_from_str("\"REM ±Hello", 1.try_into().unwrap(), None).unwrap(),
+			Token::parse_single_token_from_str("\"REM ±Hello", 1.try_into().unwrap()).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
 		);
 	}

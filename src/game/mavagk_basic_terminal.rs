@@ -20,12 +20,12 @@ impl Game for MavagkBasicTerminal {
 			Some(TerminalCommands::Exit) => self.should_exit = true,
 			// TOKENS prints the tokens received from tokenizing the text entered
 			Some(TerminalCommands::Tokens) => {
-				let (_line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
+				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
 					(line_number, Ok(tokens)) => (line_number, tokens, None),
 					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
-					handle_error::<()>(Err(error));
+					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
 					return Ok(());
 				}
 				println!("{tokens:?}");
@@ -37,18 +37,18 @@ impl Game for MavagkBasicTerminal {
 					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
-					handle_error::<()>(Err(error));
+					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
 					return Ok(());
 				}
-				let (trees, error) = parse_line(&*tokens, line_number.as_ref());
-				if let Some(line_number) = line_number {
+				let (trees, error) = parse_line(&*tokens);
+				if let Some(line_number) = &line_number {
 					println!("Line: {line_number}");
 				}
 				for tree in trees {
 					tree.print(0);
 				}
 				if let Some(error) = error {
-					println!("Error{error}");
+					println!("Error{}", error.to_full_error(line_number, Some(text_after_terminal_command.into())));
 				}
 			}
 			// ASTO prints the abstract syntax trees received from tokenizing and then parsing the text entered and optimizing the result
@@ -58,21 +58,21 @@ impl Game for MavagkBasicTerminal {
 					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
-					handle_error::<()>(Err(error));
+					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
 					return Ok(());
 				}
-				let (mut trees, error) = parse_line(&*tokens, line_number.as_ref());
+				let (mut trees, error) = parse_line(&*tokens);
 				for tree in trees.iter_mut() {
 					optimize_statement(tree);
 				}
-				if let Some(line_number) = line_number {
+				if let Some(line_number) = &line_number {
 					println!("Line: {line_number}");
 				}
 				for tree in trees {
 					tree.print(0);
 				}
 				if let Some(error) = error {
-					println!("Error{error}");
+					println!("Error{}", error.to_full_error(line_number, Some(text_after_terminal_command.into())));
 				}
 			}
 			// If a terminal command was not entered, enter the line of text into the MavagkBasic virtual machine

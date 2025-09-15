@@ -1,8 +1,6 @@
 use std::num::NonZeroUsize;
 
-use num::BigInt;
-
-use crate::mavagk_basic::{error::{FullError, ErrorVariant}, token::SuppliedFunction, value::{BoolValue, ComplexValue, IntValue, FloatValue, StringValue}};
+use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::SuppliedFunction, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -849,55 +847,48 @@ impl AnyTypeExpression {
 		}
 	}
 
-	pub fn to_int_expression(self, line_number: Option<&BigInt>) -> Result<IntExpression, FullError> {
+	pub fn to_int_expression(self) -> Result<IntExpression, Error> {
 		Ok(match self {
 			Self::Int(expression) => expression,
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 			Self::Float(expression) => IntExpression::CastFromFloat(Box::new(expression)),
 			Self::Complex(expression) => IntExpression::CastFromFloat(Box::new(FloatExpression::CastFromComplex(Box::new(expression)))),
 			Self::Bool(expression) => IntExpression::CastFromBool(Box::new(expression)),
-			Self::String(expression) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
-			}),
+			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
 		})
 	}
 
-	pub fn to_float_expression(self, line_number: Option<&BigInt>) -> Result<FloatExpression, FullError> {
+	pub fn to_float_expression(self) -> Result<FloatExpression, Error> {
 		Ok(match self {
 			Self::Int(expression) => FloatExpression::CastFromInt(Box::new(expression)),
 			Self::Float(expression) => expression,
 			Self::Complex(expression) => FloatExpression::CastFromComplex(Box::new(expression)),
 			Self::Bool(expression) => FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))),
-			Self::String(expression) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
-			}),
+			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
-	pub fn to_complex_expression(self, line_number: Option<&BigInt>) -> Result<ComplexExpression, FullError> {
+	pub fn to_complex_expression(self) -> Result<ComplexExpression, Error> {
 		Ok(match self {
 			Self::Int(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(expression)))),
 			Self::Float(expression) => ComplexExpression::CastFromFloat(Box::new(expression)),
 			Self::Complex(expression) => expression,
 			Self::Bool(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))))),
-			Self::String(expression) => return Err(FullError {
-				variant: ErrorVariant::StringCastToNumber, column_number: Some(expression.get_start_column()), line_number: line_number.cloned(), line_text: None
-			}),
+			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
-	pub fn to_string_expression(self, line_number: Option<&BigInt>) -> Result<StringExpression, FullError> {
+	pub fn to_string_expression(self) -> Result<StringExpression, Error> {
 		Ok(match self {
-			Self::Int(..) | Self::Float(..) | Self::Complex(..) | Self::Bool(..) =>
-				return Err(FullError { variant: ErrorVariant::NumberCastToString, column_number: Some(self.get_start_column()), line_number: line_number.cloned(), line_text: None }),
+			Self::Int(..) | Self::Float(..) | Self::Complex(..) | Self::Bool(..) => return Err(ErrorVariant::NumberCastToString.at_column(self.get_start_column())),
 			Self::String(value) => value,
 			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
-	pub fn to_bool_expression(self, _line_number: Option<&BigInt>) -> Result<BoolExpression, FullError> {
+	pub fn to_bool_expression(self) -> Result<BoolExpression, Error> {
 		Ok(match self {
 			Self::Bool(value) => value,
 			Self::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
@@ -908,17 +899,17 @@ impl AnyTypeExpression {
 		})
 	}
 
-	pub fn upcast(self, rhs: Self, line_number: Option<&BigInt>) -> Result<(Self, Self), FullError> {
+	pub fn upcast(self, rhs: Self) -> Result<(Self, Self), Error> {
 		Ok(match (&self, &rhs) {
 			(Self::Bool(..), Self::Bool(..)) | (Self::Int(..), Self::Int(..)) | (Self::Float(..), Self::Float(..)) | (Self::Complex(..), Self::Complex(..)) | (Self::String(..), Self::String(..)) => (self, rhs),
-			(Self::Int(..), Self::Bool(..)) => (self, AnyTypeExpression::Int(rhs.to_int_expression(line_number)?)),
-			(Self::Bool(..), Self::Int(..)) => (AnyTypeExpression::Int(self.to_int_expression(line_number)?), rhs),
-			(Self::Float(..), Self::Bool(..) | Self::Int(..)) => (self, AnyTypeExpression::Float(rhs.to_float_expression(line_number)?)),
-			(Self::Bool(..) | Self::Int(..), Self::Float(..)) => (AnyTypeExpression::Float(self.to_float_expression(line_number)?), rhs),
-			(Self::Complex(..), Self::Bool(..) | Self::Int(..) | Self::Float(..)) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression(line_number)?)),
-			(Self::Bool(..) | Self::Int(..) | Self::Float(..), Self::Complex(..)) => (AnyTypeExpression::Complex(self.to_complex_expression(line_number)?), rhs),
-			(Self::String(..), _) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression(line_number)?)),
-			(_, Self::String(..)) => (AnyTypeExpression::Complex(self.to_complex_expression(line_number)?), rhs),
+			(Self::Int(..), Self::Bool(..)) => (self, AnyTypeExpression::Int(rhs.to_int_expression()?)),
+			(Self::Bool(..), Self::Int(..)) => (AnyTypeExpression::Int(self.to_int_expression()?), rhs),
+			(Self::Float(..), Self::Bool(..) | Self::Int(..)) => (self, AnyTypeExpression::Float(rhs.to_float_expression()?)),
+			(Self::Bool(..) | Self::Int(..), Self::Float(..)) => (AnyTypeExpression::Float(self.to_float_expression()?), rhs),
+			(Self::Complex(..), Self::Bool(..) | Self::Int(..) | Self::Float(..)) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression()?)),
+			(Self::Bool(..) | Self::Int(..) | Self::Float(..), Self::Complex(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
+			(Self::String(..), _) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression()?)),
+			(_, Self::String(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
 			(Self::PrintComma(..) | Self::PrintSemicolon(..), _) | (_, Self::PrintComma(..) | Self::PrintSemicolon(..)) => unreachable!(),
 		})
 	}

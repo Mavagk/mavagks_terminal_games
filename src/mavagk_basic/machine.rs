@@ -61,7 +61,7 @@ impl Machine {
 			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 		};
 		let (mut statements, error) = match error {
-			None => parse_line(&*tokens, line_number.as_ref()),
+			None => parse_line(&*tokens),
 			Some(error) => (Box::default(), Some(error)),
 		};
 		for statement in statements.iter_mut() {
@@ -72,8 +72,7 @@ impl Machine {
 			// If the line has a line number
 			Some(line_number) => {
 				if let Some(error) = &error {
-					let mut error = error.clone();
-					error.line_text = Some(line_text.clone().into());
+					let error = error.clone().to_full_error(Some(line_number.clone()), Some(line_text.clone().into()));
 					handle_error::<()>(Err(error));
 				}
 				if statements.is_empty() && error.is_none() {
@@ -85,9 +84,9 @@ impl Machine {
 			}
 			// Run the line in direct mode if it does not have a line number
 			None => {
-				if let Some(mut error) = error {
-					error.line_text = Some(line_text.into());
-					return Err(error);
+				if let Some(error) = error {
+					//error.line_text = Some(line_text.into());
+					return Err(error.clone().to_full_error(None, Some(line_text.clone().into())));
 				}
 				self.execution_source = ExecutionSource::DirectModeLine;
 				self.execute(program, &statements, &line_text)?;
@@ -142,9 +141,7 @@ impl Machine {
 					}
 					// If there is an error at the end of the line, throw the error
 					if let Some(line_error) = line_error {
-						let mut line_error = line_error.clone();
-						line_error.line_text = Some(line_text.clone().into_string());
-						return Err(line_error);
+						return Err(line_error.clone().to_full_error(Some((&*line_number).clone()), Some(line_text.clone().into_string())));
 					}
 					// Jump to the next line
 					self.line_executing = match program.lines.range(line_number..).nth(1) {
