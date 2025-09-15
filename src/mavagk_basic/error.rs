@@ -102,7 +102,8 @@ pub enum ErrorVariant {
 	IntSquareRootOfNegativeNumber,
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
-	ValueOverflow = 1002,
+	// TODO Different overflows
+	ValueOverflow,
 	DivisionByZero = 3001,
 	NegativeNumberRaisedToNonIntegerPower = 3002,
 	ZeroRaisedToNegativePower = 3003,

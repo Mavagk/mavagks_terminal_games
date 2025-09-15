@@ -503,9 +503,9 @@ impl Machine {
 					)))
 				}
 				// TRUE%
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 0 => return Ok(IntValue::new(Rc::new((-1i8).into()))),
+				(SuppliedFunction::Abs, _) if !has_parentheses => return Ok(IntValue::new(Rc::new((-1i8).into()))),
 				// FALSE%
-				(SuppliedFunction::False, arguments) if arguments.len() == 0 => return Ok(IntValue::zero()),
+				(SuppliedFunction::False, _) if !has_parentheses => return Ok(IntValue::zero()),
 				// INT%(X)
 				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
 					return Ok({
