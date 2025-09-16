@@ -1,6 +1,6 @@
 use std::mem::replace;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, FloatExpression, IntExpression, PrintOperand, Statement, StatementVariant, StringExpression}, value::{BoolValue, ComplexValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, value::{BoolValue, ComplexValue, IntValue, StringValue}};
 
 pub fn optimize_statement(statement: &mut Statement) {
 	match &mut statement.variant {
@@ -20,6 +20,20 @@ pub fn optimize_statement(statement: &mut Statement) {
 		StatementVariant::Print(sub_expressions) => {
 			for sub_expression in sub_expressions.iter_mut() {
 				optimize_print_operand(sub_expression);
+			}
+		}
+		StatementVariant::Input { prompt, timeout, elapsed, inputs } => {
+			if let Some(prompt) = prompt {
+				optimize_any_type_expression(prompt);
+			}
+			if let Some(timeout) = timeout {
+				optimize_any_type_expression(timeout);
+			}
+			if let Some(elapsed) = elapsed {
+				optimize_any_type_expression(elapsed);
+			}
+			for input in inputs {
+				optimize_any_type_l_value(input);
 			}
 		}
 		StatementVariant::OneLineIf { condition_expression, then_statement, else_statement } => {
@@ -236,11 +250,7 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 			}
 		}
 		IntExpression::ConstantValue { .. } => {}
-		IntExpression::LValue(l_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-		}
+		IntExpression::LValue(l_value) => optimize_int_l_value(l_value),
 	}
 }
 
@@ -616,11 +626,7 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 				_ => {}
 			}
 		}
-		FloatExpression::LValue(l_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-		}
+		FloatExpression::LValue(l_value) => optimize_float_l_value(l_value),
 	}
 }
 
@@ -636,11 +642,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 			}
 		}
 
-		ComplexExpression::LValue(l_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-		}
+		ComplexExpression::LValue(l_value) => optimize_complex_l_value(l_value),
 		ComplexExpression::Addition { lhs_expression, rhs_expression, start_column } => {
 			optimize_complex_expression(lhs_expression);
 			optimize_complex_expression(rhs_expression);
@@ -715,11 +717,7 @@ pub fn optimize_complex_expression(expression: &mut ComplexExpression) {
 pub fn optimize_string_expression(expression: &mut StringExpression) {
 	match expression {
 		StringExpression::ConstantValue { .. } => {}
-		StringExpression::LValue(l_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-		}
+		StringExpression::LValue(l_value) => optimize_string_l_value(l_value),
 		StringExpression::Concatenation { lhs_expression, rhs_expression, .. } => {
 			optimize_string_expression(lhs_expression);
 			optimize_string_expression(rhs_expression);
@@ -750,7 +748,6 @@ pub fn optimize_any_type_expression(expression: &mut AnyTypeExpression) {
 		AnyTypeExpression::Float(expression) => optimize_float_expression(expression),
 		AnyTypeExpression::Complex(expression) => optimize_complex_expression(expression),
 		AnyTypeExpression::String(expression) => optimize_string_expression(expression),
-		//AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => {}
 	}
 }
 
@@ -758,5 +755,38 @@ pub fn optimize_print_operand(expression: &mut PrintOperand) {
 	match expression {
 		PrintOperand::Expression(expression) => optimize_any_type_expression(expression),
 		PrintOperand::Comma(_) | PrintOperand::Semicolon(_) => {},
+	}
+}
+
+pub fn optimize_int_l_value(l_value: &mut IntLValue) {
+	for l_value_argument in l_value.arguments.iter_mut() {
+		optimize_any_type_expression(l_value_argument);
+	}
+}
+
+pub fn optimize_float_l_value(l_value: &mut FloatLValue) {
+	for l_value_argument in l_value.arguments.iter_mut() {
+		optimize_any_type_expression(l_value_argument);
+	}
+}
+
+pub fn optimize_complex_l_value(l_value: &mut ComplexLValue) {
+	for l_value_argument in l_value.arguments.iter_mut() {
+		optimize_any_type_expression(l_value_argument);
+	}
+}
+
+pub fn optimize_string_l_value(l_value: &mut StringLValue) {
+	for l_value_argument in l_value.arguments.iter_mut() {
+		optimize_any_type_expression(l_value_argument);
+	}
+}
+
+pub fn optimize_any_type_l_value(l_value: &mut AnyTypeLValue) {
+	match l_value {
+		AnyTypeLValue::Int(l_value) => optimize_int_l_value(l_value),
+		AnyTypeLValue::Float(l_value) => optimize_float_l_value(l_value),
+		AnyTypeLValue::Complex(l_value) => optimize_complex_l_value(l_value),
+		AnyTypeLValue::String(l_value) => optimize_string_l_value(l_value),
 	}
 }

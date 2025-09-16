@@ -372,6 +372,9 @@ pub enum Keyword {
 	Math,
 	Ansi,
 	Ieee,
+	Prompt,
+	Timeout,
+	Elapsed,
 }
 
 impl Keyword {
@@ -431,6 +434,9 @@ impl Keyword {
 			Self::Math =>        &[("MATH",        IdentifierType::UnmarkedNumber)],
 			Self::Ansi =>        &[("ANSI",        IdentifierType::UnmarkedNumber)],
 			Self::Ieee =>        &[("IEEE",        IdentifierType::UnmarkedNumber)],
+			Self::Prompt =>      &[("PROMPT",      IdentifierType::UnmarkedNumber)],
+			Self::Timeout =>     &[("TIMEOUT",     IdentifierType::UnmarkedNumber)],
+			Self::Elapsed =>     &[("ELAPSED",     IdentifierType::UnmarkedNumber)],
 		}
 	}
 

@@ -22,6 +22,31 @@ impl Statement {
 					argument.print(depth + 1);
 				}
 			}
+			StatementVariant::Input { prompt, timeout, elapsed, inputs } => {
+				print!("INPUT");
+				if let Some(_) = prompt {
+					print!(" Prompt");
+				}
+				if let Some(_) = timeout {
+					print!(" Timeout");
+				}
+				if let Some(_) = elapsed {
+					print!(" Elapsed");
+				}
+				if let Some(prompt) = prompt {
+					prompt.print(depth + 1);
+				}
+				if let Some(timeout) = timeout {
+					timeout.print(depth + 1);
+				}
+				if let Some(elapsed) = elapsed {
+					elapsed.print(depth + 1);
+				}
+				println!();
+				for input in inputs {
+					input.print(depth + 1);
+				}
+			}
 			StatementVariant::Run(argument) => {
 				print!("RUN");
 				println!();
@@ -126,6 +151,7 @@ impl Statement {
 #[derive(Debug)]
 pub enum StatementVariant {
 	Print(Box<[PrintOperand]>),
+	Input { prompt: Option<AnyTypeExpression>, timeout: Option<AnyTypeExpression>, elapsed: Option<AnyTypeExpression>, inputs: Box<[AnyTypeLValue]> },
 	Run(Option<IntExpression>),
 	Goto(Option<IntExpression>),
 	Gosub(Option<IntExpression>),
@@ -998,6 +1024,17 @@ impl AnyTypeLValue {
 			Self::Float(l_value) => l_value.start_column,
 			Self::Complex(l_value) => l_value.start_column,
 			Self::String(l_value) => l_value.start_column,
+		}
+	}
+}
+
+impl AnyTypeLValue {
+	pub fn print(&self, depth: usize) {
+		match self {
+			AnyTypeLValue::Int(l_value) => l_value.print(depth),
+			AnyTypeLValue::Float(l_value) => l_value.print(depth),
+			AnyTypeLValue::Complex(l_value) => l_value.print(depth),
+			AnyTypeLValue::String(l_value) => l_value.print(depth),
 		}
 	}
 }

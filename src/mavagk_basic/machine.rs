@@ -186,18 +186,15 @@ impl Machine {
 			StatementVariant::Print(sub_expressions) => {
 				for sub_expression in sub_expressions {
 					match sub_expression {
-						//AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression)?),
-						//AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression)?),
-						//AnyTypeExpression::Float(sub_expression) => print!("{}", self.execute_float_expression(sub_expression)?),
-						//AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression)?),
-						//AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression)?),
-						//AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
 						PrintOperand::Expression(expression) => print!("{}", self.execute_any_type_expression(expression)?),
 						PrintOperand::Comma(sub_expression_column) | PrintOperand::Semicolon(sub_expression_column) =>
 							return Err(ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()).at_column(*sub_expression_column))
 					}
 				}
 				println!();
+			}
+			StatementVariant::Input { prompt: _, timeout: _, elapsed: _, inputs: _ } => {
+				todo!()
 			}
 			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
 				// Set the line to be executed next
