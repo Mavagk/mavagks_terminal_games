@@ -4,55 +4,30 @@ use num::complex::Complex64;
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
-pub fn parse_line<'a>(mut tokens: &[Token<'a>]) -> (Box<[Statement]>, Option<Error>) {
-	let mut out = Vec::new();
+pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
+	let mut parsed_tokens = Vec::new();
 	// Parse statements until we reach the end of line
 	loop {
 		// Strip leading colons
-		while matches!(tokens.first(), Some(Token { variant: TokenVariant::Colon, .. })) {
-			tokens = &tokens[1..];
+		while matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Colon, .. })) {
+			tokens.take_next_token();
 		}
-		if tokens.is_empty() {
-			break;
+		// Return once there are no more tokens left
+		if tokens.tokens.is_empty() {
+			return (parsed_tokens.into(), None);
 		}
-		// Get the length until the next colon or end of line
-		let mut statement_length = None;
-		let mut parenthesis_depth = 0usize;
-		for (index, token) in tokens.iter().enumerate() {
-			match token.variant {
-				TokenVariant::LeftParenthesis => parenthesis_depth += 1,
-				TokenVariant::RightParenthesis => parenthesis_depth = match parenthesis_depth.checked_sub(1) {
-					Some(parenthesis_depth) => parenthesis_depth,
-					None => return (out.into(), Some(ErrorVariant::MoreRightParenthesesThanLeftParentheses.at_column(token.start_column))),
-				},
-				TokenVariant::Colon if parenthesis_depth == 0 => {
-					statement_length = Some(index);
-					break;
-				}
-				_ => {}
-			}
-		};
-		let statement_length = match statement_length {
-			Some(statement_length) => statement_length,
-			None => tokens.len(),
-		};
-		// Get the tokens until the next colon or end of line
-		let statement_tokens;
-		(statement_tokens, tokens) = tokens.split_at(statement_length);
-		let mut statement_tokens = Tokens::new(statement_tokens);
 		// Parse this statement
-		let statement = match parse_statement(&mut statement_tokens, true) {
-			Err(error) => return (out.into(), Some(error)),
+		let statement = match parse_statement(tokens, true) {
+			Err(error) => return (parsed_tokens.into(), Some(error)),
 			Ok(statement) => statement.unwrap(),
 		};
-		// There should be no tokens left after we parse this statement
-		if !statement_tokens.tokens.is_empty() {
-			return (out.into(), Some(ErrorVariant::StatementShouldEnd.at_column(statement_tokens.tokens[0].start_column)))
+		// There should be either no tokens or a colon left after we parse this statement
+		if !tokens.tokens.is_empty() && !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Colon, .. })) {
+			return (parsed_tokens.into(), Some(ErrorVariant::StatementShouldEnd.at_column(tokens.tokens[0].start_column)))
 		}
 		// Push statement to list
-		out.push(statement);
+		parsed_tokens.push(statement);
 	}
-	(out.into(), None)
 }
 
 pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Result<Option<Statement>, Error> {

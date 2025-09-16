@@ -1,7 +1,7 @@
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
-use crate::{game::game_trait::Game, get_input, mavagk_basic::{error::handle_error, machine::Machine, optimize::optimize_statement, parse::parse_line, program::Program, token::Token}};
+use crate::{game::game_trait::Game, get_input, mavagk_basic::{error::handle_error, machine::Machine, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::Token}};
 
 pub struct MavagkBasicTerminal {
 	should_exit: bool,
@@ -40,7 +40,7 @@ impl Game for MavagkBasicTerminal {
 					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
 					return Ok(());
 				}
-				let (trees, error) = parse_line(&*tokens);
+				let (trees, error) = parse_line(&mut Tokens::new(&tokens));
 				if let Some(line_number) = &line_number {
 					println!("Line: {line_number}");
 				}
@@ -61,7 +61,7 @@ impl Game for MavagkBasicTerminal {
 					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
 					return Ok(());
 				}
-				let (mut trees, error) = parse_line(&*tokens);
+				let (mut trees, error) = parse_line(&mut Tokens::new(&tokens));
 				for tree in trees.iter_mut() {
 					optimize_statement(tree);
 				}
