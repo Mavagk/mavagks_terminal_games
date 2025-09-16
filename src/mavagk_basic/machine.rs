@@ -3,7 +3,7 @@ use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
@@ -186,12 +186,14 @@ impl Machine {
 			StatementVariant::Print(sub_expressions) => {
 				for sub_expression in sub_expressions {
 					match sub_expression {
-						AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression)?),
-						AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression)?),
-						AnyTypeExpression::Float(sub_expression) => print!("{}", self.execute_float_expression(sub_expression)?),
-						AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression)?),
-						AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression)?),
-						AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
+						//AnyTypeExpression::Bool(sub_expression) => print!("{}", self.execute_bool_expression(sub_expression)?),
+						//AnyTypeExpression::Int(sub_expression) => print!("{}", self.execute_int_expression(sub_expression)?),
+						//AnyTypeExpression::Float(sub_expression) => print!("{}", self.execute_float_expression(sub_expression)?),
+						//AnyTypeExpression::Complex(sub_expression) => print!("{}", self.execute_complex_expression(sub_expression)?),
+						//AnyTypeExpression::String(sub_expression) => print!("{}", self.execute_string_expression(sub_expression)?),
+						//AnyTypeExpression::PrintComma(sub_expression_column) | AnyTypeExpression::PrintSemicolon(sub_expression_column) =>
+						PrintOperand::Expression(expression) => print!("{}", self.execute_any_type_expression(expression)?),
+						PrintOperand::Comma(sub_expression_column) | PrintOperand::Semicolon(sub_expression_column) =>
 							return Err(ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()).at_column(*sub_expression_column))
 					}
 				}
@@ -473,7 +475,7 @@ impl Machine {
 			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression)?),
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression)?),
-			_ => unreachable!(),
+			//_ => unreachable!(),
 		})
 	}
 

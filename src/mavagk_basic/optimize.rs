@@ -1,6 +1,6 @@
 use std::mem::replace;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, IntExpression, FloatExpression, Statement, StatementVariant, StringExpression}, value::{BoolValue, ComplexValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, FloatExpression, IntExpression, PrintOperand, Statement, StatementVariant, StringExpression}, value::{BoolValue, ComplexValue, IntValue, StringValue}};
 
 pub fn optimize_statement(statement: &mut Statement) {
 	match &mut statement.variant {
@@ -19,7 +19,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 		}
 		StatementVariant::Print(sub_expressions) => {
 			for sub_expression in sub_expressions.iter_mut() {
-				optimize_any_type_expression(sub_expression);
+				optimize_print_operand(sub_expression);
 			}
 		}
 		StatementVariant::OneLineIf { condition_expression, then_statement, else_statement } => {
@@ -750,6 +750,13 @@ pub fn optimize_any_type_expression(expression: &mut AnyTypeExpression) {
 		AnyTypeExpression::Float(expression) => optimize_float_expression(expression),
 		AnyTypeExpression::Complex(expression) => optimize_complex_expression(expression),
 		AnyTypeExpression::String(expression) => optimize_string_expression(expression),
-		AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => {}
+		//AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => {}
+	}
+}
+
+pub fn optimize_print_operand(expression: &mut PrintOperand) {
+	match expression {
+		PrintOperand::Expression(expression) => optimize_any_type_expression(expression),
+		PrintOperand::Comma(_) | PrintOperand::Semicolon(_) => {},
 	}
 }

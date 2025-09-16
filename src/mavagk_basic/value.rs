@@ -572,3 +572,15 @@ impl AnyTypeValue {
 		}
 	}
 }
+
+impl Display for AnyTypeValue {
+	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Bool(value) => write!(f, "{}", value),
+			Self::Int(value) => write!(f, "{}", value),
+			Self::Float(value) => write!(f, "{}", value),
+			Self::Complex(value) => write!(f, "{}", value),
+			Self::String(value) => write!(f, "{}", value),
+		}
+	}
+}

@@ -125,7 +125,7 @@ impl Statement {
 
 #[derive(Debug)]
 pub enum StatementVariant {
-	Print(Box<[AnyTypeExpression]>),
+	Print(Box<[PrintOperand]>),
 	Run(Option<IntExpression>),
 	Goto(Option<IntExpression>),
 	Gosub(Option<IntExpression>),
@@ -136,6 +136,37 @@ pub enum StatementVariant {
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 	Option(OptionVariableAndValue),
+}
+
+#[derive(Debug)]
+pub enum PrintOperand {
+	Expression(AnyTypeExpression),
+	Comma(NonZeroUsize),
+	Semicolon(NonZeroUsize),
+}
+
+impl PrintOperand {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		match self {
+			Self::Expression(expression) => expression.get_start_column(),
+			Self::Comma(start_column) => *start_column,
+			Self::Semicolon(start_column) => *start_column,
+		}
+	}
+
+	pub fn print(&self, depth: usize) {
+		if !matches!(self, Self::Expression(_)) {
+			for _ in 0..depth {
+				print!("-");
+			}
+			print!(" {:03}: ", self.get_start_column());
+		}
+		match self {
+			Self::Expression(expression) => expression.print(depth),
+			Self::Comma(_) => println!("Comma"),
+			Self::Semicolon(_) => println!("Semicolon"),
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
@@ -830,8 +861,8 @@ pub enum AnyTypeExpression {
 	Complex(ComplexExpression),
 	String(StringExpression),
 	Bool(BoolExpression),
-	PrintComma(NonZeroUsize),
-	PrintSemicolon(NonZeroUsize),
+	//PrintComma(NonZeroUsize),
+	//PrintSemicolon(NonZeroUsize),
 }
 
 impl AnyTypeExpression {
@@ -842,15 +873,15 @@ impl AnyTypeExpression {
 			AnyTypeExpression::Float(value) => value.get_start_column(),
 			AnyTypeExpression::Complex(value) => value.get_start_column(),
 			AnyTypeExpression::String(value) => value.get_start_column(),
-			AnyTypeExpression::PrintComma(column) => *column,
-			AnyTypeExpression::PrintSemicolon(column) => *column,
+			//AnyTypeExpression::PrintComma(column) => *column,
+			//AnyTypeExpression::PrintSemicolon(column) => *column,
 		}
 	}
 
 	pub fn to_int_expression(self) -> Result<IntExpression, Error> {
 		Ok(match self {
 			Self::Int(expression) => expression,
-			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 			Self::Float(expression) => IntExpression::CastFromFloat(Box::new(expression)),
 			Self::Complex(expression) => IntExpression::CastFromFloat(Box::new(FloatExpression::CastFromComplex(Box::new(expression)))),
 			Self::Bool(expression) => IntExpression::CastFromBool(Box::new(expression)),
@@ -865,7 +896,7 @@ impl AnyTypeExpression {
 			Self::Complex(expression) => FloatExpression::CastFromComplex(Box::new(expression)),
 			Self::Bool(expression) => FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))),
 			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
-			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
@@ -876,7 +907,7 @@ impl AnyTypeExpression {
 			Self::Complex(expression) => expression,
 			Self::Bool(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))))),
 			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
-			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
@@ -884,7 +915,7 @@ impl AnyTypeExpression {
 		Ok(match self {
 			Self::Int(..) | Self::Float(..) | Self::Complex(..) | Self::Bool(..) => return Err(ErrorVariant::NumberCastToString.at_column(self.get_start_column())),
 			Self::String(value) => value,
-			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
@@ -895,7 +926,7 @@ impl AnyTypeExpression {
 			Self::Float(expression) => BoolExpression::FloatIsNonZero(Box::new(expression)),
 			Self::Complex(expression) => BoolExpression::ComplexIsNonZero(Box::new(expression)),
 			Self::String(expression) => BoolExpression::StringIsNotEmpty(Box::new(expression)),
-			AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
+			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
 		})
 	}
 
@@ -910,7 +941,7 @@ impl AnyTypeExpression {
 			(Self::Bool(..) | Self::Int(..) | Self::Float(..), Self::Complex(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
 			(Self::String(..), _) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression()?)),
 			(_, Self::String(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
-			(Self::PrintComma(..) | Self::PrintSemicolon(..), _) | (_, Self::PrintComma(..) | Self::PrintSemicolon(..)) => unreachable!(),
+			//(Self::PrintComma(..) | Self::PrintSemicolon(..), _) | (_, Self::PrintComma(..) | Self::PrintSemicolon(..)) => unreachable!(),
 		})
 	}
 
@@ -921,18 +952,18 @@ impl AnyTypeExpression {
 			AnyTypeExpression::Complex(expression) => expression.print(depth),
 			AnyTypeExpression::Bool(expression) => expression.print(depth),
 			AnyTypeExpression::String(expression) => expression.print(depth),
-			AnyTypeExpression::PrintComma(column) => {
-				for _ in 0..depth {
-					print!("-");
-				}
-				println!(" {:03}: Comma/,", column);
-			}
-			AnyTypeExpression::PrintSemicolon(column) => {
-				for _ in 0..depth {
-					print!("-");
-				}
-				println!(" {:03}: Semicolon/;", column);
-			}
+			//AnyTypeExpression::PrintComma(column) => {
+			//	for _ in 0..depth {
+			//		print!("-");
+			//	}
+			//	println!(" {:03}: Comma/,", column);
+			//}
+			//AnyTypeExpression::PrintSemicolon(column) => {
+			//	for _ in 0..depth {
+			//		print!("-");
+			//	}
+			//	println!(" {:03}: Semicolon/;", column);
+			//}
 		}
 	}
 
@@ -940,7 +971,7 @@ impl AnyTypeExpression {
 		match self {
 			AnyTypeExpression::Bool(_) | AnyTypeExpression::Int(_) | AnyTypeExpression::Float(_) | AnyTypeExpression::Complex(_) => true,
 			AnyTypeExpression::String(_) => false,
-			AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => unreachable!(),
+			//AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => unreachable!(),
 		}
 	}
 

@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::complex::Complex64;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
 	let mut parsed_tokens = Vec::new();
@@ -155,12 +155,12 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				// Parse comma and semicolon arguments
 				match &tokens.tokens[0] {
 					Token { variant: TokenVariant::Comma, start_column, end_column: _ } => {
-						expressions.push(AnyTypeExpression::PrintComma(*start_column));
+						expressions.push(PrintOperand::Comma(*start_column));
 						tokens.remove_tokens(1);
 						continue;
 					}
 					Token { variant: TokenVariant::Semicolon, start_column, end_column: _ } => {
-						expressions.push(AnyTypeExpression::PrintSemicolon(*start_column));
+						expressions.push(PrintOperand::Semicolon(*start_column));
 						tokens.remove_tokens(1);
 						continue;
 					}
@@ -169,7 +169,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				// Parse expression arguments
 				let expression = match parse_expression(tokens)? {
 					None => break,
-					Some(result) => result,
+					Some(result) => PrintOperand::Expression(result),
 				};
 				expressions.push(expression);
 			}
@@ -452,7 +452,10 @@ pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpressi
 	};
 	while !unary_operators.is_empty() {
 		let unary_operator = unary_operators.pop().unwrap();
-		*expression = unary_operator_to_expression(unary_operator.0, unary_operator.1, replace(expression, AnyTypeExpression::PrintComma(1.try_into().unwrap())))?;
+		*expression = unary_operator_to_expression(
+			unary_operator.0, unary_operator.1,
+			replace(expression, AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() }))
+		)?;
 	}
 	Ok(())
 }
@@ -1056,7 +1059,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZe
 			AnyTypeExpression::Float(..) => AnyTypeExpression::Float(FloatExpression::Negation { sub_expression: Box::new(operand.to_float_expression()?), start_column }),
 			AnyTypeExpression::Complex(..) => AnyTypeExpression::Complex(ComplexExpression::Negation { sub_expression: Box::new(operand.to_complex_expression()?), start_column }),
 			AnyTypeExpression::String(..) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
-			_ => unreachable!(),
+			//_ => unreachable!(),
 		}
 		UnaryOperator::UnaryPlus  => operand,
 		UnaryOperator::Not  => match operand {
@@ -1064,7 +1067,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZe
 			AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) =>
 				AnyTypeExpression::Int(IntExpression::BitwiseNot { sub_expression: Box::new(operand.to_int_expression()?), start_column }),
 			AnyTypeExpression::String(..) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
-			_ => unreachable!(),
+			//_ => unreachable!(),
 		}
 	})
 }
@@ -1125,29 +1128,29 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	/// * `None` if there is not a keyword at the start of the list, leaves the list unchanged.
 	/// * `Some((keyword, keyword start column))` if it could, removes the tokens from the list.
 	pub fn take_keyword(&mut self) -> Option<(Keyword, NonZeroUsize)> {
-	// Take first keyword or return if there is not a first keyword
-	let (first_keyword_variant, first_keyword_start_column) = match self.tokens.get(0) {
-		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, .. }) => (*keyword, *start_column),
-		_ => return None,
-	};
-	self.remove_tokens(1);
-	// Take the second keyword if there is one
-	let second_keyword_variant = match self.tokens.get(0) {
-		Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, .. }) => {
-			Some(*keyword)
-		},
-		_ => None,
-	};
-	// If there are two keywords and they are in a list of two word keywords, return the two word keyword
-	if let Some(second_keyword_variant) = second_keyword_variant {
-		for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
-			if second_keyword_variant == *second_keyword_of_double_word_keyword {
-				self.remove_tokens(1);
-				return Some((*double_word_keyword, first_keyword_start_column));
+		// Take first keyword or return if there is not a first keyword
+		let (first_keyword_variant, first_keyword_start_column) = match self.tokens.get(0) {
+			Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, start_column, .. }) => (*keyword, *start_column),
+			_ => return None,
+		};
+		self.remove_tokens(1);
+		// Take the second keyword if there is one
+		let second_keyword_variant = match self.tokens.get(0) {
+			Some(Token { variant: TokenVariant::Identifier { keyword: Some(keyword), .. }, .. }) => {
+				Some(*keyword)
+			},
+			_ => None,
+		};
+		// If there are two keywords and they are in a list of two word keywords, return the two word keyword
+		if let Some(second_keyword_variant) = second_keyword_variant {
+			for (second_keyword_of_double_word_keyword, double_word_keyword) in first_keyword_variant.get_double_word_tokens() {
+				if second_keyword_variant == *second_keyword_of_double_word_keyword {
+					self.remove_tokens(1);
+					return Some((*double_word_keyword, first_keyword_start_column));
+				}
 			}
 		}
+		// Else return the first keyword variant
+		Some((first_keyword_variant, first_keyword_start_column))
 	}
-	// Else return the first keyword variant
-	Some((first_keyword_variant, first_keyword_start_column))
-}
 }
