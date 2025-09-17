@@ -33,6 +33,7 @@ impl Statement {
 				if let Some(_) = elapsed {
 					print!(" Elapsed");
 				}
+				println!();
 				if let Some(prompt) = prompt {
 					prompt.print(depth + 1);
 				}
@@ -42,7 +43,6 @@ impl Statement {
 				if let Some(elapsed) = elapsed {
 					elapsed.print(depth + 1);
 				}
-				println!();
 				for input in inputs {
 					input.print(depth + 1);
 				}

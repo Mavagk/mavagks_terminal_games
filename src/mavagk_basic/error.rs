@@ -103,6 +103,10 @@ pub enum ErrorVariant {
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
 	ExpectedColonAfterInputPrompt,
+	MultiplePromptsForInput,
+	MultipleTimeoutsForInput,
+	MultipleElapsedsForInput,
+	ExpectedInputPrompt,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -190,6 +194,10 @@ impl Display for ErrorVariant {
 			Self::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
 			Self::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
 			Self::ExpectedColonAfterInputPrompt => write!(f, "Expected colon or semicolon after input prompt."),
+			Self::MultiplePromptsForInput => write!(f, "Multiple PROMPT arguments for an INPUT statement."),
+			Self::MultipleTimeoutsForInput => write!(f, "Multiple TIMEOUT arguments for an INPUT statement."),
+			Self::MultipleElapsedsForInput => write!(f, "Multiple ELAPSED arguments for an INPUT statement."),
+			Self::ExpectedInputPrompt => write!(f, "Expected PROMPT, TIMEOUT or ELAPSED."),
 		}
 	}
 }

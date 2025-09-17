@@ -182,9 +182,9 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 		// INPUT
 		Keyword::Input => {
 			let mut prompt = None;
-			let timeout = None;
-			let elapsed = None;
-			let inputs = Vec::new();
+			let mut timeout = None;
+			let mut elapsed = None;
+			let mut inputs = Vec::new();
 			// Get prompt/timeout/elapsed
 			// Commodore style prompt
 			if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::StringLiteral(..), .. })) {
@@ -198,8 +198,71 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				}
 			}
 			// ANSI style prompt
-			else {
-				
+			else { 'a: {
+				// Make sure this is an ANSI style prompt
+				let mut test_tokens = tokens.clone();
+				if !matches!(test_tokens.take_keyword(), Some((Keyword::Prompt | Keyword::Timeout | Keyword::Elapsed, _))) {
+					break 'a;
+				}
+				if !matches!(parse_expression(&mut test_tokens), Ok(Some(_))) {
+					break 'a;
+				}
+				// Get each prompt/timeout/elapsed
+				loop {
+					// Get prompt/timeout/elapsed
+					match tokens.take_keyword() {
+						None => return Err(ErrorVariant::ExpectedInputPrompt.at_column(tokens.last_removed_token_end_column)),
+						Some((Keyword::Prompt, start_column)) => {
+							let prompt_expression = match parse_expression(tokens)? {
+								Some(prompt_expression) => prompt_expression,
+								None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+							};
+							if replace(&mut prompt, Some(prompt_expression)).is_some() {
+								return Err(ErrorVariant::MultiplePromptsForInput.at_column(start_column));
+							}
+						}
+						Some((Keyword::Timeout, start_column)) => {
+							let timeout_expression = match parse_expression(tokens)? {
+								Some(timeout_expression) => timeout_expression,
+								None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+							};
+							if replace(&mut timeout, Some(timeout_expression)).is_some() {
+								return Err(ErrorVariant::MultipleTimeoutsForInput.at_column(start_column));
+							}
+						}
+						Some((Keyword::Elapsed, start_column)) => {
+							let elapsed_expression = match parse_expression(tokens)? {
+								Some(elapsed_expression) => elapsed_expression,
+								None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+							};
+							if replace(&mut elapsed, Some(elapsed_expression)).is_some() {
+								return Err(ErrorVariant::MultipleElapsedsForInput.at_column(start_column));
+							}
+						}
+						Some((_, start_column)) => return Err(ErrorVariant::ExpectedInputPrompt.at_column(start_column)),
+					}
+					// Expect a comma to indicate there is another prompt/timeout/elapsed or a colon/semicolon to indicate the end of said list.
+					match tokens.take_next_token() {
+						None => return Err(ErrorVariant::ExpectedColonAfterInputPrompt.at_column(tokens.last_removed_token_end_column)),
+						Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, .. }) => break,
+						Some(Token { variant: TokenVariant::Comma, .. }) => {},
+						Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedColonAfterInputPrompt.at_column(*start_column)),
+					}
+				}
+			}}
+			// Get inputs
+			loop {
+				// Get input
+				let input_l_value = match parse_l_value(tokens)? {
+					Some(input_l_value) => input_l_value,
+					None => return Err(ErrorVariant::InvalidLValue.at_column(tokens.last_removed_token_end_column)),
+				};
+				inputs.push(input_l_value);
+				// If there is not a comma after the input, end the statement
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				tokens.take_next_token();
 			}
 			// Assemble into statement
 			Statement {
