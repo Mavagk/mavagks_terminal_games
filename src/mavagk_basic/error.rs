@@ -102,6 +102,7 @@ pub enum ErrorVariant {
 	IntSquareRootOfNegativeNumber,
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
+	ExpectedColonAfterInputPrompt,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -188,6 +189,7 @@ impl Display for ErrorVariant {
 			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
 			Self::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
 			Self::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
+			Self::ExpectedColonAfterInputPrompt => write!(f, "Expected colon or semicolon after input prompt."),
 		}
 	}
 }

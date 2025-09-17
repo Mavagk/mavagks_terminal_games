@@ -179,6 +179,34 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				variant: StatementVariant::Print(expressions.into()),
 			}
 		}
+		// INPUT
+		Keyword::Input => {
+			let mut prompt = None;
+			let timeout = None;
+			let elapsed = None;
+			let inputs = Vec::new();
+			// Get prompt/timeout/elapsed
+			// Commodore style prompt
+			if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::StringLiteral(..), .. })) {
+				// Parse prompt
+				prompt = Some(parse_expression(tokens)?.unwrap());
+				// Expect colon/semicolon
+				match tokens.take_next_token() {
+					None => return Err(ErrorVariant::ExpectedColonAfterInputPrompt.at_column(tokens.last_removed_token_end_column)),
+					Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, .. }) => {},
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedColonAfterInputPrompt.at_column(*start_column)),
+				}
+			}
+			// ANSI style prompt
+			else {
+				
+			}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Input { prompt, timeout, elapsed, inputs: inputs.into() },
+			}
+		}
 		// Statements with 0-1 integer arguments
 		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
 			// Get the argument expression if it exists
