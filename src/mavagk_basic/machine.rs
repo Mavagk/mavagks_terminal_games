@@ -301,50 +301,14 @@ impl Machine {
 				return Ok(true);
 			}
 			StatementVariant::Gosub(_) => return Err(ErrorVariant::NotYetImplemented("GOSUB statement".into()).at_column(*column)),
-			StatementVariant::AssignInt(l_value, r_value_expression) => {
-				// Get what to assign to
-				let IntLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
-				// Get r-value
-				let r_value = Self::execute_int_expression(&self, r_value_expression)?;
-				// Assign
-				if *has_parentheses {
-					return Err(ErrorVariant::NotYetImplemented("Arrays".into()).at_column(*column));
-				}
-				self.int_variables.insert(name.clone(), r_value);
-			}
-			StatementVariant::AssignFloat(l_value, r_value_expression) => {
-				// Get what to assign to
-				let FloatLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
-				// Get r-value
-				let r_value = Self::execute_float_expression(&self, r_value_expression)?;
-				// Assign
-				if *has_parentheses {
-					return Err(ErrorVariant::NotYetImplemented("Arrays".into()).at_column(*column));
-				}
-				self.float_variables.insert(name.clone(), r_value);
-			}
-			StatementVariant::AssignComplex(l_value, r_value_expression) => {
-				// Get what to assign to
-				let ComplexLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
-				// Get r-value
-				let r_value = Self::execute_complex_expression(&self, r_value_expression)?;
-				// Assign
-				if *has_parentheses {
-					return Err(ErrorVariant::NotYetImplemented("Arrays".into()).at_column(*column));
-				}
-				self.complex_variables.insert(name.clone(), r_value);
-			}
-			StatementVariant::AssignString(l_value, r_value_expression) => {
-				// Get what to assign to
-				let StringLValue { name, arguments: _, /*uses_fn_keyword: _,*/ has_parentheses, start_column: _, .. } = l_value;
-				// Get r-value
-				let r_value = Self::execute_string_expression(&self, r_value_expression)?;
-				// Assign
-				if *has_parentheses {
-					return Err(ErrorVariant::NotYetImplemented("Arrays".into()).at_column(*column));
-				}
-				self.string_variables.insert(name.clone(), r_value);
-			}
+			StatementVariant::AssignInt(l_value, r_value_expression) =>
+				self.execute_int_l_value_write(l_value, self.execute_int_expression(r_value_expression)?)?,
+			StatementVariant::AssignFloat(l_value, r_value_expression) =>
+				self.execute_float_l_value_write(l_value, self.execute_float_expression(r_value_expression)?)?,
+			StatementVariant::AssignComplex(l_value, r_value_expression) =>
+				self.execute_complex_l_value_write(l_value, self.execute_complex_expression(r_value_expression)?)?,
+			StatementVariant::AssignString(l_value, r_value_expression) =>
+				self.execute_string_l_value_write(l_value, self.execute_string_expression(r_value_expression)?)?,
 			StatementVariant::List(range_start, range_end) => {
 				let range_start_value = match range_start {
 					Some(range_start) => Some(&*self.execute_int_expression(range_start)?.value),
