@@ -1,9 +1,9 @@
-use std::{collections::HashMap, io::stdout, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
+use std::{collections::HashMap, io::{stdin, stdout, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 pub struct Machine {
 	// Program counter
@@ -193,8 +193,96 @@ impl Machine {
 				}
 				println!();
 			}
-			StatementVariant::Input { prompt: _, timeout: _, elapsed: _, inputs: _ } => {
-				todo!()
+			StatementVariant::Input { prompt, timeout, elapsed, inputs } => {
+				// TODO
+				if let Some(timeout) = timeout {
+					return Err(ErrorVariant::NotYetImplemented("TIMEOUT".into()).at_column(timeout.get_start_column()))
+				}
+				if let Some(elapsed) = elapsed {
+					return Err(ErrorVariant::NotYetImplemented("ELAPSED".into()).at_column(elapsed.get_start_column()))
+				}
+				// Loop until all inputs have been entered
+				let mut is_redoing = false;
+				'a: loop {
+					// Print if text needs to be re-entered
+					if is_redoing {
+						println!("Input error, please re-enter.")
+					}
+					is_redoing = true;
+					// Print the prompt
+					// TODO: OPTION for setting if "? " should be auto printed
+					if let Some(prompt_expression) = prompt {
+						print!("{}", self.execute_any_type_expression(prompt_expression)?);
+					}
+					else {
+						print!("? ");
+					}
+					// Get inputs
+					stdout().flush().unwrap();
+					let mut input_buffer = String::new();
+					if stdin().read_line(&mut input_buffer).is_err() {
+						continue;
+					}
+					// Break if a blank string was entered
+					if !input_buffer.contains(|chr: char| !chr.is_ascii_whitespace()) {
+						break;
+					}
+					// For each input
+					let mut inputs_left = &**inputs;
+					let mut input_buffer_left = input_buffer.as_str();
+					while !inputs_left.is_empty() {
+						let next_input = &inputs_left[0];
+						inputs_left = &inputs_left[1..];
+						let next_input_text_byte_length = input_buffer_left.find(',');
+						let next_input_text = match next_input_text_byte_length {
+							Some(next_input_text_byte_length) => {
+								let (next_input_text, text_after_next_input_text) = input_buffer_left.split_at(next_input_text_byte_length);
+								input_buffer_left = &text_after_next_input_text[1..];
+								next_input_text
+							}
+							None => {
+								if !inputs_left.is_empty() {
+									continue 'a;
+								}
+								take(&mut input_buffer_left)
+							}
+						}.trim_ascii();
+						match next_input {
+							AnyTypeLValue::Int(l_value) => {
+								let parsed_value = match next_input_text.parse() {
+									Ok(parsed_value) => IntValue::new(Rc::new(parsed_value)),
+									Err(_) => continue 'a,
+								};
+								self.execute_int_l_value_write(l_value, parsed_value)?;
+							}
+							AnyTypeLValue::Float(l_value) => {
+								let parsed_value = match next_input_text.parse() {
+									Ok(parsed_value) => FloatValue::new(parsed_value),
+									Err(_) => continue 'a,
+								};
+								self.execute_float_l_value_write(l_value, parsed_value)?;
+							}
+							AnyTypeLValue::Complex(l_value) => {
+								let parsed_value = match next_input_text.parse() {
+									Ok(parsed_value) => ComplexValue::new(parsed_value),
+									Err(_) => continue 'a,
+								};
+								self.execute_complex_l_value_write(l_value, parsed_value)?;
+							}
+							AnyTypeLValue::String(l_value) => {
+								if next_input_text.contains('"') {
+									// TODO: Quoted text input
+									continue 'a;
+								}
+								self.execute_string_l_value_write(l_value, StringValue::new(Rc::new(next_input_text.into())))?;
+							}
+						}
+					}
+					if input_buffer_left.contains(|chr: char| !chr.is_ascii_whitespace()) {
+						println!("Extra inputs ignored.");
+					}
+					break;
+				}
 			}
 			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
 				// Set the line to be executed next
@@ -673,6 +761,58 @@ impl Machine {
 		}
 		// Else return zero
 		Ok(StringValue::empty())
+	}
+
+	fn execute_int_l_value_write(&mut self, l_value: &IntLValue, value: IntValue) -> Result<(), Error> {
+		// Unpack
+		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// TODO
+		if !arguments.is_empty() || *has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+		}
+		// Assign to global variable
+		self.int_variables.insert(name.clone(), value);
+		// Return
+		Ok(())
+	}
+
+	fn execute_float_l_value_write(&mut self, l_value: &FloatLValue, value: FloatValue) -> Result<(), Error> {
+		// Unpack
+		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// TODO
+		if !arguments.is_empty() || *has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+		}
+		// Assign to global variable
+		self.float_variables.insert(name.clone(), value);
+		// Return
+		Ok(())
+	}
+
+	fn execute_complex_l_value_write(&mut self, l_value: &ComplexLValue, value: ComplexValue) -> Result<(), Error> {
+		// Unpack
+		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// TODO
+		if !arguments.is_empty() || *has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+		}
+		// Assign to global variable
+		self.complex_variables.insert(name.clone(), value);
+		// Return
+		Ok(())
+	}
+
+	fn execute_string_l_value_write(&mut self, l_value: &StringLValue, value: StringValue) -> Result<(), Error> {
+		// Unpack
+		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// TODO
+		if !arguments.is_empty() || *has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+		}
+		// Assign to global variable
+		self.string_variables.insert(name.clone(), value);
+		// Return
+		Ok(())
 	}
 }
 
