@@ -343,7 +343,44 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 		}
 		// NEXT
 		Keyword::Next => {
-			return Err(ErrorVariant::NotYetImplemented("NEXT statement".into()).at_column(statement_keyword_start_column));
+			// If this is a next without any arguments
+			if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Identifier { is_reserved_keyword: false, .. }, .. })) {
+				return Ok(Some(Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::Next(Box::default()),
+				}));
+			}
+			// Get each comma-separated loop variable
+			let mut loop_variables = Vec::new();
+			loop {
+				// Parse loop variable
+				let loop_variable = match parse_l_value(tokens)? {
+					Some(initial_value_expression) => initial_value_expression,
+					None => return Err(ErrorVariant::InvalidLValue.at_column(tokens.last_removed_token_end_column)),
+				};
+				// Check that the l-value is valid
+				match loop_variable {
+					AnyTypeLValue::Complex(loop_variable) => return Err(ErrorVariant::Unimplemented("Complex FOR loops".into()).at_column(loop_variable.start_column)),
+					AnyTypeLValue::String(loop_variable) => return Err(ErrorVariant::Unimplemented("String FOR loops".into()).at_column(loop_variable.start_column)),
+					_ => {}
+				}
+				if loop_variable.has_parentheses() {
+					return Err(ErrorVariant::LoopVariableNotSimpleVar.at_column(loop_variable.get_start_column()));
+				}
+				// Push variable
+				loop_variables.push(loop_variable);
+				// The loop variable list ends if there is not a comma after the loop variable
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				// If it does have a comma, remove it
+				tokens.take_next_token();
+			}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Next(loop_variables.into()),
+			}
 		}
 		// Statements with 0-1 integer arguments
 		Keyword::Goto | Keyword::Run | Keyword::Gosub => {

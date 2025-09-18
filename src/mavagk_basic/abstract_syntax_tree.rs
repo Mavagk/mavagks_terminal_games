@@ -74,6 +74,8 @@ impl Statement {
 				}
 			}
 			StatementVariant::Next(loop_variables) => {
+				print!("NEXT");
+				println!();
 				for loop_variable in loop_variables {
 					loop_variable.print(depth + 1);
 				}
