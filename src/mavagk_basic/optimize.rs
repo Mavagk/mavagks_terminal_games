@@ -36,6 +36,27 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_any_type_l_value(input);
 			}
 		}
+		StatementVariant::ForInt { loop_variable, initial, limit, step } => {
+			optimize_int_l_value(loop_variable);
+			optimize_int_expression(initial);
+			optimize_int_expression(limit);
+			if let Some(step) = step {
+				optimize_int_expression(step);
+			}
+		}
+		StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
+			optimize_float_l_value(loop_variable);
+			optimize_float_expression(initial);
+			optimize_float_expression(limit);
+			if let Some(step) = step {
+				optimize_float_expression(step);
+			}
+		}
+		StatementVariant::Next(loop_variables) => {
+			for loop_variable in loop_variables {
+				optimize_any_type_l_value(loop_variable);
+			}
+		}
 		StatementVariant::OneLineIf { condition_expression, then_statement, else_statement } => {
 			optimize_bool_expression(condition_expression);
 			optimize_statement(then_statement);

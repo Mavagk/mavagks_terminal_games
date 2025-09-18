@@ -284,6 +284,15 @@ impl Machine {
 					break;
 				}
 			}
+			StatementVariant::ForInt { loop_variable: _, initial: _, limit: _, step: _ } => {
+				todo!()
+			}
+			StatementVariant::ForFloat { loop_variable: _, initial: _, limit: _, step: _ } => {
+				todo!()
+			}
+			StatementVariant::Next(_loop_variables) => {
+				todo!()
+			}
 			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
 				// Set the line to be executed next
 				match sub_expression {

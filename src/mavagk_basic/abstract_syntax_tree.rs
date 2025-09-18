@@ -47,6 +47,37 @@ impl Statement {
 					input.print(depth + 1);
 				}
 			}
+			StatementVariant::ForInt { loop_variable, initial, limit, step } => {
+				print!("FOR (Integer)");
+				if let Some(_) = step {
+					print!(" Stepped")
+				}
+				println!();
+				loop_variable.print(depth + 1);
+				initial.print(depth + 1);
+				limit.print(depth + 1);
+				if let Some(step) = step {
+					step.print(depth + 1);
+				}
+			}
+			StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
+				print!("FOR (Float)");
+				if let Some(_) = step {
+					print!(" Stepped")
+				}
+				println!();
+				loop_variable.print(depth + 1);
+				initial.print(depth + 1);
+				limit.print(depth + 1);
+				if let Some(step) = step {
+					step.print(depth + 1);
+				}
+			}
+			StatementVariant::Next(loop_variables) => {
+				for loop_variable in loop_variables {
+					loop_variable.print(depth + 1);
+				}
+			}
 			StatementVariant::Run(argument) => {
 				print!("RUN");
 				println!();
@@ -162,6 +193,9 @@ pub enum StatementVariant {
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 	Option(OptionVariableAndValue),
+	ForInt { loop_variable: IntLValue, initial: IntExpression, limit: IntExpression, step: Option<IntExpression> },
+	ForFloat { loop_variable: FloatLValue, initial: FloatExpression, limit: FloatExpression, step: Option<FloatExpression> },
+	Next(Box<[AnyTypeLValue]>),
 }
 
 #[derive(Debug)]
