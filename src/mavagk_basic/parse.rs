@@ -1175,7 +1175,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	pub fn new(tokens: &'b [Token<'a>]) -> Self {
 		Self {
 			tokens,
-			last_removed_token_end_column: tokens[0].start_column,
+			last_removed_token_end_column: 1.try_into().unwrap(),
 		}
 	}
 
