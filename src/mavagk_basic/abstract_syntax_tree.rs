@@ -16,8 +16,7 @@ impl Statement {
 		print!(" {:03}: ", self.column);
 		match &self.variant {
 			StatementVariant::Print(arguments) => {
-				print!("PRINT");
-				println!();
+				println!("PRINT");
 				for argument in arguments {
 					argument.print(depth + 1);
 				}
@@ -74,54 +73,46 @@ impl Statement {
 				}
 			}
 			StatementVariant::Next(loop_variables) => {
-				print!("NEXT");
-				println!();
+				println!("NEXT");
 				for loop_variable in loop_variables {
 					loop_variable.print(depth + 1);
 				}
 			}
 			StatementVariant::Run(argument) => {
-				print!("RUN");
-				println!();
+				println!("RUN");
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::Goto(argument) => {
-				print!("GOTO");
-				println!();
+				println!("GOTO");
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::Gosub(argument) => {
-				print!("GOSUB");
-				println!();
+				println!("GOSUB");
 				if let Some(argument) = argument {
 					argument.print(depth + 1);
 				}
 			}
 			StatementVariant::AssignInt(l_value, r_value) => {
-				print!("LET (Integer)");
-				println!();
+				println!("LET (Integer)");
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
 			StatementVariant::AssignFloat(l_value, r_value) => {
-				print!("LET (Float)");
-				println!();
+				println!("LET (Float)");
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
 			StatementVariant::AssignComplex(l_value, r_value) => {
-				print!("LET (Complex)");
-				println!();
+				println!("LET (Complex)");
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
 			StatementVariant::AssignString(l_value, r_value) => {
-				print!("LET (String)");
-				println!();
+				println!("LET (String)");
 				l_value.print(depth + 1);
 				r_value.print(depth + 1);
 			}
@@ -145,8 +136,7 @@ impl Statement {
 				}
 			}
 			StatementVariant::OneLineIf { condition_expression: condition, then_statement, else_statement } => {
-				print!("IF (One Line)");
-				println!();
+				println!("IF (One Line)");
 				condition.print(depth + 1);
 				then_statement.print(depth + 1);
 				if let Some(else_statement) = else_statement {
