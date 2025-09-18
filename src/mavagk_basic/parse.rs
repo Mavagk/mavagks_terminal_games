@@ -270,6 +270,14 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				variant: StatementVariant::Input { prompt, timeout, elapsed, inputs: inputs.into() },
 			}
 		}
+		// FOR
+		Keyword::For => {
+			return Err(ErrorVariant::NotYetImplemented("FOR statement".into()).at_column(statement_keyword_start_column));
+		}
+		// NEXT
+		Keyword::Next => {
+			return Err(ErrorVariant::NotYetImplemented("NEXT statement".into()).at_column(statement_keyword_start_column));
+		}
 		// Statements with 0-1 integer arguments
 		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
 			// Get the argument expression if it exists
