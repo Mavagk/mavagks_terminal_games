@@ -58,7 +58,8 @@ impl Display for FullError {
 pub enum ErrorVariant {
 	InvalidTokenFirstChar(char),
 	InvalidToken,
-	NotYetImplemented(String),
+	NotYetImplemented(String), // For features that should be implemented in the future.
+	Unimplemented(String), // For features that may or may not be implemented in the future.
 	MalformedLineNumber(String),
 	ExpectedExpression,
 	ExpectedListHyphen,
@@ -80,6 +81,7 @@ pub enum ErrorVariant {
 	CannotConcatenateNumbers,
 	FlooredDivisionByZero,
 	ExpectedEqualSign,
+	ExpectedToKeyword,
 	InvalidLValue,
 	VariableNotFound,
 	ExpectedStatementKeyword,
@@ -107,6 +109,7 @@ pub enum ErrorVariant {
 	MultipleTimeoutsForInput,
 	MultipleElapsedsForInput,
 	ExpectedInputPrompt,
+	LoopVariableNotSimpleVar,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -140,6 +143,7 @@ impl Display for ErrorVariant {
 		match self {
 			Self::InvalidTokenFirstChar(chr) => write!(f, "Invalid token first char '{chr}'."),
 			Self::NotYetImplemented(feature) => write!(f, "{feature} not yet implemented."),
+			Self::Unimplemented(feature) => write!(f, "{feature} unimplemented."),
 			Self::MalformedLineNumber(number) => write!(f, "Malformed line number \"{number}\"."),
 			Self::ExpectedExpression => write!(f, "Expected an expression."),
 			Self::MoreLeftParenthesesThanRightParentheses => write!(f, "More left parentheses that right parentheses."),
@@ -155,7 +159,7 @@ impl Display for ErrorVariant {
 			Self::NonRealComplexValueCastToReal(value) => write!(f, "Non-real complex value {value} cast to real number."),
 			Self::StringCastToNumber => write!(f, "String cast to number."),
 			Self::NumberCastToString => write!(f, "Number cast to string."),
-			Self::StatementShouldEnd => write!(f, "Statement should end."),
+			Self::StatementShouldEnd => write!(f, "Statement must end."),
 			Self::CannotConcatenateNumbers => write!(f, "Cannot concatenate numbers."),
 			Self::CannotUseThisOperatorOnAString => write!(f, "Cannot use this operator on a string."),
 			Self::FlooredDivisionByZero => write!(f, "Floored division by zero."),
@@ -197,7 +201,9 @@ impl Display for ErrorVariant {
 			Self::MultiplePromptsForInput => write!(f, "Multiple PROMPT arguments for an INPUT statement."),
 			Self::MultipleTimeoutsForInput => write!(f, "Multiple TIMEOUT arguments for an INPUT statement."),
 			Self::MultipleElapsedsForInput => write!(f, "Multiple ELAPSED arguments for an INPUT statement."),
-			Self::ExpectedInputPrompt => write!(f, "Expected PROMPT, TIMEOUT or ELAPSED."),
+			Self::ExpectedInputPrompt => write!(f, "Expected a PROMPT, TIMEOUT or ELAPSED keyword."),
+			Self::ExpectedToKeyword => write!(f, "Expected TO keyword."),
+			Self::LoopVariableNotSimpleVar => write!(f, "A loop variable must not contain parentheses."),
 		}
 	}
 }

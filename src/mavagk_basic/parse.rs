@@ -105,11 +105,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				Some(l_value_expression) => l_value_expression,
 			};
 			// Expect equal sign
-			match tokens.take_next_token() {
-				Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), ..}) => {},
-				Some(token) => return Err(ErrorVariant::ExpectedEqualSign.at_column(token.start_column)),
-				None => return Err(ErrorVariant::ExpectedEqualSign.at_column(tokens.last_removed_token_end_column)),
-			}
+			expect_and_remove_equal_sign(tokens)?;
 			// Get r-value expression
 			let r_value_expression = match parse_expression(tokens)? {
 				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
@@ -272,7 +268,78 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 		}
 		// FOR
 		Keyword::For => {
-			return Err(ErrorVariant::NotYetImplemented("FOR statement".into()).at_column(statement_keyword_start_column));
+			// Get the loop variable
+			let loop_variable = match parse_l_value(tokens)? {
+				Some(loop_variable) => loop_variable,
+				None => return Err(ErrorVariant::InvalidLValue.at_column(tokens.last_removed_token_end_column)),
+			};
+			// The loop variable should just be a simple variable
+			if loop_variable.has_parentheses() {
+				return Err(ErrorVariant::LoopVariableNotSimpleVar.at_column(loop_variable.get_start_column()));
+			}
+			// Expect equal sign
+			expect_and_remove_equal_sign(tokens)?;
+			// Get initial value
+			let initial_value_expression = match parse_expression(tokens)? {
+				Some(initial_value_expression) => initial_value_expression,
+				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+			};
+			// Expect TO token
+			match tokens.take_next_token() {
+				Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::To), .. }, ..}) => {},
+				Some(token) => return Err(ErrorVariant::ExpectedEqualSign.at_column(token.start_column)),
+				None => return Err(ErrorVariant::ExpectedEqualSign.at_column(tokens.last_removed_token_end_column)),
+			}
+			// Get limit
+			let limit_value_expression = match parse_expression(tokens)? {
+				Some(limit_value_expression) => limit_value_expression,
+				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+			};
+			// Get STEP part if it exists
+			let step_value_expression = if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Step), .. }, .. })) {
+				tokens.take_next_token();
+				// Get STEP expression
+				Some(match parse_expression(tokens)? {
+					Some(step_value_expression) => step_value_expression,
+					None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+				})
+			}
+			else {
+				None
+			};
+			// Assemble into statement
+			match loop_variable {
+				AnyTypeLValue::Int(loop_variable) => {
+					Statement {
+						variant: StatementVariant::ForInt {
+							loop_variable,
+							initial: initial_value_expression.to_int_expression()?,
+							limit: limit_value_expression.to_int_expression()?,
+							step: match step_value_expression {
+								Some(step_value_expression) => Some(step_value_expression.to_int_expression()?),
+								None => None,
+							}
+						},
+						column: statement_keyword_start_column,
+					}
+				}
+				AnyTypeLValue::Float(loop_variable) => {
+					Statement {
+						variant: StatementVariant::ForFloat {
+							loop_variable,
+							initial: initial_value_expression.to_float_expression()?,
+							limit: limit_value_expression.to_float_expression()?,
+							step: match step_value_expression {
+								Some(step_value_expression) => Some(step_value_expression.to_float_expression()?),
+								None => None,
+							}
+						},
+						column: statement_keyword_start_column,
+					}
+				}
+				AnyTypeLValue::Complex(loop_variable) => return Err(ErrorVariant::Unimplemented("Complex FOR loops".into()).at_column(loop_variable.start_column)),
+				AnyTypeLValue::String(loop_variable) => return Err(ErrorVariant::Unimplemented("String FOR loops".into()).at_column(loop_variable.start_column)),
+			}
 		}
 		// NEXT
 		Keyword::Next => {
@@ -617,6 +684,15 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<An
 		TokenVariant::SingleQuestionMark =>
 			return Err(ErrorVariant::NotYetImplemented("Question mark not as type".into()).at_column(*first_token_start_column)),
 	}))
+}
+
+/// Will remove a equal sign from the start of `tokens`. Will return an error if it is not found and will not remove the token from the start.
+pub fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
+	match tokens.take_next_token() {
+		Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), ..}) => Ok(()),
+		Some(token) => Err(ErrorVariant::ExpectedEqualSign.at_column(token.start_column)),
+		None => Err(ErrorVariant::ExpectedEqualSign.at_column(tokens.last_removed_token_end_column)),
+	}
 }
 
 pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Error> {

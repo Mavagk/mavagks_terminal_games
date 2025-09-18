@@ -1071,6 +1071,15 @@ impl AnyTypeLValue {
 			AnyTypeLValue::String(l_value) => l_value.print(depth),
 		}
 	}
+
+	pub fn has_parentheses(&self) -> bool {
+		match self {
+			AnyTypeLValue::Int(l_value) => l_value.has_parentheses,
+			AnyTypeLValue::Float(l_value) => l_value.has_parentheses,
+			AnyTypeLValue::Complex(l_value) => l_value.has_parentheses,
+			AnyTypeLValue::String(l_value) => l_value.has_parentheses,
+		}
+	}
 }
 
 #[cfg(test)]
