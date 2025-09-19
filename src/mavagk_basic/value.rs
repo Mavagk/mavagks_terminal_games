@@ -234,7 +234,7 @@ impl FloatValue {
 		if self.is_negative() && !rhs.is_int() && !allow_neg_to_non_int_power {
 			return Err(ErrorVariant::NegativeNumberRaisedToNonIntegerPower);
 		}
-		let float_result = self.value / rhs.value;
+		let float_result = self.value.powf(rhs.value);
 		match float_result.is_finite() || allow_overflow {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
