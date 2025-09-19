@@ -1,6 +1,6 @@
 use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
 
-use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero};
+use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero, One};
 
 use crate::mavagk_basic::error::ErrorVariant;
 
@@ -32,6 +32,10 @@ impl IntValue {
 
 	pub fn zero() -> Self {
 		Self::new(Rc::new(BigInt::ZERO))
+	}
+
+	pub fn one() -> Self {
+		Self::new(Rc::new(BigInt::one()))
 	}
 
 	pub fn is_zero(&self) -> bool {
@@ -115,7 +119,7 @@ impl IntValue {
 		BoolValue::new(self.value >= rhs.value)
 	}
 
-	pub fn add(mut self, rhs: Self) -> Self {
+	pub fn add(mut self, rhs: &Self) -> Self {
 		let int = Rc::<BigInt>::make_mut(&mut self.value);
 		(*int) += &*rhs.value;
 		self
@@ -166,6 +170,10 @@ impl FloatValue {
 
 	pub fn zero() -> Self {
 		Self::new(0.)
+	}
+
+	pub fn one() -> Self {
+		Self::new(1.)
 	}
 
 	pub fn is_int(self) -> bool {

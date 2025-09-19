@@ -149,7 +149,7 @@ pub fn optimize_int_expression(expression: &mut IntExpression) {
 						(IntExpression::ConstantValue { value: lhs_value, .. }, IntExpression::ConstantValue { value: rhs_value, .. }) => (lhs_value, rhs_value),
 						_ => unreachable!(),
 					};
-					*expression = IntExpression::ConstantValue { value: lhs_value.add(rhs_value), start_column };
+					*expression = IntExpression::ConstantValue { value: lhs_value.add(&rhs_value), start_column };
 				}
 				_ => {}
 			}

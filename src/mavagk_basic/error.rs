@@ -110,6 +110,7 @@ pub enum ErrorVariant {
 	MultipleElapsedsForInput,
 	ExpectedInputPrompt,
 	LoopVariableNotSimpleVar,
+	NoLoops,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -204,6 +205,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedInputPrompt => write!(f, "Expected a PROMPT, TIMEOUT or ELAPSED keyword."),
 			Self::ExpectedToKeyword => write!(f, "Expected TO keyword."),
 			Self::LoopVariableNotSimpleVar => write!(f, "A loop variable must not contain parentheses."),
+			Self::NoLoops => write!(f, "There are not any active loops for a no argument NEXT statement to loop."),
 		}
 	}
 }

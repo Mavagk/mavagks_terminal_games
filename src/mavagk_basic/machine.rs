@@ -8,6 +8,7 @@ use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression,
 pub struct Machine {
 	// Program counter
 	line_executing: Option<Rc<BigInt>>,
+	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
 	// Variables
 	float_variables: HashMap<Box<str>, FloatValue>,
@@ -16,6 +17,7 @@ pub struct Machine {
 	string_variables: HashMap<Box<str>, StringValue>,
 
 	block_stack: Vec<BlockOnStack>,
+	for_loop_variable_to_block_stack_index: HashMap<Box<str>, usize>,
 	// Options
 	angle_option: AngleOption,
 	math_option: MathOption,
@@ -25,18 +27,20 @@ impl Machine {
 	pub fn new() -> Self {
 		Self {
 			line_executing: None,
+			sub_line_executing: None,
 			execution_source: ExecutionSource::ProgramEnded,
 			int_variables: HashMap::new(),
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
 			block_stack: Vec::new(),
+			for_loop_variable_to_block_stack_index: HashMap::new(),
 			angle_option: AngleOption::Gradians,
 			math_option: MathOption::Ansi,
 		}
 	}
 
-	fn set_line_executing(&mut self, program: &Program, goto_line_number: Option<Rc<BigInt>>, column_number: NonZeroUsize) -> Result<(), Error> {
+	fn set_line_executing_by_jumping(&mut self, program: &Program, goto_line_number: Option<Rc<BigInt>>, column_number: NonZeroUsize) -> Result<(), Error> {
 		self.line_executing = match goto_line_number {
 			Some(goto_line_number) => {
 				if !program.lines.contains_key(&goto_line_number) {
@@ -46,6 +50,7 @@ impl Machine {
 			}
 			None => None,
 		};
+		self.sub_line_executing = None;
 		self.execution_source = ExecutionSource::Program;
 		Ok(())
 	}
@@ -55,6 +60,10 @@ impl Machine {
 		self.float_variables = HashMap::new();
 		self.complex_variables = HashMap::new();
 		self.string_variables = HashMap::new();
+		self.for_loop_variable_to_block_stack_index = HashMap::new();
+		self.block_stack = Vec::new();
+		self.math_option = MathOption::Ansi;
+		self.angle_option = AngleOption::Radians;
 	}
 
 	pub fn line_of_text_entered(&mut self, line_text: Box<str>, program: &mut Program) -> Result<(), FullError> {
@@ -132,16 +141,25 @@ impl Machine {
 					}
 					let line_number = self.line_executing.as_ref().unwrap().clone();
 					// Execute each statement in the line
+					let start_sub_line = match self.sub_line_executing {
+						Some(start_sub_line) => start_sub_line,
+						None => 0,
+					};
 					let (statements, line_error, line_text) = program.lines.get(&line_number).unwrap();
-					for statement in statements {
+					for (sub_line, statement) in statements.iter().enumerate().skip(start_sub_line) {
+						self.sub_line_executing = Some(sub_line);
 						let flow_control_used = match self.execute_statement(statement, program) {
 							Ok(flow_control_used) => flow_control_used,
 							Err(error) => return Err(error.to_full_error(Some((*line_number).clone()), Some(line_text.clone().into_string()))),
 						};
+						if !flow_control_used {
+							self.sub_line_executing = None;
+						}
 						if flow_control_used || self.execution_source != ExecutionSource::Program {
 							continue 'lines_loop;
 						}
 					}
+					self.sub_line_executing = None;
 					// If there is an error at the end of the line, throw the error
 					if let Some(line_error) = line_error {
 						return Err(line_error.clone().to_full_error(Some((&*line_number).clone()), Some(line_text.clone().into_string())));
@@ -158,15 +176,24 @@ impl Machine {
 				// If we are executing a direct mode line
 				ExecutionSource::DirectModeLine => {
 					// Execute each statement in the direct mode line
-					for direct_mode_statement in direct_mode_statements {
+					let start_sub_line = match self.sub_line_executing {
+						Some(start_sub_line) => start_sub_line,
+						None => 0,
+					};
+					for (sub_line, direct_mode_statement) in direct_mode_statements.iter().enumerate().skip(start_sub_line) {
+						self.sub_line_executing = Some(sub_line);
 						let flow_control_used = match self.execute_direct_mode_statement(&direct_mode_statement, program) {
 							Ok(flow_control_used) => flow_control_used,
 							Err(error) => return Err(error.to_full_error(None, Some(direct_mode_line_text.into()))),
 						};
+						if !flow_control_used {
+							self.sub_line_executing = None;
+						}
 						if flow_control_used || self.execution_source != ExecutionSource::DirectModeLine {
 							continue 'lines_loop;
 						}
 					}
+					self.sub_line_executing = None;
 					// If we did not jump out of the direct mode line, such as with a RUN, end execution
 					self.execution_source = ExecutionSource::ProgramEnded;
 				}
@@ -288,24 +315,102 @@ impl Machine {
 				}
 			}
 			StatementVariant::ForInt { loop_variable, initial, limit, step } => {
-				// Initialize variable
-				self.execute_int_l_value_write(loop_variable, self.execute_int_expression(initial)?)?;
-				todo!()
+				// Execute expressions
+				let initial_value = self.execute_int_expression(initial)?;
+				let final_value = self.execute_int_expression(limit)?;
+				let step_value = match step {
+					Some(step) => self.execute_int_expression(step)?,
+					None => IntValue::one(),
+				};
+				// TODO
+				if (step_value.is_negative() && (&*initial_value.value < &*final_value.value)) || (!step_value.is_negative() && (&*initial_value.value > &*final_value.value)) {
+					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
+				}
+				self.execute_int_l_value_write(loop_variable, initial_value)?;
+				// Construct loop
+				let stack_loop = BlockOnStack::IntForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
+				// If a for loop using the same variable exists, pop the loop and all blocks inside it
+				match self.for_loop_variable_to_block_stack_index.get(&loop_variable.name) {
+					None => {},
+					Some(block_stack_index) => self.block_stack.truncate(*block_stack_index),
+				}
+				// Push loop
+				self.block_stack.push(stack_loop);
+				self.for_loop_variable_to_block_stack_index.insert(loop_variable.name.clone(), self.block_stack.len());
 			}
-			StatementVariant::ForFloat { loop_variable: _, initial: _, limit: _, step: _ } => {
-				todo!()
+			StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
+				// Execute expressions
+				let initial_value = self.execute_float_expression(initial)?;
+				let final_value = self.execute_float_expression(limit)?;
+				let step_value = match step {
+					Some(step) => self.execute_float_expression(step)?,
+					None => FloatValue::one(),
+				};
+				// TODO
+				if (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) {
+					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
+				}
+				self.execute_float_l_value_write(loop_variable, initial_value)?;
+				// Construct loop
+				let stack_loop = BlockOnStack::FloatForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
+				// If a for loop using the same variable exists, pop the loop and all blocks inside it
+				match self.for_loop_variable_to_block_stack_index.get(&loop_variable.name) {
+					None => {},
+					Some(block_stack_index) => self.block_stack.truncate(*block_stack_index),
+				}
+				// Push loop
+				self.block_stack.push(stack_loop);
+				self.for_loop_variable_to_block_stack_index.insert(loop_variable.name.clone(), self.block_stack.len());
 			}
-			StatementVariant::Next(_loop_variables) => {
-				todo!()
+			StatementVariant::Next(loop_variables) => {
+				let allow_overflow = !self.overflow_is_error();
+				// If a NEXT without arguments is executed
+				if loop_variables.is_empty() {
+					for (index, loop_block) in self.block_stack.iter().enumerate().rev() {
+						match loop_block {
+							BlockOnStack::IntForLoop { name, final_value, step_value, for_line, for_sub_line } => {
+								// Get current value
+								let loop_variable_value = self.int_variables.get_mut(name).unwrap();
+								// Increment
+								*loop_variable_value = loop_variable_value.clone().add(step_value);
+								// Remove the loop and blocks inside if it has finished
+								if (step_value.is_negative() && (&*loop_variable_value.value) < (&*final_value.value)) || (!step_value.is_negative() && (&*loop_variable_value.value) > (&*final_value.value)) {
+									self.block_stack.truncate(index);
+									return Ok(false);
+								}
+								self.line_executing = for_line.clone();
+								self.sub_line_executing = Some(for_sub_line + 1);
+								return Ok(true);
+							}
+							BlockOnStack::FloatForLoop { name, final_value, step_value, for_line, for_sub_line } => {
+								// Get current value
+								let loop_variable_value = self.float_variables.get_mut(name).unwrap();
+								// Increment
+								*loop_variable_value = loop_variable_value.add(*step_value, allow_overflow).map_err(|error| error.at_column(*column))?;
+								// Remove the loop and blocks inside if it has finished
+								if (step_value.is_negative() && (loop_variable_value.value) < (final_value.value)) || (!step_value.is_negative() && (loop_variable_value.value) > (final_value.value)) {
+									self.block_stack.truncate(index);
+									return Ok(false);
+								}
+								self.line_executing = for_line.clone();
+								self.sub_line_executing = Some(for_sub_line + 1);
+								return Ok(true);
+							}
+						}
+					}
+					return Err(ErrorVariant::NoLoops.at_column(*column));
+				}
+				// TODO
+				return Err(ErrorVariant::NotYetImplemented("NEXT with arguments".into()).at_column(*column));
 			}
 			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
 				// Set the line to be executed next
 				match sub_expression {
 					Some(sub_expression) => {
 						let line_number_to_jump_to = self.execute_int_expression(sub_expression)?.value;
-						self.set_line_executing(program, Some(line_number_to_jump_to), sub_expression.get_start_column())?;
+						self.set_line_executing_by_jumping(program, Some(line_number_to_jump_to), sub_expression.get_start_column())?;
 					}
-					None => self.set_line_executing(program, None, *column)?,
+					None => self.set_line_executing_by_jumping(program, None, *column)?,
 				}
 				// Clear if this is a RUN statement
 				if matches!(variant, StatementVariant::Run(..)) {
@@ -382,7 +487,7 @@ impl Machine {
 			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression)?.or(self.execute_int_expression(rhs_expression)?),
 			IntExpression::Addition { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.add(self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression)?.add(&self.execute_int_expression(rhs_expression)?),
 			IntExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression)?.sub(self.execute_int_expression(rhs_expression)?),
 			IntExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
@@ -802,6 +907,6 @@ enum ExecutionSource {
 }
 
 enum BlockOnStack {
-	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue },
-	FloatForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue },
+	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
+	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 }
