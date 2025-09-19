@@ -228,14 +228,25 @@ impl Machine {
 		let Statement { variant, column } = &statement;
 		match variant {
 			StatementVariant::Print(sub_expressions) => {
-				for sub_expression in sub_expressions {
+				let mut do_print_trailing_newline = true;
+				// For each sub-expression
+				for (index, sub_expression) in sub_expressions.iter().enumerate() {
+					// Print the sub-expression
 					match sub_expression {
 						PrintOperand::Expression(expression) => print!("{}", self.execute_any_type_expression(expression)?),
-						PrintOperand::Comma(sub_expression_column) | PrintOperand::Semicolon(sub_expression_column) =>
-							return Err(ErrorVariant::NotYetImplemented(", and ; in PRINT statement".into()).at_column(*sub_expression_column))
+						PrintOperand::Semicolon(_) => {}
+						PrintOperand::Comma(sub_expression_column) =>
+							return Err(ErrorVariant::NotYetImplemented("comma in PRINT statement".into()).at_column(*sub_expression_column))
+					}
+					// Decide weather or not to suppress a trailing auto printed newlines
+					if matches!(sub_expression, PrintOperand::Comma(_) | PrintOperand::Semicolon(_)) && index == sub_expressions.len() - 1 {
+						do_print_trailing_newline = false;
 					}
 				}
-				println!();
+				// Print the newline unless it has been suppressed
+				if do_print_trailing_newline {
+					println!();
+				}
 			}
 			StatementVariant::Input { prompt, timeout, elapsed, inputs } => {
 				// TODO
