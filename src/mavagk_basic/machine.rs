@@ -5,9 +5,12 @@ use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
+/// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
 	// Program counter
+	/// The current line being executed, `None` if executing the real mode line or if the first line should be executed.
 	line_executing: Option<Rc<BigInt>>,
+	/// The current colon separated sub-line being executed. `None` to execute the first line.
 	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
 	// Variables
@@ -16,10 +19,11 @@ pub struct Machine {
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
 
+	/// A list of active loops and multi-line program structures such as the not yet implemented if blocks.
 	block_stack: Vec<BlockOnStack>,
-	/// Maps a for loop variable name and if it is a float to an index into the block stack.
+	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.
 	for_loop_variable_to_block_stack_index: HashMap<(Box<str>, bool), usize>,
-	// Options
+	// Options set via an OPTION statement
 	angle_option: AngleOption,
 	math_option: MathOption,
 }
@@ -41,11 +45,13 @@ impl Machine {
 		}
 	}
 
-	fn set_line_executing_by_jumping(&mut self, program: &Program, goto_line_number: Option<Rc<BigInt>>, column_number: NonZeroUsize) -> Result<(), Error> {
-		self.line_executing = match goto_line_number {
+	/// Used by GOTO, RUN and GOSUB to set the program line being executing, returns an error if the line being jumped to is not in the program.
+	/// Use a line number of `None` to jump to the lowest numbered line of the program.
+	fn set_line_executing_by_jumping(&mut self, program: &Program, line_number_to_jump_to: Option<Rc<BigInt>>, column_number_jumping_from: NonZeroUsize) -> Result<(), Error> {
+		self.line_executing = match line_number_to_jump_to {
 			Some(goto_line_number) => {
 				if !program.lines.contains_key(&goto_line_number) {
-					return Err(ErrorVariant::InvalidLineNumber((*goto_line_number).clone()).at_column(column_number));
+					return Err(ErrorVariant::InvalidLineNumber((*goto_line_number).clone()).at_column(column_number_jumping_from));
 				}
 				Some(goto_line_number)
 			}
@@ -56,6 +62,7 @@ impl Machine {
 		Ok(())
 	}
 
+	/// Removes a block from the block stack and any blocks added since it was added (blocks inside it).
 	fn truncate_block_stack(&mut self, truncate_to: usize) {
 		for block in self.block_stack.drain(truncate_to..) {
 			match block {
@@ -69,17 +76,28 @@ impl Machine {
 		}
 	}
 
+	// Clears everything about the machine state except where the machine is currently executing in the program.
 	fn clear_machine_state(&mut self) {
-		self.int_variables = HashMap::new();
-		self.float_variables = HashMap::new();
-		self.complex_variables = HashMap::new();
-		self.string_variables = HashMap::new();
-		self.for_loop_variable_to_block_stack_index = HashMap::new();
-		self.block_stack = Vec::new();
-		self.math_option = MathOption::Ansi;
-		self.angle_option = AngleOption::Radians;
+		*self = Self {
+			// Stuff to keep
+			line_executing: take(&mut self.line_executing),
+			sub_line_executing: self.sub_line_executing,
+			execution_source: self.execution_source,
+			// Stuff to discard
+			int_variables: HashMap::new(),
+			float_variables: HashMap::new(),
+			complex_variables: HashMap::new(),
+			string_variables: HashMap::new(),
+
+			block_stack: Vec::new(),
+			for_loop_variable_to_block_stack_index: HashMap::new(),
+
+			angle_option: AngleOption::Radians,
+			math_option: MathOption::Ansi,
+		}
 	}
 
+	/// Called when a line of text is entered into the terminal.
 	pub fn line_of_text_entered(&mut self, line_text: Box<str>, program: &mut Program) -> Result<(), FullError> {
 		// Parse line
 		let (line_number, tokens, error) = match Token::tokenize_line(&*line_text) {
@@ -111,7 +129,6 @@ impl Machine {
 			// Run the line in direct mode if it does not have a line number
 			None => {
 				if let Some(error) = error {
-					//error.line_text = Some(line_text.into());
 					return Err(error.clone().to_full_error(None, Some(line_text.clone().into())));
 				}
 				self.execution_source = ExecutionSource::DirectModeLine;
@@ -137,6 +154,7 @@ impl Machine {
 		}
 	}
 
+	/// Start executing until the program terminates
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), FullError> {
 		// For each line
 		'lines_loop: loop {
@@ -154,21 +172,26 @@ impl Machine {
 						};
 					}
 					let line_number = self.line_executing.as_ref().unwrap().clone();
-					// Execute each statement in the line
+					// Get which sub-line to start executing from
 					let start_sub_line = match self.sub_line_executing {
 						Some(start_sub_line) => start_sub_line,
 						None => 0,
 					};
+					// Execute each sub-line to be executed
 					let (statements, line_error, line_text) = program.lines.get(&line_number).unwrap();
 					for (sub_line, statement) in statements.iter().enumerate().skip(start_sub_line) {
+						// Set the sub line so that the statement executer can access it
 						self.sub_line_executing = Some(sub_line);
+						// Execute the sub-line
 						let flow_control_used = match self.execute_statement(statement, program) {
 							Ok(flow_control_used) => flow_control_used,
 							Err(error) => return Err(error.to_full_error(Some((*line_number).clone()), Some(line_text.clone().into_string()))),
 						};
+						// We should execute from the start of the next if flow control was not used
 						if !flow_control_used {
 							self.sub_line_executing = None;
 						}
+						// Break out of sub-line loop if flow control was used
 						if flow_control_used || self.execution_source != ExecutionSource::Program {
 							continue 'lines_loop;
 						}
@@ -189,20 +212,25 @@ impl Machine {
 				}
 				// If we are executing a direct mode line
 				ExecutionSource::DirectModeLine => {
-					// Execute each statement in the direct mode line
+					// Get which sub-line to start executing from
 					let start_sub_line = match self.sub_line_executing {
 						Some(start_sub_line) => start_sub_line,
 						None => 0,
 					};
+					// Execute each sub-line in the direct mode line to be executed
 					for (sub_line, direct_mode_statement) in direct_mode_statements.iter().enumerate().skip(start_sub_line) {
+						// Set the sub line so that the statement executer can access it
 						self.sub_line_executing = Some(sub_line);
+						// Execute the sub-line
 						let flow_control_used = match self.execute_direct_mode_statement(&direct_mode_statement, program) {
 							Ok(flow_control_used) => flow_control_used,
 							Err(error) => return Err(error.to_full_error(None, Some(direct_mode_line_text.into()))),
 						};
+						// We should execute from the start of the next if flow control was not used
 						if !flow_control_used {
 							self.sub_line_executing = None;
 						}
+						// Break out of sub-line loop if flow control was used
 						if flow_control_used || self.execution_source != ExecutionSource::DirectModeLine {
 							continue 'lines_loop;
 						}
@@ -217,6 +245,7 @@ impl Machine {
 		}
 	}
 
+	/// Called when executing a statement in direct mode. Can modify the program since it is not executing it.
 	fn execute_direct_mode_statement(&mut self, statement: &Statement, program: &mut Program) -> Result<bool, Error> {
 		let Statement { variant, column: _ } = &statement;
 		match variant {
@@ -224,6 +253,7 @@ impl Machine {
 		}
 	}
 
+	/// Called when executing a statement that is not a direct mode only statement. Cannot modify the program since it could be executing it.
 	fn execute_statement(&mut self, statement: &Statement, program: &Program) -> Result<bool, Error> {
 		let Statement { variant, column } = &statement;
 		match variant {
@@ -551,6 +581,7 @@ impl Machine {
 		Ok(false)
 	}
 
+	/// Execute an expression that returns an integer value.
 	fn execute_int_expression(&self, expression: &IntExpression) -> Result<IntValue, Error> {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
@@ -576,6 +607,7 @@ impl Machine {
 		})
 	}
 
+	/// Execute an expression that returns an float value.
 	fn execute_float_expression(&self, expression: &FloatExpression) -> Result<FloatValue, Error> {
 		Ok(match expression {
 			FloatExpression::ConstantValue { value, .. } => value.clone(),
@@ -604,6 +636,7 @@ impl Machine {
 		})
 	}
 
+	/// Execute an expression that returns an complex value.
 	fn execute_complex_expression(&self, expression: &ComplexExpression) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
@@ -629,6 +662,7 @@ impl Machine {
 		})
 	}
 
+	/// Execute an expression that returns an boolean value.
 	fn execute_bool_expression(&self, expression: &BoolExpression) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
@@ -702,6 +736,7 @@ impl Machine {
 		})
 	}
 
+	/// Execute an expression that returns an string value.
 	fn execute_string_expression(&self, expression: &StringExpression) -> Result<StringValue, Error> {
 		Ok(match expression {
 			StringExpression::ConstantValue { value, .. } => value.clone(),
@@ -711,6 +746,7 @@ impl Machine {
 		})
 	}
 
+	/// Execute an expression that could return a value of any type.
 	fn execute_any_type_expression(&self, expression: &AnyTypeExpression) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression)?),
@@ -718,10 +754,10 @@ impl Machine {
 			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression)?),
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression)?),
-			//_ => unreachable!(),
 		})
 	}
 
+	/// Reads a integer variable or from an integer array or executes a function that returns an integer.
 	fn execute_int_l_value_read(&self, l_value: &IntLValue) -> Result<IntValue, Error> {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
@@ -805,6 +841,7 @@ impl Machine {
 		Ok(IntValue::zero())
 	}
 
+	/// Reads a float variable or from a float array or executes a function that returns a float.
 	fn execute_float_l_value_read(&self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
 		// Unpack
 		let FloatLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
@@ -879,6 +916,7 @@ impl Machine {
 		Ok(FloatValue::zero())
 	}
 
+	/// Reads a complex variable or from a complex array or executes a function that returns a complex.
 	fn execute_complex_l_value_read(&self, l_value: &ComplexLValue) -> Result<ComplexValue, Error> {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
@@ -906,6 +944,7 @@ impl Machine {
 		Ok(ComplexValue::zero())
 	}
 
+	/// Reads a string variable or from a string array or executes a function that returns a string.
 	fn execute_string_l_value_read(&self, l_value: &StringLValue) -> Result<StringValue, Error> {
 		// Unpack
 		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
@@ -927,6 +966,7 @@ impl Machine {
 		Ok(StringValue::empty())
 	}
 
+	/// Writes to a integer variable or to an integer array.
 	fn execute_int_l_value_write(&mut self, l_value: &IntLValue, value: IntValue) -> Result<(), Error> {
 		// Unpack
 		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
@@ -940,6 +980,7 @@ impl Machine {
 		Ok(())
 	}
 
+	/// Writes to a float variable or to an float array.
 	fn execute_float_l_value_write(&mut self, l_value: &FloatLValue, value: FloatValue) -> Result<(), Error> {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
@@ -953,6 +994,7 @@ impl Machine {
 		Ok(())
 	}
 
+	/// Writes to a complex variable or to an complex array.
 	fn execute_complex_l_value_write(&mut self, l_value: &ComplexLValue, value: ComplexValue) -> Result<(), Error> {
 		// Unpack
 		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
@@ -966,6 +1008,7 @@ impl Machine {
 		Ok(())
 	}
 
+	/// Writes to a string variable or to an string array.
 	fn execute_string_l_value_write(&mut self, l_value: &StringLValue, value: StringValue) -> Result<(), Error> {
 		// Unpack
 		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
@@ -981,12 +1024,17 @@ impl Machine {
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
+/// A location for the machine to get the lines to execute from.
 enum ExecutionSource {
+	/// Get the lines from the lined program.
 	Program,
+	/// Get the unlined direct mode line.
 	DirectModeLine,
+	/// Stop executing.
 	ProgramEnded,
 }
 
+/// A for loop or other block that is on the stack.
 enum BlockOnStack {
 	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
