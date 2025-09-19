@@ -386,6 +386,13 @@ impl ComplexValue {
 			value => Ok(FloatValue::new(value)),
 		}
 	}
+
+	pub fn sqrt(self, allow_overflow: bool) -> Result<ComplexValue, ErrorVariant> {
+		match self.value.sqrt() {
+			value if value.is_infinite() && !allow_overflow => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
 }
 
 impl Display for ComplexValue {

@@ -892,7 +892,8 @@ impl Machine {
 				// SQR#(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
 					let argument = &arguments[0];
-					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()));
+					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
+						.sqrt(!self.overflow_is_error()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				_ => {}
 			}
