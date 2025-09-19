@@ -836,6 +836,11 @@ impl Machine {
 					let argument = &arguments[0];
 					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.abs());
 				}
+				// INT(X)
+				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+					let argument = &arguments[0];
+					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.floor());
+				}
 				// LEN(X$)
 				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
 					AnyTypeExpression::String(string_expression) =>

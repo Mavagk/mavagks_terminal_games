@@ -272,6 +272,10 @@ impl FloatValue {
 	pub fn abs(self) -> Self {
 		Self::new(self.value.abs())
 	}
+
+	pub fn floor(self) -> Self {
+		Self::new(self.value.floor())
+	}
 }
 
 impl Display for FloatValue {
