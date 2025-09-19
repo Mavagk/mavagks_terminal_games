@@ -111,6 +111,7 @@ pub enum ErrorVariant {
 	ExpectedInputPrompt,
 	LoopVariableNotSimpleVar,
 	NoLoops,
+	ForLoopVariableNotFound,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -206,6 +207,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedToKeyword => write!(f, "Expected TO keyword."),
 			Self::LoopVariableNotSimpleVar => write!(f, "A loop variable must not contain parentheses."),
 			Self::NoLoops => write!(f, "There are not any active loops for a no argument NEXT statement to loop."),
+			Self::ForLoopVariableNotFound => write!(f, "FOR loop variable not found."),
 		}
 	}
 }
