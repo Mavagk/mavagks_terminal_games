@@ -14,6 +14,8 @@ pub struct Machine {
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
+
+	block_stack: Vec<BlockOnStack>,
 	// Options
 	angle_option: AngleOption,
 	math_option: MathOption,
@@ -28,6 +30,7 @@ impl Machine {
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
+			block_stack: Vec::new(),
 			angle_option: AngleOption::Gradians,
 			math_option: MathOption::Ansi,
 		}
@@ -35,7 +38,7 @@ impl Machine {
 
 	fn set_line_executing(&mut self, program: &Program, goto_line_number: Option<Rc<BigInt>>, column_number: NonZeroUsize) -> Result<(), Error> {
 		self.line_executing = match goto_line_number {
-			Some(goto_line_number) =>{
+			Some(goto_line_number) => {
 				if !program.lines.contains_key(&goto_line_number) {
 					return Err(ErrorVariant::InvalidLineNumber((*goto_line_number).clone()).at_column(column_number));
 				}
@@ -284,7 +287,9 @@ impl Machine {
 					break;
 				}
 			}
-			StatementVariant::ForInt { loop_variable: _, initial: _, limit: _, step: _ } => {
+			StatementVariant::ForInt { loop_variable, initial, limit, step } => {
+				// Initialize variable
+				self.execute_int_l_value_write(loop_variable, self.execute_int_expression(initial)?)?;
 				todo!()
 			}
 			StatementVariant::ForFloat { loop_variable: _, initial: _, limit: _, step: _ } => {
@@ -794,4 +799,9 @@ enum ExecutionSource {
 	Program,
 	DirectModeLine,
 	ProgramEnded,
+}
+
+enum BlockOnStack {
+	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue },
+	FloatForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue },
 }
