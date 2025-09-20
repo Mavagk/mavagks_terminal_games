@@ -474,7 +474,7 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 						Some(Token { variant: TokenVariant::IntegerLiteral(value), start_column, .. }) => {
 							tokens.take_next_token();
 							Statement { variant: StatementVariant::Goto(Some(IntExpression::ConstantValue {
-								value: IntValue { value: Rc::new(value.clone()) }, start_column: *start_column
+								value: IntValue { value: Rc::new(value.clone().into()) }, start_column: *start_column
 							})), column: then_start_column }
 						}
 						_ => match parse_statement(tokens, false)? {
@@ -499,7 +499,7 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 						Some(Token { variant: TokenVariant::IntegerLiteral(value), start_column, .. }) => {
 							tokens.take_next_token();
 							Statement { variant: StatementVariant::Goto(Some(IntExpression::ConstantValue {
-								value: IntValue { value: Rc::new(value.clone()) }, start_column: *start_column
+								value: IntValue { value: Rc::new(value.clone().into()) }, start_column: *start_column
 							})), column: else_start_column }
 						}
 						_ => match parse_statement(tokens, false)? {
@@ -674,7 +674,7 @@ fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTyp
 		// Literals
 		TokenVariant::IntegerLiteral(value) => {
 			tokens.take_next_token();
-			AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone()) }, start_column: *first_token_start_column })
+			AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone().into()) }, start_column: *first_token_start_column })
 		}
 		TokenVariant::FloatLiteral { value, is_imaginary } => {
 			tokens.take_next_token();

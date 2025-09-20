@@ -1,33 +1,69 @@
 use std::num::NonZeroUsize;
 
-use num::{BigInt, Num};
+use num::{BigInt, BigUint, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
 use crate::mavagk_basic::error::{Error, ErrorVariant};
 
 #[derive(Debug, PartialEq)]
+/// A token received from parsing a line of text
 pub struct Token<'a> {
+	/// The token variant, eg. numeric literal, identifier.
 	pub variant: TokenVariant<'a>,
+	/// The column of the first char that the token was parsed from. Column 1 is the first column.
 	pub start_column: NonZeroUsize,
+	/// The column of the char after the last char of the line that the token was parsed from. Column 1 is the first column.
 	pub end_column: NonZeroUsize,
 }
 
 #[derive(Debug, PartialEq)]
+/// A token variant, eg. numeric literal, identifier.
 pub enum TokenVariant<'a> {
+	/// An operator. Eg. +, -, <=.
 	Operator(Option<BinaryOperator>, Option<UnaryOperator>),
+	/// A string literal. Eg. "Hello world".
 	StringLiteral(&'a str),
+	/// An identifier. Eg. text$, ABS#, var, GOTO.
 	Identifier {
-		name: &'a str, identifier_type: IdentifierType, is_optional: bool, binary_operator: Option<BinaryOperator>, unary_operator: Option<UnaryOperator>, keyword: Option<Keyword>, is_reserved_keyword: bool,
+		/// The identifier text without the trailing type chars.
+		name: &'a str,
+		/// The identifier type parsed from the trailing type chars.
+		identifier_type: IdentifierType,
+		/// Does the identifier end with a '?' char?
+		is_optional: bool,
+		/// The binary infix operator that this identifier could be used as. Eg. AND, OR.
+		binary_operator: Option<BinaryOperator>,
+		/// The unary prefix operator that this identifier could be used as. Eg. NOT.
+		unary_operator: Option<UnaryOperator>,
+		/// The keyword that this identifier could be used as. Eg. PRINT, FOR, GOTO.
+		keyword: Option<Keyword>,
+		/// Is this a reserved keyword? Reserved keywords are PRINT, ELSE, NOT, REM. Reserved keywords cannot be used to name a variable, function, array or anything user-defined.
+		is_reserved_keyword: bool,
+		/// The supplied (built-in) function that that identifier could be used as. Eg. ABS, INT, RND, SQR, TRUE, PI.
+		/// The trailing type chars are ignored when parsing this value, so ABS and ABS% parse to the same value.
 		supplied_function: Option<SuppliedFunction>
 	},
-	IntegerLiteral(BigInt),
-	FloatLiteral { value: f64, is_imaginary: bool },
+	/// An integer literal. Eg. 123, 420, 69. A leading minus sign will be parsed as it's own separate operator.
+	IntegerLiteral(BigUint),
+	/// A float literal. Eg. 2.5, 0.002, 5i, 3.6i, 2E-7, 3E9i.
+	FloatLiteral {
+		// The parsed value, is non-negative.
+		value: f64,
+		// Did this token have a trailing i?
+		is_imaginary: bool
+	},
+	/// The separator (.
 	LeftParenthesis,
+	/// The separator ).
 	RightParenthesis,
+	/// The separator ,.
 	Comma,
+	/// The separator :.
 	Colon,
+	/// The separator ;.
 	Semicolon,
+	/// The separator ?.
 	SingleQuestionMark,
 }
 
@@ -189,9 +225,9 @@ impl<'a> Token<'a> {
 				match !is_imaginary && exponent == BigInt::ZERO && fractional_part.len() == 0 {
 					// If the number should be an integer
 					true => {
-						let value = match BigInt::from_str_radix(integer_part, base.radix() as u32) {
+						let value = match BigUint::from_str_radix(integer_part, base.radix() as u32) {
 							Ok(value) => value,
-							_ => BigInt::ZERO,
+							_ => BigUint::ZERO,
 						};
 						(TokenVariant::IntegerLiteral(value), &line_starting_with_token[length_of_token_in_bytes..])
 					}
@@ -732,131 +768,131 @@ mod tests {
 		// Integers
 		assert_eq!(
 			Token::parse_single_token_from_str(" 420 + 420", 50.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(420.into()), start_column: 51.try_into().unwrap(), end_column: 54.try_into().unwrap() }, " + 420"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(420u64.into()), start_column: 51.try_into().unwrap(), end_column: 54.try_into().unwrap() }, " + 420"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("6a", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(6.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "a"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(6u64.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str(" ..", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0.into()), start_column: 2.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "."))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0u64.into()), start_column: 2.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "."))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str(" .0.", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0.into()), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "."))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0u64.into()), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "."))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("6.00000k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(6.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(6u64.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00E+0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("00060.00E+0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00E+000k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 11.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 11.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00E-0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00E+k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00E-k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("60.00Ek", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(60.into()), start_column: 1.try_into().unwrap(), end_column: 7.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(60u64.into()), start_column: 1.try_into().unwrap(), end_column: 7.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$7Ek", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x7E.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x7Eu64.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$7ek", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x7E.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x7Eu64.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x0u64.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x0u64.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$7F.k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x7F.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x7Fu64.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$.0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x0u64.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$10.0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x10u64.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("$.", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0x0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0x0u64.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%1001k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b1001.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b1001u64.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b0u64.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b0u64.into()), start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%10.k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%.0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b0u64.into()), start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%10.0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%00010.0k", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 9.try_into().unwrap() }, "k"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%.", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b0u64.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%.2", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b0.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "2"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b0u64.into()), start_column: 1.try_into().unwrap(), end_column: 3.try_into().unwrap() }, "2"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%0010E+", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%0010E+2", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "2"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 8.try_into().unwrap() }, "2"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("%001050", 1.try_into().unwrap()).unwrap(),
-			Some((Token { variant: TokenVariant::IntegerLiteral(0b10.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "50"))
+			Some((Token { variant: TokenVariant::IntegerLiteral(0b10u64.into()), start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap() }, "50"))
 		);
 		// Floats
 		assert_eq!(
@@ -933,13 +969,13 @@ mod tests {
 			}, start_column: 4.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
-			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 10.try_into().unwrap(), end_column: 12.try_into().unwrap()
+			variant: TokenVariant::IntegerLiteral(10u64.into()), start_column: 10.try_into().unwrap(), end_column: 12.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[2], Token {
 			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 13.try_into().unwrap(), end_column: 14.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[3], Token {
-			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 15.try_into().unwrap(), end_column: 16.try_into().unwrap()
+			variant: TokenVariant::IntegerLiteral(8u64.into()), start_column: 15.try_into().unwrap(), end_column: 16.try_into().unwrap()
 		});
 
 		let tokens = Token::tokenize_line("PRINT 10 + 8");
@@ -951,13 +987,13 @@ mod tests {
 			}, start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
-			variant: TokenVariant::IntegerLiteral(10.into()), start_column: 7.try_into().unwrap(), end_column: 9.try_into().unwrap()
+			variant: TokenVariant::IntegerLiteral(10u64.into()), start_column: 7.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[2], Token {
 			variant: TokenVariant::Operator(Some(BinaryOperator::AdditionConcatenation), Some(UnaryOperator::UnaryPlus)), start_column: 10.try_into().unwrap(), end_column: 11.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[3], Token {
-			variant: TokenVariant::IntegerLiteral(8.into()), start_column: 12.try_into().unwrap(), end_column: 13.try_into().unwrap()
+			variant: TokenVariant::IntegerLiteral(8u64.into()), start_column: 12.try_into().unwrap(), end_column: 13.try_into().unwrap()
 		});
 	}
 }
