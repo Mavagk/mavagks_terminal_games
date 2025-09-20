@@ -119,12 +119,12 @@ impl<'a> Token<'a> {
 					_ if string_with_name_removed.starts_with("%")  => (IdentifierType::Integer,        false, &string_with_name_removed[1..]),
 					_ if string_with_name_removed.starts_with("#?") => (IdentifierType::ComplexNumber,  true,  &string_with_name_removed[2..]),
 					_ if string_with_name_removed.starts_with("#")  => (IdentifierType::ComplexNumber,  false, &string_with_name_removed[1..]),
-					_ if string_with_name_removed.starts_with("?")  => (IdentifierType::UnmarkedNumber, true,  &string_with_name_removed[1..]),
-					_                                               => (IdentifierType::UnmarkedNumber, false, string_with_name_removed),
+					_ if string_with_name_removed.starts_with("?")  => (IdentifierType::UnmarkedOrFloat, true,  &string_with_name_removed[1..]),
+					_                                               => (IdentifierType::UnmarkedOrFloat, false, string_with_name_removed),
 				};
 				// Get if the token is an alphabetic operator
 				let (binary_operator, unary_operator) = match identifier_type {
-					IdentifierType::UnmarkedNumber if !is_optional => (BinaryOperator::from_name(name), UnaryOperator::from_name(name)),
+					IdentifierType::UnmarkedOrFloat if !is_optional => (BinaryOperator::from_name(name), UnaryOperator::from_name(name)),
 					_ => (None, None),
 				};
 				// Get if the identifier is a keyword
@@ -139,7 +139,7 @@ impl<'a> Token<'a> {
 				};
 				// Get if this a reserved keyword
 				let is_reserved_keyword = (matches!(keyword, Some(Keyword::Else | Keyword::Print)) | name.eq_ignore_ascii_case("NOT") | name.eq_ignore_ascii_case("REM")) &&
-					identifier_type == IdentifierType::UnmarkedNumber;
+					identifier_type == IdentifierType::UnmarkedOrFloat;
 				// Assemble into token
 				(TokenVariant::Identifier {
 					name, identifier_type, is_optional, binary_operator, unary_operator, keyword, is_reserved_keyword, supplied_function
@@ -302,6 +302,7 @@ impl<'a> Token<'a> {
 }
 
 impl<'a> TokenVariant<'a> {
+	/// Is can this token be used as a binary operator. Eg. +, <=, AND.
 	pub fn is_binary_operator(&self) -> bool {
 		match self {
 			TokenVariant::Operator(Some(..), _) => true,
@@ -310,6 +311,7 @@ impl<'a> TokenVariant<'a> {
 		}
 	}
 
+	/// Is can this token be used as a unary operator. Eg. +, -, NOT.
 	pub fn is_unary_operator(&self) -> bool {
 		match self {
 			TokenVariant::Operator(_, Some(..)) => true,
@@ -320,10 +322,15 @@ impl<'a> TokenVariant<'a> {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
+/// The type of an identifier. Eg. Integer, complex.
 pub enum IdentifierType {
-	UnmarkedNumber,
+	/// A float identifier with no trailing %/#/$.
+	UnmarkedOrFloat,
+	/// A string identifier with a trailing $.
 	String,
+	/// An integer identifier with a trailing %.
 	Integer,
+	/// A complex identifier with a trailing #.
 	ComplexNumber,
 }
 
@@ -353,6 +360,7 @@ impl NumericBase {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+/// A keyword that identifier could be used as. Eg. PRINT, GOTO.
 pub enum Keyword {
 	Print,
 	Goto,
@@ -414,68 +422,70 @@ pub enum Keyword {
 }
 
 impl Keyword {
+	/// Get the full caps name of the keyword and its trailing type char (nothing or #). Eg. GET and GET# are different.
 	pub fn get_names(self) -> &'static [(&'static str, IdentifierType)] {
 		match self {
-			Self::Print =>       &[("PRINT",       IdentifierType::UnmarkedNumber)],
-			Self::Goto =>        &[("GOTO",        IdentifierType::UnmarkedNumber)],
-			Self::Run =>         &[("RUN",         IdentifierType::UnmarkedNumber)],
-			Self::Gosub =>       &[("GOSUB",       IdentifierType::UnmarkedNumber)],
-			Self::Fn =>          &[("FN",          IdentifierType::UnmarkedNumber)],
-			Self::Let =>         &[("LET",         IdentifierType::UnmarkedNumber)],
-			Self::List =>        &[("LIST",        IdentifierType::UnmarkedNumber)],
-			Self::Close =>       &[("CLOSE",       IdentifierType::UnmarkedNumber)],
-			Self::Clr =>         &[("CLR",         IdentifierType::UnmarkedNumber)],
-			Self::Cmd =>         &[("CMD",         IdentifierType::UnmarkedNumber)],
-			Self::Cont =>        &[("CONT",        IdentifierType::UnmarkedNumber)],
-			Self::Data =>        &[("DATA",        IdentifierType::UnmarkedNumber)],
-			Self::Def =>         &[("DEF",         IdentifierType::UnmarkedNumber)],
-			Self::Dim =>         &[("DIM",         IdentifierType::UnmarkedNumber)],
-			Self::End =>         &[("END",         IdentifierType::UnmarkedNumber)],
-			Self::For =>         &[("FOR",         IdentifierType::UnmarkedNumber)],
-			Self::Get =>         &[("GET",         IdentifierType::UnmarkedNumber)],
+			Self::Print =>       &[("PRINT",       IdentifierType::UnmarkedOrFloat)],
+			Self::Goto =>        &[("GOTO",        IdentifierType::UnmarkedOrFloat)],
+			Self::Run =>         &[("RUN",         IdentifierType::UnmarkedOrFloat)],
+			Self::Gosub =>       &[("GOSUB",       IdentifierType::UnmarkedOrFloat)],
+			Self::Fn =>          &[("FN",          IdentifierType::UnmarkedOrFloat)],
+			Self::Let =>         &[("LET",         IdentifierType::UnmarkedOrFloat)],
+			Self::List =>        &[("LIST",        IdentifierType::UnmarkedOrFloat)],
+			Self::Close =>       &[("CLOSE",       IdentifierType::UnmarkedOrFloat)],
+			Self::Clr =>         &[("CLR",         IdentifierType::UnmarkedOrFloat)],
+			Self::Cmd =>         &[("CMD",         IdentifierType::UnmarkedOrFloat)],
+			Self::Cont =>        &[("CONT",        IdentifierType::UnmarkedOrFloat)],
+			Self::Data =>        &[("DATA",        IdentifierType::UnmarkedOrFloat)],
+			Self::Def =>         &[("DEF",         IdentifierType::UnmarkedOrFloat)],
+			Self::Dim =>         &[("DIM",         IdentifierType::UnmarkedOrFloat)],
+			Self::End =>         &[("END",         IdentifierType::UnmarkedOrFloat)],
+			Self::For =>         &[("FOR",         IdentifierType::UnmarkedOrFloat)],
+			Self::Get =>         &[("GET",         IdentifierType::UnmarkedOrFloat)],
 			Self::GetHash =>     &[("GET",         IdentifierType::ComplexNumber )],
-			Self::If =>          &[("IF",          IdentifierType::UnmarkedNumber)],
-			Self::Input =>       &[("INPUT",       IdentifierType::UnmarkedNumber)],
+			Self::If =>          &[("IF",          IdentifierType::UnmarkedOrFloat)],
+			Self::Input =>       &[("INPUT",       IdentifierType::UnmarkedOrFloat)],
 			Self::InputHash =>   &[("INPUT",       IdentifierType::ComplexNumber )],
-			Self::Load =>        &[("LOAD",        IdentifierType::UnmarkedNumber)],
-			Self::New =>         &[("NEW",         IdentifierType::UnmarkedNumber)],
-			Self::Next =>        &[("NEXT",        IdentifierType::UnmarkedNumber)],
-			Self::On =>          &[("ON",          IdentifierType::UnmarkedNumber)],
-			Self::Open =>        &[("OPEN",        IdentifierType::UnmarkedNumber)],
-			Self::Poke =>        &[("POKE",        IdentifierType::UnmarkedNumber)],
+			Self::Load =>        &[("LOAD",        IdentifierType::UnmarkedOrFloat)],
+			Self::New =>         &[("NEW",         IdentifierType::UnmarkedOrFloat)],
+			Self::Next =>        &[("NEXT",        IdentifierType::UnmarkedOrFloat)],
+			Self::On =>          &[("ON",          IdentifierType::UnmarkedOrFloat)],
+			Self::Open =>        &[("OPEN",        IdentifierType::UnmarkedOrFloat)],
+			Self::Poke =>        &[("POKE",        IdentifierType::UnmarkedOrFloat)],
 			Self::PrintHash =>   &[("PRINT",       IdentifierType::ComplexNumber )],
-			Self::Read =>        &[("READ",        IdentifierType::UnmarkedNumber)],
-			Self::Restore =>     &[("RESTORE",     IdentifierType::UnmarkedNumber)],
-			Self::Return =>      &[("RETURN",      IdentifierType::UnmarkedNumber)],
-			Self::Save =>        &[("SAVE",        IdentifierType::UnmarkedNumber)],
-			Self::Step =>        &[("STEP",        IdentifierType::UnmarkedNumber)],
-			Self::Stop =>        &[("STOP",        IdentifierType::UnmarkedNumber)],
-			Self::Sys =>         &[("SYS",         IdentifierType::UnmarkedNumber)],
-			Self::Then =>        &[("THEN",        IdentifierType::UnmarkedNumber)],
-			Self::To =>          &[("TO",          IdentifierType::UnmarkedNumber)],
-			Self::Verify =>      &[("VERIFY",      IdentifierType::UnmarkedNumber)],
-			Self::Wait =>        &[("WAIT",        IdentifierType::UnmarkedNumber)],
-			Self::Go =>          &[("GO",          IdentifierType::UnmarkedNumber)],
-			Self::Sub =>         &[("SUB",         IdentifierType::UnmarkedNumber)],
-			Self::Else =>        &[("ELSE",        IdentifierType::UnmarkedNumber)],
-			Self::Option =>      &[("OPTION",      IdentifierType::UnmarkedNumber)],
-			Self::Angle =>       &[("ANGLE",       IdentifierType::UnmarkedNumber)],
-			Self::Arithmetic =>  &[("ARITHMETIC",  IdentifierType::UnmarkedNumber)],
-			Self::Decimal =>     &[("DECIMAL",     IdentifierType::UnmarkedNumber)],
-			Self::Degrees =>     &[("DEGREES",     IdentifierType::UnmarkedNumber)],
-			Self::Gradians =>    &[("GRADIANS",    IdentifierType::UnmarkedNumber)],
-			Self::Native =>      &[("NATIVE",      IdentifierType::UnmarkedNumber)],
-			Self::Radians =>     &[("RADIANS",     IdentifierType::UnmarkedNumber)],
-			Self::Revolutions => &[("REVOLUTIONS", IdentifierType::UnmarkedNumber)],
-			Self::Math =>        &[("MATH",        IdentifierType::UnmarkedNumber)],
-			Self::Ansi =>        &[("ANSI",        IdentifierType::UnmarkedNumber)],
-			Self::Ieee =>        &[("IEEE",        IdentifierType::UnmarkedNumber)],
-			Self::Prompt =>      &[("PROMPT",      IdentifierType::UnmarkedNumber)],
-			Self::Timeout =>     &[("TIMEOUT",     IdentifierType::UnmarkedNumber)],
-			Self::Elapsed =>     &[("ELAPSED",     IdentifierType::UnmarkedNumber)],
+			Self::Read =>        &[("READ",        IdentifierType::UnmarkedOrFloat)],
+			Self::Restore =>     &[("RESTORE",     IdentifierType::UnmarkedOrFloat)],
+			Self::Return =>      &[("RETURN",      IdentifierType::UnmarkedOrFloat)],
+			Self::Save =>        &[("SAVE",        IdentifierType::UnmarkedOrFloat)],
+			Self::Step =>        &[("STEP",        IdentifierType::UnmarkedOrFloat)],
+			Self::Stop =>        &[("STOP",        IdentifierType::UnmarkedOrFloat)],
+			Self::Sys =>         &[("SYS",         IdentifierType::UnmarkedOrFloat)],
+			Self::Then =>        &[("THEN",        IdentifierType::UnmarkedOrFloat)],
+			Self::To =>          &[("TO",          IdentifierType::UnmarkedOrFloat)],
+			Self::Verify =>      &[("VERIFY",      IdentifierType::UnmarkedOrFloat)],
+			Self::Wait =>        &[("WAIT",        IdentifierType::UnmarkedOrFloat)],
+			Self::Go =>          &[("GO",          IdentifierType::UnmarkedOrFloat)],
+			Self::Sub =>         &[("SUB",         IdentifierType::UnmarkedOrFloat)],
+			Self::Else =>        &[("ELSE",        IdentifierType::UnmarkedOrFloat)],
+			Self::Option =>      &[("OPTION",      IdentifierType::UnmarkedOrFloat)],
+			Self::Angle =>       &[("ANGLE",       IdentifierType::UnmarkedOrFloat)],
+			Self::Arithmetic =>  &[("ARITHMETIC",  IdentifierType::UnmarkedOrFloat)],
+			Self::Decimal =>     &[("DECIMAL",     IdentifierType::UnmarkedOrFloat)],
+			Self::Degrees =>     &[("DEGREES",     IdentifierType::UnmarkedOrFloat)],
+			Self::Gradians =>    &[("GRADIANS",    IdentifierType::UnmarkedOrFloat)],
+			Self::Native =>      &[("NATIVE",      IdentifierType::UnmarkedOrFloat)],
+			Self::Radians =>     &[("RADIANS",     IdentifierType::UnmarkedOrFloat)],
+			Self::Revolutions => &[("REVOLUTIONS", IdentifierType::UnmarkedOrFloat)],
+			Self::Math =>        &[("MATH",        IdentifierType::UnmarkedOrFloat)],
+			Self::Ansi =>        &[("ANSI",        IdentifierType::UnmarkedOrFloat)],
+			Self::Ieee =>        &[("IEEE",        IdentifierType::UnmarkedOrFloat)],
+			Self::Prompt =>      &[("PROMPT",      IdentifierType::UnmarkedOrFloat)],
+			Self::Timeout =>     &[("TIMEOUT",     IdentifierType::UnmarkedOrFloat)],
+			Self::Elapsed =>     &[("ELAPSED",     IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 
+	/// Returns a list of (second keyword, combined keyword) tuples. Eg. GO returns (TO, GOTO) since GO TO is the same as GOTO.
 	pub fn get_double_word_tokens(self) -> &'static [(Self, Self)] {
 		match self {
 			Self::Go => &[(Self::To, Self::Goto), (Self::Sub, Self::Gosub)],
@@ -483,6 +493,8 @@ impl Keyword {
 		}
 	}
 
+	/// Takes a identifier name and its type and returns the keyword it could be used as if it could be used as a keyword.
+	/// Eg. "PRINT", "for", "InPut", ("PRINT", #) and "myVar" return Some(PRINT), Some(FOR), Some(INPUT), Some(PrintHash) and None.
 	pub fn from_name(name: &str, identifier_type: IdentifierType) -> Option<Self> {
 		for keyword in Self::iter() {
 			for (keyword_name, keyword_identifier_type) in keyword.get_names() {
@@ -496,6 +508,7 @@ impl Keyword {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+/// A supplied (built-in) function that an identifier could be used as. Eg. ABS, SGN, PI, RND.
 pub enum SuppliedFunction {
 	Abs,
 	Sqr,
@@ -507,6 +520,7 @@ pub enum SuppliedFunction {
 }
 
 impl SuppliedFunction {
+	/// Returns the full caps name of this supplied function.
 	pub fn get_names(self) -> &'static [&'static str] {
 		match self {
 			Self::Abs => &["ABS"],
@@ -519,6 +533,7 @@ impl SuppliedFunction {
 		}
 	}
 
+	/// Takes a identifier name and returns the supplied function it could be used as if it could be used as a function.
 	pub fn from_name(name: &str) -> Option<Self> {
 		for keyword in Self::iter() {
 			for function_name in keyword.get_names() {
@@ -532,6 +547,7 @@ impl SuppliedFunction {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A binary infix operator. Eg. +, <=, AND, OR.
 pub enum BinaryOperator {
 	Exponentiation,
 	Multiplication,
@@ -552,6 +568,7 @@ pub enum BinaryOperator {
 }
 
 impl BinaryOperator {
+	/// Get the operator precedence of this operator, smaller numbers are parsed first.
 	pub fn get_operator_precedence(self) -> u8 {
 		match self {
 			Self::Exponentiation => 0,
@@ -564,6 +581,7 @@ impl BinaryOperator {
 		}
 	}
 
+	/// Get a list of non-alphabetic symbols that could be used for this operator. Eg. "-" for subtraction, "<" for less than.
 	pub fn from_symbol(symbol: &str) -> Option<Self> {
 		match symbol {
 			"^" | "↑" => Some(Self::Exponentiation),
@@ -584,6 +602,7 @@ impl BinaryOperator {
 		}
 	}
 
+	/// Get a list of alphabetic symbols that could be used for this operator. Eg. "AND" for and, "OR" for or.
 	pub fn from_name(name: &str) -> Option<Self> {
 		match name {
 			_ if name.eq_ignore_ascii_case("AND") => Some(Self::And),
@@ -592,6 +611,7 @@ impl BinaryOperator {
 		}
 	}
 
+	/// Find this operator in a list of tokens, ignores tokens inside parentheses.
 	pub fn find_in(&self, find_in: &[Token]) -> Option<usize> {
 		let mut bracket_depth = 0usize;
 		for (index, token) in find_in.iter().enumerate() {
@@ -614,6 +634,7 @@ impl BinaryOperator {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// A unary prefix operator. Eg. +, -, NOT.
 pub enum UnaryOperator {
 	Negation,
 	UnaryPlus,
@@ -621,6 +642,7 @@ pub enum UnaryOperator {
 }
 
 impl UnaryOperator {
+	/// Get the operator precedence of this operator, smaller numbers are parsed first.
 	pub fn get_operator_precedence(self) -> u8 {
 		match self {
 			Self::UnaryPlus | Self::Negation => 1,
@@ -628,6 +650,7 @@ impl UnaryOperator {
 		}
 	}
 
+	/// Get a list of non-alphabetic symbols that could be used for this operator. Eg. "-" for negation, "+" for unary plus.
 	pub fn from_symbol(symbol: &str) -> Option<Self> {
 		match symbol {
 			"-" => Some(Self::Negation),
@@ -636,6 +659,7 @@ impl UnaryOperator {
 		}
 	}
 
+	/// Get a list of alphabetic symbols that could be used for this operator. Eg. "NOT" for not.
 	pub fn from_name(name: &str) -> Option<Self> {
 		match name {
 			_ if name.eq_ignore_ascii_case("NOT") => Some(Self::Not),
@@ -660,14 +684,14 @@ mod tests {
 		assert_eq!(
 			Token::parse_single_token_from_str("a", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap()
 			}, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("_num = 8.5", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "_num", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "_num", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap()
 			}, " = 8.5"))
 		);
@@ -695,7 +719,7 @@ mod tests {
 		assert_eq!(
 			Token::parse_single_token_from_str("a0?=2E5", 1.try_into().unwrap()).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a0", identifier_type: IdentifierType::UnmarkedNumber, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a0", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
 			}, "=2E5"))
 		);
@@ -965,7 +989,7 @@ mod tests {
 		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
 		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
-				name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
+				name: "PRINT", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
 			}, start_column: 4.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
@@ -983,7 +1007,7 @@ mod tests {
 		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
 		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
-				name: "PRINT", identifier_type: IdentifierType::UnmarkedNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
+				name: "PRINT", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
 			}, start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {

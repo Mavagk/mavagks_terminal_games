@@ -774,7 +774,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
-			IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
+			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
 				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
@@ -832,7 +832,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
 			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
-		IdentifierType::UnmarkedNumber => AnyTypeLValue::Float(FloatLValue {
+		IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
 			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
