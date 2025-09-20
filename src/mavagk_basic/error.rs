@@ -30,18 +30,6 @@ pub struct FullError {
 	pub line_text: Option<String>,
 }
 
-impl FullError {
-	pub fn set_line_number(mut self, line_number: Option<&BigInt>) -> Self {
-		self.line_number = line_number.cloned();
-		self
-	}
-
-	pub fn set_column_number(mut self, column_number: NonZeroUsize) -> Self {
-		self.column_number = Some(column_number);
-		self
-	}
-}
-
 impl Display for FullError {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match (&self.line_number, self.column_number) {

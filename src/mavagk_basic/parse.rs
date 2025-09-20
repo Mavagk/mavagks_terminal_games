@@ -63,28 +63,28 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				column: l_value_start_column,
 				variant: StatementVariant::AssignInt(
 					l_value,
-					r_value_expression.to_int_expression()?
+					cast_to_int_expression(r_value_expression)?
 				),
 			},
 			AnyTypeLValue::Float(l_value) => Statement {
 				column: l_value_start_column,
 				variant: StatementVariant::AssignFloat(
 					l_value,
-					r_value_expression.to_float_expression()?
+					cast_to_float_expression(r_value_expression)?
 				),
 			},
 			AnyTypeLValue::Complex(l_value) => Statement {
 				column: l_value_start_column,
 				variant: StatementVariant::AssignComplex(
 					l_value,
-					r_value_expression.to_complex_expression()?
+					cast_to_complex_expression(r_value_expression)?
 				),
 			},
 			AnyTypeLValue::String(l_value) => Statement {
 				column: l_value_start_column,
 				variant: StatementVariant::AssignString(
 					l_value,
-					r_value_expression.to_string_expression()?
+					cast_to_string_expression(r_value_expression)?
 				),
 			},
 		};
@@ -117,28 +117,28 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignInt(
 						l_value,
-						r_value_expression.to_int_expression()?
+						cast_to_int_expression(r_value_expression)?
 					),
 				},
 				AnyTypeLValue::Float(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignFloat(
 						l_value,
-						r_value_expression.to_float_expression()?
+						cast_to_float_expression(r_value_expression)?
 					),
 				},
 				AnyTypeLValue::Complex(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignComplex(
 						l_value,
-						r_value_expression.to_complex_expression()?
+						cast_to_complex_expression(r_value_expression)?
 					),
 				},
 				AnyTypeLValue::String(l_value) => Statement {
 					column: statement_keyword_start_column,
 					variant: StatementVariant::AssignString(
 						l_value,
-						r_value_expression.to_string_expression()?
+						cast_to_string_expression(r_value_expression)?
 					),
 				},
 			}
@@ -313,10 +313,10 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 					Statement {
 						variant: StatementVariant::ForInt {
 							loop_variable,
-							initial: initial_value_expression.to_int_expression()?,
-							limit: limit_value_expression.to_int_expression()?,
+							initial: cast_to_int_expression(initial_value_expression)?,
+							limit: cast_to_int_expression(limit_value_expression)?,
 							step: match step_value_expression {
-								Some(step_value_expression) => Some(step_value_expression.to_int_expression()?),
+								Some(step_value_expression) => Some(cast_to_int_expression(step_value_expression)?),
 								None => None,
 							}
 						},
@@ -327,10 +327,10 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 					Statement {
 						variant: StatementVariant::ForFloat {
 							loop_variable,
-							initial: initial_value_expression.to_float_expression()?,
-							limit: limit_value_expression.to_float_expression()?,
+							initial: cast_to_float_expression(initial_value_expression)?,
+							limit: cast_to_float_expression(limit_value_expression)?,
 							step: match step_value_expression {
-								Some(step_value_expression) => Some(step_value_expression.to_float_expression()?),
+								Some(step_value_expression) => Some(cast_to_float_expression(step_value_expression)?),
 								None => None,
 							}
 						},
@@ -386,7 +386,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 		Keyword::Goto | Keyword::Run | Keyword::Gosub => {
 			// Get the argument expression if it exists
 			let expression = match parse_expression(tokens)? {
-				Some(expression) => Some(expression.to_int_expression()?),
+				Some(expression) => Some(cast_to_int_expression(expression)?),
 				None => None,
 			};
 			// Parse depending on keyword
@@ -416,7 +416,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 			// If there is no hyphen, just parse one expression
 			if hyphen_index == None {
 				// Get the argument expression
-				let sub_expression = parse_expression(tokens)?.unwrap().to_int_expression()?;
+				let sub_expression = cast_to_int_expression(parse_expression(tokens)?.unwrap())?;
 				// There should be no tokens after said expression
 				if !tokens.tokens.is_empty() {
 					return Err(ErrorVariant::StatementShouldEnd.at_column(tokens.last_removed_token_end_column));
@@ -432,7 +432,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 			(tokens_left_of_hyphen, *tokens) = tokens.split_at(hyphen_index.unwrap());
 			// Parse the range start expression if it exists
 			let range_start_expression = match parse_expression(&mut tokens_left_of_hyphen)? {
-				Some(range_start_expression) => Some(range_start_expression.to_int_expression()?),
+				Some(range_start_expression) => Some(cast_to_int_expression(range_start_expression)?),
 				None => None,
 			};
 			// There should not be any tokens between the range start expression and the hyphen
@@ -449,7 +449,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 			}
 			// Parse range end expression if it exists
 			let range_end_expression = match parse_expression(tokens)? {
-				Some(range_end_expression) => Some(range_end_expression.to_int_expression()?),
+				Some(range_end_expression) => Some(cast_to_int_expression(range_end_expression)?),
 				None => None,
 			};
 			// Assemble into LIST statement
@@ -464,7 +464,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 			}
 			// Parse condition
 			let condition_expression = match parse_expression(tokens)? {
-				Some(condition_expression) => condition_expression.to_bool_expression()?,
+				Some(condition_expression) => cast_to_bool_expression(condition_expression)?,
 				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
 			};
 			// Get then/goto statement
@@ -485,7 +485,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 				}
 				Some((Keyword::Goto, goto_start_column)) => {
 					match parse_expression(tokens)? {
-						Some(line_number_expression) => Statement { variant: StatementVariant::Goto(Some(line_number_expression.to_int_expression()?)), column: goto_start_column },
+						Some(line_number_expression) => Statement { variant: StatementVariant::Goto(Some(cast_to_int_expression(line_number_expression)?)), column: goto_start_column },
 						None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
 					}
 				}
@@ -871,69 +871,69 @@ pub fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
 pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: NonZeroUsize, lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match operator {
 		BinaryOperator::AdditionConcatenation => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Int(IntExpression::Addition {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Float(FloatExpression::Addition {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Complex(ComplexExpression::Addition {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::String(StringExpression::Concatenation {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::Concatenation => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) |
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					return Err(ErrorVariant::CannotConcatenateNumbers.at_column(start_column)),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::String(StringExpression::Concatenation {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::Subtraction => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Int(IntExpression::Subtraction {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Float(FloatExpression::Subtraction {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Complex(ComplexExpression::Subtraction {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -941,24 +941,24 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::Multiplication => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Int(IntExpression::Multiplication {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Float(FloatExpression::Multiplication {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Complex(ComplexExpression::Multiplication {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -966,18 +966,18 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::Division => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Float(FloatExpression::Division {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Complex(ComplexExpression::Division {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -985,18 +985,18 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::Exponentiation => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Float(FloatExpression::Exponentiation {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Complex(ComplexExpression::Exponentiation {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -1004,12 +1004,12 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::DoubleSlash => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::FlooredDivision {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -1018,12 +1018,12 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::BackSlash => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::FlooredDivision {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
@@ -1032,210 +1032,210 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::Equal => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolEqualTo {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntEqualTo {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatEqualTo {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::ComplexEqualTo {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringEqualTo {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::NotEqualTo => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolNotEqualTo {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntNotEqualTo {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatNotEqualTo {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::ComplexNotEqualTo {
-						lhs_expression: Box::new(lhs.to_complex_expression()?),
-						rhs_expression: Box::new(rhs.to_complex_expression()?),
+						lhs_expression: Box::new(cast_to_complex_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_complex_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringNotEqualTo {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::GreaterThan => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolGreaterThan {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntGreaterThan {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatGreaterThan {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringGreaterThan {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::GreaterThanOrEqualTo => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolGreaterThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntGreaterThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatGreaterThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringGreaterThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::LessThan => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolLessThan {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntLessThan {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatLessThan {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringLessThan {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::LessThanOrEqualTo => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::BoolLessThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::IntLessThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::FloatLessThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_float_expression()?),
-						rhs_expression: Box::new(rhs.to_float_expression()?),
+						lhs_expression: Box::new(cast_to_float_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_float_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::StringLessThanOrEqualTo {
-						lhs_expression: Box::new(lhs.to_string_expression()?),
-						rhs_expression: Box::new(rhs.to_string_expression()?),
+						lhs_expression: Box::new(cast_to_string_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_string_expression(rhs)?),
 						start_column,
 					}),
 				_ => unreachable!(),
 			}
 		},
 		BinaryOperator::And => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::And {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::BitwiseAnd {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -1243,18 +1243,18 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 			}
 		},
 		BinaryOperator::Or => {
-			let (lhs, rhs) = lhs.upcast(rhs)?;
+			let (lhs, rhs) = upcast(lhs, rhs)?;
 			match (&lhs, &rhs) {
 				(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) =>
 					AnyTypeExpression::Bool(BoolExpression::Or {
-						lhs_expression: Box::new(lhs.to_bool_expression()?),
-						rhs_expression: Box::new(rhs.to_bool_expression()?),
+						lhs_expression: Box::new(cast_to_bool_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_bool_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) | (AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) =>
 					AnyTypeExpression::Int(IntExpression::BitwiseOr {
-						lhs_expression: Box::new(lhs.to_int_expression()?),
-						rhs_expression: Box::new(rhs.to_int_expression()?),
+						lhs_expression: Box::new(cast_to_int_expression(lhs)?),
+						rhs_expression: Box::new(cast_to_int_expression(rhs)?),
 						start_column,
 					}),
 				(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
@@ -1267,23 +1267,84 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 pub fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZeroUsize, operand: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match &operator {
 		UnaryOperator::Negation  => match operand {
-			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) => AnyTypeExpression::Int(IntExpression::Negation { sub_expression: Box::new(operand.to_int_expression()?), start_column }),
-			AnyTypeExpression::Float(..) => AnyTypeExpression::Float(FloatExpression::Negation { sub_expression: Box::new(operand.to_float_expression()?), start_column }),
-			AnyTypeExpression::Complex(..) => AnyTypeExpression::Complex(ComplexExpression::Negation { sub_expression: Box::new(operand.to_complex_expression()?), start_column }),
+			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) => AnyTypeExpression::Int(IntExpression::Negation { sub_expression: Box::new(cast_to_int_expression(operand)?), start_column }),
+			AnyTypeExpression::Float(..) => AnyTypeExpression::Float(FloatExpression::Negation { sub_expression: Box::new(cast_to_float_expression(operand)?), start_column }),
+			AnyTypeExpression::Complex(..) => AnyTypeExpression::Complex(ComplexExpression::Negation { sub_expression: Box::new(cast_to_complex_expression(operand)?), start_column }),
 			AnyTypeExpression::String(..) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
-			//_ => unreachable!(),
 		}
 		UnaryOperator::UnaryPlus  => operand,
 		UnaryOperator::Not  => match operand {
-			AnyTypeExpression::Bool(..) => AnyTypeExpression::Bool(BoolExpression::Not { sub_expression: Box::new(operand.to_bool_expression()?), start_column }),
+			AnyTypeExpression::Bool(..) => AnyTypeExpression::Bool(BoolExpression::Not { sub_expression: Box::new(cast_to_bool_expression(operand)?), start_column }),
 			AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) =>
-				AnyTypeExpression::Int(IntExpression::BitwiseNot { sub_expression: Box::new(operand.to_int_expression()?), start_column }),
+				AnyTypeExpression::Int(IntExpression::BitwiseNot { sub_expression: Box::new(cast_to_int_expression(operand)?), start_column }),
 			AnyTypeExpression::String(..) => return Err(ErrorVariant::CannotUseThisOperatorOnAString.at_column(start_column)),
-			//_ => unreachable!(),
 		}
 	})
 }
 
+pub fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<IntExpression, Error> {
+	Ok(match any_type_expression {
+		AnyTypeExpression::Int(expression) => expression,
+		AnyTypeExpression::Float(expression) => IntExpression::CastFromFloat(Box::new(expression)),
+		AnyTypeExpression::Complex(expression) => IntExpression::CastFromFloat(Box::new(FloatExpression::CastFromComplex(Box::new(expression)))),
+		AnyTypeExpression::Bool(expression) => IntExpression::CastFromBool(Box::new(expression)),
+		AnyTypeExpression::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
+	})
+}
+
+pub fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Result<FloatExpression, Error> {
+	Ok(match any_type_expression {
+		AnyTypeExpression::Int(expression) => FloatExpression::CastFromInt(Box::new(expression)),
+		AnyTypeExpression::Float(expression) => expression,
+		AnyTypeExpression::Complex(expression) => FloatExpression::CastFromComplex(Box::new(expression)),
+		AnyTypeExpression::Bool(expression) => FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))),
+		AnyTypeExpression::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
+	})
+}
+
+pub fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Result<ComplexExpression, Error> {
+	Ok(match any_type_expression {
+		AnyTypeExpression::Int(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(expression)))),
+		AnyTypeExpression::Float(expression) => ComplexExpression::CastFromFloat(Box::new(expression)),
+		AnyTypeExpression::Complex(expression) => expression,
+		AnyTypeExpression::Bool(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))))),
+		AnyTypeExpression::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
+	})
+}
+
+pub fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Result<StringExpression, Error> {
+	Ok(match any_type_expression {
+		AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) | AnyTypeExpression::Bool(..) =>
+			return Err(ErrorVariant::NumberCastToString.at_column(any_type_expression.get_start_column())),
+		AnyTypeExpression::String(value) => value,
+	})
+}
+
+pub fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result<BoolExpression, Error> {
+	Ok(match any_type_expression {
+		AnyTypeExpression::Bool(value) => value,
+		AnyTypeExpression::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
+		AnyTypeExpression::Float(expression) => BoolExpression::FloatIsNonZero(Box::new(expression)),
+		AnyTypeExpression::Complex(expression) => BoolExpression::ComplexIsNonZero(Box::new(expression)),
+		AnyTypeExpression::String(expression) => BoolExpression::StringIsNotEmpty(Box::new(expression)),
+	})
+}
+
+pub fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpression, AnyTypeExpression), Error> {
+	Ok(match (&lhs, &rhs) {
+		(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) |
+		(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) |
+		(AnyTypeExpression::String(..), AnyTypeExpression::String(..)) => (lhs, rhs),
+		(AnyTypeExpression::Int(..), AnyTypeExpression::Bool(..)) => (lhs, AnyTypeExpression::Int(cast_to_int_expression(rhs)?)),
+		(AnyTypeExpression::Bool(..), AnyTypeExpression::Int(..)) => (AnyTypeExpression::Int(cast_to_int_expression(lhs)?), rhs),
+		(AnyTypeExpression::Float(..), AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..)) => (lhs, AnyTypeExpression::Float(cast_to_float_expression(rhs)?)),
+		(AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..), AnyTypeExpression::Float(..)) => (AnyTypeExpression::Float(cast_to_float_expression(lhs)?), rhs),
+		(AnyTypeExpression::Complex(..), AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..)) => (lhs, AnyTypeExpression::Complex(cast_to_complex_expression(rhs)?)),
+		(AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..), AnyTypeExpression::Complex(..)) => (AnyTypeExpression::Complex(cast_to_complex_expression(lhs)?), rhs),
+		(AnyTypeExpression::String(..), _) => (lhs, AnyTypeExpression::Complex(cast_to_complex_expression(rhs)?)),
+		(_, AnyTypeExpression::String(..)) => (AnyTypeExpression::Complex(cast_to_complex_expression(lhs)?), rhs),
+	})
+}
 
 #[derive(Clone, Copy)]
 pub struct Tokens<'a, 'b> {

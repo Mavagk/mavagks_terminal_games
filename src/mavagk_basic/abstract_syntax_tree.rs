@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use crate::mavagk_basic::{error::{Error, ErrorVariant}, token::SuppliedFunction, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{token::SuppliedFunction, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug)]
 pub struct Statement {
@@ -913,8 +913,6 @@ pub enum AnyTypeExpression {
 	Complex(ComplexExpression),
 	String(StringExpression),
 	Bool(BoolExpression),
-	//PrintComma(NonZeroUsize),
-	//PrintSemicolon(NonZeroUsize),
 }
 
 impl AnyTypeExpression {
@@ -925,76 +923,7 @@ impl AnyTypeExpression {
 			AnyTypeExpression::Float(value) => value.get_start_column(),
 			AnyTypeExpression::Complex(value) => value.get_start_column(),
 			AnyTypeExpression::String(value) => value.get_start_column(),
-			//AnyTypeExpression::PrintComma(column) => *column,
-			//AnyTypeExpression::PrintSemicolon(column) => *column,
 		}
-	}
-
-	pub fn to_int_expression(self) -> Result<IntExpression, Error> {
-		Ok(match self {
-			Self::Int(expression) => expression,
-			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-			Self::Float(expression) => IntExpression::CastFromFloat(Box::new(expression)),
-			Self::Complex(expression) => IntExpression::CastFromFloat(Box::new(FloatExpression::CastFromComplex(Box::new(expression)))),
-			Self::Bool(expression) => IntExpression::CastFromBool(Box::new(expression)),
-			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
-		})
-	}
-
-	pub fn to_float_expression(self) -> Result<FloatExpression, Error> {
-		Ok(match self {
-			Self::Int(expression) => FloatExpression::CastFromInt(Box::new(expression)),
-			Self::Float(expression) => expression,
-			Self::Complex(expression) => FloatExpression::CastFromComplex(Box::new(expression)),
-			Self::Bool(expression) => FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))),
-			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
-			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-		})
-	}
-
-	pub fn to_complex_expression(self) -> Result<ComplexExpression, Error> {
-		Ok(match self {
-			Self::Int(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(expression)))),
-			Self::Float(expression) => ComplexExpression::CastFromFloat(Box::new(expression)),
-			Self::Complex(expression) => expression,
-			Self::Bool(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(IntExpression::CastFromBool(Box::new(expression)))))),
-			Self::String(expression) => return Err(ErrorVariant::StringCastToNumber.at_column(expression.get_start_column())),
-			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-		})
-	}
-
-	pub fn to_string_expression(self) -> Result<StringExpression, Error> {
-		Ok(match self {
-			Self::Int(..) | Self::Float(..) | Self::Complex(..) | Self::Bool(..) => return Err(ErrorVariant::NumberCastToString.at_column(self.get_start_column())),
-			Self::String(value) => value,
-			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-		})
-	}
-
-	pub fn to_bool_expression(self) -> Result<BoolExpression, Error> {
-		Ok(match self {
-			Self::Bool(value) => value,
-			Self::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
-			Self::Float(expression) => BoolExpression::FloatIsNonZero(Box::new(expression)),
-			Self::Complex(expression) => BoolExpression::ComplexIsNonZero(Box::new(expression)),
-			Self::String(expression) => BoolExpression::StringIsNotEmpty(Box::new(expression)),
-			//AnyTypeExpression::PrintComma(..) | AnyTypeExpression::PrintSemicolon(..) => unreachable!(),
-		})
-	}
-
-	pub fn upcast(self, rhs: Self) -> Result<(Self, Self), Error> {
-		Ok(match (&self, &rhs) {
-			(Self::Bool(..), Self::Bool(..)) | (Self::Int(..), Self::Int(..)) | (Self::Float(..), Self::Float(..)) | (Self::Complex(..), Self::Complex(..)) | (Self::String(..), Self::String(..)) => (self, rhs),
-			(Self::Int(..), Self::Bool(..)) => (self, AnyTypeExpression::Int(rhs.to_int_expression()?)),
-			(Self::Bool(..), Self::Int(..)) => (AnyTypeExpression::Int(self.to_int_expression()?), rhs),
-			(Self::Float(..), Self::Bool(..) | Self::Int(..)) => (self, AnyTypeExpression::Float(rhs.to_float_expression()?)),
-			(Self::Bool(..) | Self::Int(..), Self::Float(..)) => (AnyTypeExpression::Float(self.to_float_expression()?), rhs),
-			(Self::Complex(..), Self::Bool(..) | Self::Int(..) | Self::Float(..)) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression()?)),
-			(Self::Bool(..) | Self::Int(..) | Self::Float(..), Self::Complex(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
-			(Self::String(..), _) => (self, AnyTypeExpression::Complex(rhs.to_complex_expression()?)),
-			(_, Self::String(..)) => (AnyTypeExpression::Complex(self.to_complex_expression()?), rhs),
-			//(Self::PrintComma(..) | Self::PrintSemicolon(..), _) | (_, Self::PrintComma(..) | Self::PrintSemicolon(..)) => unreachable!(),
-		})
 	}
 
 	pub fn print(&self, depth: usize) {
@@ -1004,18 +933,6 @@ impl AnyTypeExpression {
 			AnyTypeExpression::Complex(expression) => expression.print(depth),
 			AnyTypeExpression::Bool(expression) => expression.print(depth),
 			AnyTypeExpression::String(expression) => expression.print(depth),
-			//AnyTypeExpression::PrintComma(column) => {
-			//	for _ in 0..depth {
-			//		print!("-");
-			//	}
-			//	println!(" {:03}: Comma/,", column);
-			//}
-			//AnyTypeExpression::PrintSemicolon(column) => {
-			//	for _ in 0..depth {
-			//		print!("-");
-			//	}
-			//	println!(" {:03}: Semicolon/;", column);
-			//}
 		}
 	}
 
@@ -1023,7 +940,6 @@ impl AnyTypeExpression {
 		match self {
 			AnyTypeExpression::Bool(_) | AnyTypeExpression::Int(_) | AnyTypeExpression::Float(_) | AnyTypeExpression::Complex(_) => true,
 			AnyTypeExpression::String(_) => false,
-			//AnyTypeExpression::PrintComma(_) | AnyTypeExpression::PrintSemicolon(_) => unreachable!(),
 		}
 	}
 
