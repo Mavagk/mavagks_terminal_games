@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use crate::mavagk_basic::{token::SuppliedFunction, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Statement {
 	pub variant: StatementVariant,
 	pub column: NonZeroUsize,
@@ -171,7 +171,7 @@ impl Statement {
 	}
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum StatementVariant {
 	Print(Box<[PrintOperand]>),
 	Input { prompt: Option<AnyTypeExpression>, timeout: Option<AnyTypeExpression>, elapsed: Option<AnyTypeExpression>, inputs: Box<[AnyTypeLValue]> },
@@ -190,7 +190,7 @@ pub enum StatementVariant {
 	Next(Box<[AnyTypeLValue]>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum PrintOperand {
 	Expression(AnyTypeExpression),
 	Comma(NonZeroUsize),

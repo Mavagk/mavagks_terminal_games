@@ -669,7 +669,7 @@ fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, 
 	Ok(())
 }
 
-/// Parse the parts of an expression that are separated by operators from a list of tokens, removes the parsed tokens. Eg. "2", "(3 + 2)", "f(x)"
+/// Parse the parts of an expression that are separated by operators from a list of tokens, removes the parsed tokens. Eg. "2", "(3 + 2)", "f(x)", not "1 + 2".
 fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeExpression>, Error> {
 	// Get the first token or return if there are no more tokens to parse
 	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
@@ -739,6 +739,7 @@ fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
 	}
 }
 
+/// Parses a l-value of any type for a list of tokens, removes the parsed tokens from the list.
 fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Error> {
 	// Get the first token or return if there are no more tokens to parse
 	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
@@ -851,6 +852,8 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 	}))
 }
 
+/// Gets the length of an l-value
+// TODO: Remove
 fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
 	let mut parenthesis_depth = 0usize;
 	for (index, token) in tokens.iter().enumerate() {
@@ -875,6 +878,7 @@ fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
 	tokens.len()
 }
 
+/// Take a binary operator and its left and right operands and convert them to a single expression object.
 fn binary_operator_to_expression(operator: BinaryOperator, start_column: NonZeroUsize, lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match operator {
 		BinaryOperator::AdditionConcatenation => {
@@ -1271,6 +1275,7 @@ fn binary_operator_to_expression(operator: BinaryOperator, start_column: NonZero
 	})
 }
 
+/// Take a unary operator and its right operand and convert them to a single expression object.
 fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZeroUsize, operand: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match &operator {
 		UnaryOperator::Negation  => match operand {
@@ -1289,6 +1294,7 @@ fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZeroUs
 	})
 }
 
+/// Creates a cast from an expression of any type to an expression of integer type.
 fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<IntExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => expression,
@@ -1299,6 +1305,7 @@ fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<IntE
 	})
 }
 
+/// Creates a cast from an expression of any type to an expression of float type.
 fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Result<FloatExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => FloatExpression::CastFromInt(Box::new(expression)),
@@ -1309,6 +1316,7 @@ fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Result<Fl
 	})
 }
 
+/// Creates a cast from an expression of any type to an expression of complex type.
 fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Result<ComplexExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(expression)))),
@@ -1319,6 +1327,7 @@ fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Result<
 	})
 }
 
+/// Creates a cast from an expression of any type to an expression of string type.
 fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Result<StringExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) | AnyTypeExpression::Bool(..) =>
@@ -1327,6 +1336,7 @@ fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Result<S
 	})
 }
 
+/// Creates a cast from an expression of any type to an expression of boolean type.
 fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result<BoolExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Bool(value) => value,
@@ -1337,6 +1347,8 @@ fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result<Boo
 	})
 }
 
+/// Takes in two expressions and upcasts the first one in the bool -> int -> float -> complex chain to be of the same type as the other one.
+/// Eg. upcast(complex, int) will cast the second argument to type complex and return expressions of type (complex, complex).
 fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpression, AnyTypeExpression), Error> {
 	Ok(match (&lhs, &rhs) {
 		(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) |
@@ -1354,13 +1366,16 @@ fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpr
 }
 
 #[derive(Clone, Copy)]
+/// A struct that contains a borrowed slice of tokens. Tokens can be parsed and removed from the front of the slice.
 pub struct Tokens<'a, 'b> {
+	/// The borrowed slice.
 	pub tokens: &'b [Token<'a>],
+	/// The end column of the last removed token.
 	pub last_removed_token_end_column: NonZeroUsize,
 }
 
 impl<'a, 'b> Tokens<'a, 'b> {
-	/// Tokens must be at least one token long
+	/// Create from a slice of tokens.
 	pub fn new(tokens: &'b [Token<'a>]) -> Self {
 		Self {
 			tokens,
@@ -1368,6 +1383,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 		}
 	}
 
+	/// Removes an amount of tokens from the start of the token slice.
 	pub fn remove_tokens(&mut self, remove_count: usize) {
 		if remove_count == 0 {
 			return;
@@ -1377,7 +1393,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 		self.last_removed_token_end_column = tokens_removed.last().unwrap().end_column
 	}
 
-	/// Returns the token and it's start column.
+	/// Removes the next token from the start of the list.
 	pub fn take_next_token(&mut self) -> Option<&Token<'_>> {
 		let tokens_removed;
 		(tokens_removed, self.tokens) = match self.tokens.split_at_checked(1) {
@@ -1388,6 +1404,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 		Some(&tokens_removed[0])
 	}
 
+	/// Split the list into two an an index.
 	pub fn split_at(self, index: usize) -> (Self, Self) {
 		let (left_tokens, right_tokens) = self.tokens.split_at(index);
 		let split_column = match index {

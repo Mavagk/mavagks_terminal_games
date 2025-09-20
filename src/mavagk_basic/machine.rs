@@ -104,11 +104,12 @@ impl Machine {
 			(line_number, Ok(tokens)) => (line_number, tokens, None),
 			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
 		};
-		let (mut statements, error) = match error {
+		let (unoptimized_statements, error) = match error {
 			None => parse_line(&mut Tokens::new(&tokens)),
 			Some(error) => (Box::default(), Some(error)),
 		};
-		for statement in statements.iter_mut() {
+		let mut optimized_statements = unoptimized_statements.clone();
+		for statement in optimized_statements.iter_mut() {
 			optimize_statement(statement);
 		}
 		// Enter line number into program and run if it does not have a line number
@@ -119,11 +120,11 @@ impl Machine {
 					let error = error.clone().to_full_error(Some(line_number.clone()), Some(line_text.clone().into()));
 					handle_error::<()>(Err(error));
 				}
-				if statements.is_empty() && error.is_none() {
+				if unoptimized_statements.is_empty() && error.is_none() {
 					program.lines.remove(&line_number);
 				}
 				else {
-					program.lines.insert(Rc::new(line_number), (statements, error, line_text));
+					program.lines.insert(Rc::new(line_number), (optimized_statements, unoptimized_statements, error, line_text));
 				}
 			}
 			// Run the line in direct mode if it does not have a line number
@@ -132,7 +133,7 @@ impl Machine {
 					return Err(error.clone().to_full_error(None, Some(line_text.clone().into())));
 				}
 				self.execution_source = ExecutionSource::DirectModeLine;
-				self.execute(program, &statements, &line_text)?;
+				self.execute(program, &unoptimized_statements, &line_text)?;
 			}
 		}
 		Ok(())
@@ -178,8 +179,8 @@ impl Machine {
 						None => 0,
 					};
 					// Execute each sub-line to be executed
-					let (statements, line_error, line_text) = program.lines.get(&line_number).unwrap();
-					for (sub_line, statement) in statements.iter().enumerate().skip(start_sub_line) {
+					let (optimized_statements, _, line_error, line_text) = program.lines.get(&line_number).unwrap();
+					for (sub_line, statement) in optimized_statements.iter().enumerate().skip(start_sub_line) {
 						// Set the sub line so that the statement executer can access it
 						self.sub_line_executing = Some(sub_line);
 						// Execute the sub-line
@@ -548,7 +549,7 @@ impl Machine {
 					(None, Some(range_end_value)) => program.lines.range::<BigInt, RangeToInclusive<&BigInt>>(..=range_end_value),
 					(Some(range_start_value), Some(range_end_value)) => program.lines.range::<BigInt, RangeInclusive<&BigInt>>(range_start_value..=range_end_value),
 				};
-				for (_line, (_statements, error, code_text)) in range {
+				for (_line, (_optimized_statements, _, error, code_text)) in range {
 					if let Some(_) = error {
 						execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{code_text}\n")))).unwrap()
 					}
