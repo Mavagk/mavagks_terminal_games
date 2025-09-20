@@ -30,7 +30,7 @@ pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) 
 	}
 }
 
-pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Result<Option<Statement>, Error> {
+fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Result<Option<Statement>, Error> {
 	// There should be tokens
 	if tokens.tokens.is_empty() {
 		return Ok(None);
@@ -551,7 +551,7 @@ pub fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> 
 	}))
 }
 
-pub fn parse_expression<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeExpression>, Error> {
+fn parse_expression<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeExpression>, Error> {
 	// Return None if there are no tokens left
 	if tokens.tokens.is_empty() {
 		return Ok(None);
@@ -615,7 +615,7 @@ pub fn parse_expression<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeExpr
 	Ok(Some(expression_primaries_and_their_unary_operators.pop().unwrap().0))
 }
 
-pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) -> Result<(), Error> {
+fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) -> Result<(), Error> {
 	loop {
 		// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
 		let (binary_operator, binary_operator_start_column) = match operator_stack.last() {
@@ -663,7 +663,7 @@ pub fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpressi
 	Ok(())
 }
 
-pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeExpression>, Error> {
+fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeExpression>, Error> {
 	// Get the first token or return if there are no more tokens to parse
 	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
 		Some(first_token) => first_token,
@@ -724,7 +724,7 @@ pub fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<An
 }
 
 /// Will remove a equal sign from the start of `tokens`. Will return an error if it is not found and will not remove the token from the start.
-pub fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
+fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
 	match tokens.take_next_token() {
 		Some(Token { variant: TokenVariant::Operator(Some(BinaryOperator::Equal), _), ..}) => Ok(()),
 		Some(token) => Err(ErrorVariant::ExpectedEqualSign.at_column(token.start_column)),
@@ -732,7 +732,7 @@ pub fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
 	}
 }
 
-pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Error> {
+fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Error> {
 	// Get the first token or return if there are no more tokens to parse
 	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
 		Some(first_token) => first_token,
@@ -844,7 +844,7 @@ pub fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>
 	}))
 }
 
-pub fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
+fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
 	let mut parenthesis_depth = 0usize;
 	for (index, token) in tokens.iter().enumerate() {
 		if matches!(token.variant, TokenVariant::LeftParenthesis) {
@@ -868,7 +868,7 @@ pub fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
 	tokens.len()
 }
 
-pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: NonZeroUsize, lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
+fn binary_operator_to_expression(operator: BinaryOperator, start_column: NonZeroUsize, lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match operator {
 		BinaryOperator::AdditionConcatenation => {
 			let (lhs, rhs) = upcast(lhs, rhs)?;
@@ -1264,7 +1264,7 @@ pub fn binary_operator_to_expression(operator: BinaryOperator, start_column: Non
 	})
 }
 
-pub fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZeroUsize, operand: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
+fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZeroUsize, operand: AnyTypeExpression) -> Result<AnyTypeExpression, Error> {
 	Ok(match &operator {
 		UnaryOperator::Negation  => match operand {
 			AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) => AnyTypeExpression::Int(IntExpression::Negation { sub_expression: Box::new(cast_to_int_expression(operand)?), start_column }),
@@ -1282,7 +1282,7 @@ pub fn unary_operator_to_expression(operator: UnaryOperator, start_column: NonZe
 	})
 }
 
-pub fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<IntExpression, Error> {
+fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<IntExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => expression,
 		AnyTypeExpression::Float(expression) => IntExpression::CastFromFloat(Box::new(expression)),
@@ -1292,7 +1292,7 @@ pub fn cast_to_int_expression(any_type_expression: AnyTypeExpression) -> Result<
 	})
 }
 
-pub fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Result<FloatExpression, Error> {
+fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Result<FloatExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => FloatExpression::CastFromInt(Box::new(expression)),
 		AnyTypeExpression::Float(expression) => expression,
@@ -1302,7 +1302,7 @@ pub fn cast_to_float_expression(any_type_expression: AnyTypeExpression) -> Resul
 	})
 }
 
-pub fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Result<ComplexExpression, Error> {
+fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Result<ComplexExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(expression) => ComplexExpression::CastFromFloat(Box::new(FloatExpression::CastFromInt(Box::new(expression)))),
 		AnyTypeExpression::Float(expression) => ComplexExpression::CastFromFloat(Box::new(expression)),
@@ -1312,7 +1312,7 @@ pub fn cast_to_complex_expression(any_type_expression: AnyTypeExpression) -> Res
 	})
 }
 
-pub fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Result<StringExpression, Error> {
+fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Result<StringExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..) | AnyTypeExpression::Complex(..) | AnyTypeExpression::Bool(..) =>
 			return Err(ErrorVariant::NumberCastToString.at_column(any_type_expression.get_start_column())),
@@ -1320,7 +1320,7 @@ pub fn cast_to_string_expression(any_type_expression: AnyTypeExpression) -> Resu
 	})
 }
 
-pub fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result<BoolExpression, Error> {
+fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result<BoolExpression, Error> {
 	Ok(match any_type_expression {
 		AnyTypeExpression::Bool(value) => value,
 		AnyTypeExpression::Int(expression) => BoolExpression::IntIsNonZero(Box::new(expression)),
@@ -1330,7 +1330,7 @@ pub fn cast_to_bool_expression(any_type_expression: AnyTypeExpression) -> Result
 	})
 }
 
-pub fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpression, AnyTypeExpression), Error> {
+fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpression, AnyTypeExpression), Error> {
 	Ok(match (&lhs, &rhs) {
 		(AnyTypeExpression::Bool(..), AnyTypeExpression::Bool(..)) | (AnyTypeExpression::Int(..), AnyTypeExpression::Int(..)) |
 		(AnyTypeExpression::Float(..), AnyTypeExpression::Float(..)) | (AnyTypeExpression::Complex(..), AnyTypeExpression::Complex(..)) |
