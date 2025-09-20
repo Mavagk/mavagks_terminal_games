@@ -4,6 +4,7 @@ use num::complex::Complex64;
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
+/// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
 	let mut parsed_tokens = Vec::new();
 	// Parse statements until we reach the end of line
@@ -30,6 +31,7 @@ pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) 
 	}
 }
 
+/// Parses a single statement from a list of tokens, removing the tokens parsed, `is_root_statement` is false if this statement is nested inside another statement such as "IF A THEN PRINT "Hello"".
 fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Result<Option<Statement>, Error> {
 	// There should be tokens
 	if tokens.tokens.is_empty() {
@@ -551,6 +553,7 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 	}))
 }
 
+/// Parses an expression of any type from the start of a list of tokens, removing the tokens it parsed from the token list.
 fn parse_expression<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeExpression>, Error> {
 	// Return None if there are no tokens left
 	if tokens.tokens.is_empty() {
@@ -615,7 +618,10 @@ fn parse_expression<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeExpressi
 	Ok(Some(expression_primaries_and_their_unary_operators.pop().unwrap().0))
 }
 
-fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>) -> Result<(), Error> {
+/// Takes in a stack of operands and operators, solves operators of lower precedence.
+fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, Vec<(UnaryOperator, NonZeroUsize)>)>, operator_stack: &mut Vec<(BinaryOperator, NonZeroUsize)>, precedence: Option<u8>)
+	-> Result<(), Error>
+{
 	loop {
 		// Return if the operator precedence of the operator at the top of the stack is not greater than or equal to the input precedence
 		let (binary_operator, binary_operator_start_column) = match operator_stack.last() {
@@ -663,6 +669,7 @@ fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, 
 	Ok(())
 }
 
+/// Parse the parts of an expression that are separated by operators from a list of tokens, removes the parsed tokens. Eg. "2", "(3 + 2)", "f(x)"
 fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeExpression>, Error> {
 	// Get the first token or return if there are no more tokens to parse
 	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
