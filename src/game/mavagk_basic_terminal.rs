@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -85,6 +87,12 @@ impl Game for MavagkBasicTerminal {
 
 	fn should_close(&self) -> bool {
 		self.should_exit
+	}
+
+	fn mtg_filepath(&mut self, mtg_filepath: &Path) {
+		let mut basic_filepath = mtg_filepath.to_path_buf();
+		basic_filepath.push("basic/");
+		self.machine.set_basic_home_path(basic_filepath.into_boxed_path());
 	}
 }
 

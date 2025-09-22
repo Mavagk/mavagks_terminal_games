@@ -16,4 +16,8 @@ impl Program {
 			lines: BTreeMap::new(),
 		}
 	}
+
+	pub fn clear_program(&mut self) {
+		self.lines = BTreeMap::new();
+	}
 }

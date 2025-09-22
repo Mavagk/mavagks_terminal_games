@@ -100,6 +100,11 @@ pub enum ErrorVariant {
 	LoopVariableNotSimpleVar,
 	NoLoops,
 	ForLoopVariableNotFound,
+	CanOnlyExecuteInDirectMode,
+	InvalidFilepath(String),
+	FilesystemError,
+	UnableToOpenFile,
+	UnableToReadFile,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -196,6 +201,11 @@ impl Display for ErrorVariant {
 			Self::LoopVariableNotSimpleVar => write!(f, "A loop variable must not contain parentheses."),
 			Self::NoLoops => write!(f, "There are not any active loops for a no argument NEXT statement to loop."),
 			Self::ForLoopVariableNotFound => write!(f, "FOR loop variable not found."),
+			Self::CanOnlyExecuteInDirectMode => write!(f, "Can only be executed in direct mode."),
+			Self::InvalidFilepath(filepath) => write!(f, "Invalid filepath: \"{filepath}\"."),
+			Self::FilesystemError => write!(f, "Filesystem error."),
+			Self::UnableToOpenFile => write!(f, "Unable to open file."),
+			Self::UnableToReadFile => write!(f, "Unable to read from file."),
 		}
 	}
 }

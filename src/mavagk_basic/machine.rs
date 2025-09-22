@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::{stdin, stdout, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, rc::Rc};
+use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
@@ -26,6 +26,8 @@ pub struct Machine {
 	// Options set via an OPTION statement
 	angle_option: AngleOption,
 	math_option: MathOption,
+
+	basic_home_path: Option<Box<Path>>,
 }
 
 impl Machine {
@@ -42,6 +44,34 @@ impl Machine {
 			for_loop_variable_to_block_stack_index: HashMap::new(),
 			angle_option: AngleOption::Gradians,
 			math_option: MathOption::Ansi,
+			basic_home_path: None,
+		}
+	}
+
+	/// Set the MavagkBasic home path.
+	pub fn set_basic_home_path(&mut self, path: Box<Path> ) {
+		_ = create_dir_all(&path);
+		self.basic_home_path = Some(path);
+	}
+
+	/// Takes in a string slice and converts it into a filepath relative to the MavagkBasic home path.
+	pub fn string_to_full_filepath(&self, string: &str) -> Result<PathBuf, ErrorVariant> {
+		match &self.basic_home_path {
+			None => {
+				let string_path = match PathBuf::from_str(string) {
+					Ok(string_path) => string_path,
+					Err(_) => return Err(ErrorVariant::InvalidFilepath(string.into())),
+				};
+				if !string_path.is_absolute() {
+					return Err(ErrorVariant::FilesystemError);
+				}
+				Ok(string_path)
+			}
+			Some(basic_home_path) => {
+				let mut filepath = basic_home_path.to_path_buf();
+				filepath.push(string);
+				Ok(filepath)
+			}
 		}
 	}
 
@@ -83,6 +113,7 @@ impl Machine {
 			line_executing: take(&mut self.line_executing),
 			sub_line_executing: self.sub_line_executing,
 			execution_source: self.execution_source,
+			basic_home_path: take(&mut self.basic_home_path),
 			// Stuff to discard
 			int_variables: HashMap::new(),
 			float_variables: HashMap::new(),
@@ -248,8 +279,42 @@ impl Machine {
 
 	/// Called when executing a statement in direct mode. Can modify the program since it is not executing it.
 	fn execute_direct_mode_statement(&mut self, statement: &Statement, program: &mut Program) -> Result<bool, Error> {
-		let Statement { variant, column: _ } = &statement;
+		let Statement { variant, column } = &statement;
 		match variant {
+			StatementVariant::Load(filepath_expression) => {
+				// Execute expression
+				let filename_value = match filepath_expression {
+					Some(filepath_expression) => self.execute_string_expression(filepath_expression)?,
+					None => return Err(ErrorVariant::Unimplemented("LOAD without arguments".into()).at_column(*column)),
+				};
+				// Convert string value to filepath
+				let filepath = self.string_to_full_filepath(&filename_value.value)
+					.map_err(|error| error.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				// Get filetype
+				let filetype = match FileType::from_filename(&filepath) {
+					Some(filetype) => filetype,
+					None => return Err(ErrorVariant::Unimplemented("File extensions that are not .basbat".into()).at_column(filepath_expression.as_ref().unwrap().get_start_column())),
+				};
+				// Open file
+				let mut file = File::open(filepath).map_err(|_| ErrorVariant::UnableToOpenFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				let mut file_buffer = Vec::new();
+				file.read_to_end(&mut file_buffer).map_err(|_| ErrorVariant::UnableToReadFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				// Read lines
+				match filetype {
+					FileType::BasicBatch => {
+						program.clear_program();
+						for line in file_buffer.lines() {
+							let line = match line {
+								Ok(line) => line,
+								Err(_) => return Err(ErrorVariant::UnableToReadFile.at_column(filepath_expression.as_ref().unwrap().get_start_column())),
+							};
+							handle_error(self.line_of_text_entered(line.into_boxed_str(), program));
+						}
+					}
+					FileType::Basic => return Err(ErrorVariant::Unimplemented("File extensions that are not .basbat".into()).at_column(filepath_expression.as_ref().unwrap().get_start_column())),
+				}
+				Ok(false)
+			}
 			_ => self.execute_statement(statement, program),
 		}
 	}
@@ -579,7 +644,7 @@ impl Machine {
 				}
 			}
 			StatementVariant::Load(_filename_expression) => {
-				todo!()
+				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
 			}
 		}
 		Ok(false)
@@ -1042,4 +1107,19 @@ enum ExecutionSource {
 enum BlockOnStack {
 	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
+}
+
+enum FileType {
+	BasicBatch,
+	Basic,
+}
+
+impl FileType {
+	pub fn from_filename(path: &Path) -> Option<Self> {
+		match path.extension() {
+			Some(extension) if extension.eq_ignore_ascii_case("bas") => Some(Self::Basic),
+			Some(extension) if extension.eq_ignore_ascii_case("basbat") => Some(Self::BasicBatch),
+			_ => None,
+		}
+	}
 }
