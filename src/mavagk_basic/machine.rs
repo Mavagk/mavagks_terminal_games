@@ -290,20 +290,26 @@ impl Machine {
 				// Convert string value to filepath
 				let filepath = self.string_to_full_filepath(&filename_value.value)
 					.map_err(|error| error.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
-				// Get filetype
-				let filetype = match FileType::from_filename(&filepath) {
-					Some(filetype) => filetype,
-					None => return Err(ErrorVariant::Unimplemented("File extensions that are not .basbat".into()).at_column(filepath_expression.as_ref().unwrap().get_start_column())),
-				};
+				// File is a basic batch file if it has a ".basbat" extension
+				let mut is_basic_batch_file = filepath.extension().is_some_and(|extension| extension.eq_ignore_ascii_case("basbat"));
 				// Open file
 				let mut file = File::open(filepath).map_err(|_| ErrorVariant::UnableToOpenFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
 				let mut file_buffer = Vec::new();
 				file.read_to_end(&mut file_buffer).map_err(|_| ErrorVariant::UnableToReadFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				let mut lines = file_buffer.lines().peekable();
+				// File is also a batch file if the first char of the first line is a digit or negative sign
+				if !is_basic_batch_file {
+					match lines.peek() {
+						Some(Ok(line)) if line.as_str().trim_ascii().starts_with(|chr| matches!(chr, '0'..='9' | '-')) => is_basic_batch_file = true,
+						_ => {},
+					}
+				}
 				// Read lines
-				match filetype {
-					FileType::BasicBatch => {
+				match is_basic_batch_file {
+					// If this is a batch basic file, enter each line into the machine as if it where typed in
+					true => {
 						program.clear_program();
-						for line in file_buffer.lines() {
+						for line in lines {
 							let line = match line {
 								Ok(line) => line,
 								Err(_) => return Err(ErrorVariant::UnableToReadFile.at_column(filepath_expression.as_ref().unwrap().get_start_column())),
@@ -311,7 +317,19 @@ impl Machine {
 							handle_error(self.line_of_text_entered(line.into_boxed_str(), program));
 						}
 					}
-					FileType::Basic => return Err(ErrorVariant::Unimplemented("File extensions that are not .basbat".into()).at_column(filepath_expression.as_ref().unwrap().get_start_column())),
+					// If this is not a batch basic file, enter each line into the machine with its line number prefixed
+					false => {
+						program.clear_program();
+						let mut line_number = 1usize;
+						for line in lines {
+							let line = match line {
+								Ok(line) => line,
+								Err(_) => return Err(ErrorVariant::UnableToReadFile.at_column(filepath_expression.as_ref().unwrap().get_start_column())),
+							};
+							handle_error(self.line_of_text_entered(format!("{line_number} {line}").into_boxed_str(), program));
+							line_number += 1;
+						}
+					}
 				}
 				Ok(false)
 			}
@@ -1109,17 +1127,17 @@ enum BlockOnStack {
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 }
 
-enum FileType {
-	BasicBatch,
-	Basic,
-}
-
-impl FileType {
-	pub fn from_filename(path: &Path) -> Option<Self> {
-		match path.extension() {
-			Some(extension) if extension.eq_ignore_ascii_case("bas") => Some(Self::Basic),
-			Some(extension) if extension.eq_ignore_ascii_case("basbat") => Some(Self::BasicBatch),
-			_ => None,
-		}
-	}
-}
+//enum FileType {
+//	BasicBatch,
+//	Basic,
+//}
+//
+//impl FileType {
+//	pub fn from_filename(path: &Path) -> Option<Self> {
+//		match path.extension() {
+//			Some(extension) if extension.eq_ignore_ascii_case("bas") => Some(Self::Basic),
+//			Some(extension) if extension.eq_ignore_ascii_case("basbat") => Some(Self::BasicBatch),
+//			_ => None,
+//		}
+//	}
+//}
