@@ -149,21 +149,32 @@ impl Statement {
 					OptionVariableAndValue::Angle(angle_option) => {
 						print!("ANGLE ");
 						match angle_option {
-							AngleOption::Radians => print!("RADIANS"),
-							AngleOption::Degrees => print!("DEGREES"),
-							AngleOption::Gradians => print!("GRADIANS"),
-							AngleOption::Revolutions => print!("REVOLUTIONS"),
+							Some(AngleOption::Radians) => print!("RADIANS"),
+							Some(AngleOption::Degrees) => print!("DEGREES"),
+							Some(AngleOption::Gradians) => print!("GRADIANS"),
+							Some(AngleOption::Revolutions) => print!("REVOLUTIONS"),
+							None => print!("DEFAULT"),
 						}
 					}
 					OptionVariableAndValue::Math(math_option) => {
 						print!("MATH ");
 						match math_option {
-							MathOption::Ansi => print!("ANSI"),
-							MathOption::Ieee => print!("IEEE"),
+							Some(MathOption::Ansi) => print!("ANSI"),
+							Some(MathOption::Ieee) => print!("IEEE"),
+							None => print!("DEFAULT"),
+						}
+					}
+					OptionVariableAndValue::Machine(machine_option) => {
+						print!("MATH ");
+						match machine_option {
+							Some(MachineOption::Ansi) => print!("ANSI"),
+							Some(MachineOption::C64) => print!("C64"),
+							None => print!("DEFAULT"),
 						}
 					}
 					OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
 					OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
+					OptionVariableAndValue::ArithmeticDefault => print!("ARITHMETIC DEFAULT"),
 				}
 				println!();
 			}
@@ -230,10 +241,12 @@ impl PrintOperand {
 
 #[derive(Debug, Clone)]
 pub enum OptionVariableAndValue {
-	Angle(AngleOption),
-	Math(MathOption),
+	Angle(Option<AngleOption>),
+	Math(Option<MathOption>),
+	Machine(Option<MachineOption>),
 	ArithmeticDecimal,
 	ArithmeticNative,
+	ArithmeticDefault,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -248,6 +261,12 @@ pub enum AngleOption {
 pub enum MathOption {
 	Ansi,
 	Ieee,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum MachineOption {
+	Ansi,
+	C64,
 }
 
 #[derive(Debug, Clone)]

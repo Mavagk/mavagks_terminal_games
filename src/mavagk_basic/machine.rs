@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -24,8 +24,9 @@ pub struct Machine {
 	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.
 	for_loop_variable_to_block_stack_index: HashMap<(Box<str>, bool), usize>,
 	// Options set via an OPTION statement
-	angle_option: AngleOption,
-	math_option: MathOption,
+	angle_option: Option<AngleOption>,
+	math_option: Option<MathOption>,
+	machine_option: Option<MachineOption>,
 
 	basic_home_path: Option<Box<Path>>,
 }
@@ -42,8 +43,9 @@ impl Machine {
 			string_variables: HashMap::new(),
 			block_stack: Vec::new(),
 			for_loop_variable_to_block_stack_index: HashMap::new(),
-			angle_option: AngleOption::Gradians,
-			math_option: MathOption::Ansi,
+			angle_option: None,
+			math_option: None,
+			machine_option: None,
 			basic_home_path: None,
 		}
 	}
@@ -123,8 +125,9 @@ impl Machine {
 			block_stack: Vec::new(),
 			for_loop_variable_to_block_stack_index: HashMap::new(),
 
-			angle_option: AngleOption::Radians,
-			math_option: MathOption::Ansi,
+			angle_option: None,
+			math_option: None,
+			machine_option: None,
 		}
 	}
 
@@ -170,19 +173,48 @@ impl Machine {
 		Ok(())
 	}
 
-	/// Returns true if taking the real square root of a negative number should throw an error, returns false if it should return NaN.
-	const fn real_square_root_of_negative_is_error(&self) -> bool {
+	const fn get_math_option(&self) -> MathOption {
 		match self.math_option {
-			MathOption::Ieee => false,
-			MathOption::Ansi => true,
+			None => MathOption::Ansi,
+			Some(math_option) => math_option,
 		}
 	}
 
-	/// Returns true if numeric overflow should throw an error, returns false if it should return a non finite value.
-	const fn overflow_is_error(&self) -> bool {
-		match self.math_option {
-			MathOption::Ieee => false,
-			MathOption::Ansi => true,
+	const fn _get_angle_option(&self) -> AngleOption {
+		match self.angle_option {
+			None => AngleOption::Radians,
+			Some(math_option) => math_option,
+		}
+	}
+
+	const fn _get_machine_option(&self) -> MachineOption {
+		match self.machine_option {
+			None => MachineOption::Ansi,
+			Some(math_option) => math_option,
+		}
+	}
+
+	/// Returns false if taking the real square root of a negative number should throw an error, returns true if it should return NaN.
+	const fn allow_real_square_root_of_negative(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::Ansi => false,
+		}
+	}
+
+	/// Returns false if numeric overflow should throw an error, returns true if it should return a non finite value.
+	const fn allow_overflow(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::Ansi => false,
+		}
+	}
+
+	/// Returns false if division by zero should throw an error, returns true if it should return a non finite value.
+	const fn allow_divide_by_zero(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::Ansi => false,
 		}
 	}
 
@@ -527,7 +559,7 @@ impl Machine {
 				self.for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), true), self.block_stack.len() - 1);
 			}
 			StatementVariant::Next(loop_variables) => {
-				let allow_overflow = !self.overflow_is_error();
+				let allow_overflow = self.allow_overflow();
 				// If a NEXT without arguments is executed
 				if loop_variables.is_empty() {
 					for (index, loop_block) in self.block_stack.iter().enumerate().rev() {
@@ -681,9 +713,10 @@ impl Machine {
 			}
 			StatementVariant::Option(option_variable_and_value) => {
 				match option_variable_and_value {
-					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative => {},
+					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
 					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
 					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
+					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
 				}
 			}
 			StatementVariant::Load(_filename_expression) => {
@@ -727,21 +760,21 @@ impl Machine {
 			FloatExpression::CastFromComplex(sub_expression) =>
 				self.execute_complex_expression(sub_expression)?.to_float().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
 			FloatExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.add(self.execute_float_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_float_expression(lhs_expression)?.add(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.sub(self.execute_float_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_float_expression(lhs_expression)?.sub(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.mul(self.execute_float_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_float_expression(lhs_expression)?.mul(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Division { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression)?
-					.div(self.execute_float_expression(rhs_expression)?, self.math_option == MathOption::Ieee, self.math_option == MathOption::Ieee)
+					.div(self.execute_float_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression)?
-					.pow(self.execute_float_expression(rhs_expression)?, self.math_option == MathOption::Ieee, self.math_option == MathOption::Ieee)
+					.pow(self.execute_float_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression)?.neg(),
 			FloatExpression::LValue(l_value) => self.execute_float_l_value_read(l_value)?,
@@ -754,20 +787,20 @@ impl Machine {
 			ComplexExpression::ConstantValue { value, .. } => *value,
 			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression)?.to_complex(),
 			ComplexExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.add(self.execute_complex_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_complex_expression(lhs_expression)?.add(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.sub(self.execute_complex_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_complex_expression(lhs_expression)?.sub(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.mul(self.execute_complex_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_complex_expression(lhs_expression)?.mul(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Division { lhs_expression, rhs_expression, start_column } =>
 				self.execute_complex_expression(lhs_expression)?
-					.div(self.execute_complex_expression(rhs_expression)?, self.math_option == MathOption::Ieee, self.math_option == MathOption::Ieee)
+					.div(self.execute_complex_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.pow(self.execute_complex_expression(rhs_expression)?, self.math_option == MathOption::Ieee)
+				self.execute_complex_expression(lhs_expression)?.pow(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression)?.neg(),
 			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value)?,
@@ -969,7 +1002,7 @@ impl Machine {
 					let argument = &arguments[0];
 					return match self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
 						// If the input is negative and that is not allowed
-						value if value.is_negative() && self.real_square_root_of_negative_is_error() => Err(ErrorVariant::SquareRootOfNegative.at_column(*start_column)),
+						value if value.is_negative() && !self.allow_real_square_root_of_negative() => Err(ErrorVariant::SquareRootOfNegative.at_column(*start_column)),
 						// Else square root floats
 						value => Ok(FloatValue::new(value.value.sqrt())),
 					}
@@ -978,7 +1011,7 @@ impl Machine {
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
 					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.abs(!self.overflow_is_error()).map_err(|error| error.at_column(argument.get_start_column()));
+						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// ABS(X)
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
@@ -1043,7 +1076,7 @@ impl Machine {
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
 					let argument = &arguments[0];
 					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.sqrt(!self.overflow_is_error()).map_err(|error| error.at_column(argument.get_start_column()));
+						.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				_ => {}
 			}

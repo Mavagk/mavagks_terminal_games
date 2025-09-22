@@ -531,14 +531,17 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			};
 			// Get the option variable/value pair
 			let option_variable_and_value = match (option_variable, option_value) {
-				(Keyword::Angle, Keyword::Radians) => OptionVariableAndValue::Angle(AngleOption::Radians),
-				(Keyword::Angle, Keyword::Degrees) => OptionVariableAndValue::Angle(AngleOption::Degrees),
-				(Keyword::Angle, Keyword::Gradians) => OptionVariableAndValue::Angle(AngleOption::Gradians),
-				(Keyword::Angle, Keyword::Revolutions) => OptionVariableAndValue::Angle(AngleOption::Revolutions),
+				(Keyword::Angle, Keyword::Radians) => OptionVariableAndValue::Angle(Some(AngleOption::Radians)),
+				(Keyword::Angle, Keyword::Degrees) => OptionVariableAndValue::Angle(Some(AngleOption::Degrees)),
+				(Keyword::Angle, Keyword::Gradians) => OptionVariableAndValue::Angle(Some(AngleOption::Gradians)),
+				(Keyword::Angle, Keyword::Revolutions) => OptionVariableAndValue::Angle(Some(AngleOption::Revolutions)),
+				(Keyword::Angle, Keyword::Default) => OptionVariableAndValue::Angle(None),
 				(Keyword::Arithmetic, Keyword::Decimal) => OptionVariableAndValue::ArithmeticDecimal,
 				(Keyword::Arithmetic, Keyword::Native) => OptionVariableAndValue::ArithmeticNative,
-				(Keyword::Math, Keyword::Ansi) => OptionVariableAndValue::Math(MathOption::Ansi),
-				(Keyword::Math, Keyword::Ieee) => OptionVariableAndValue::Math(MathOption::Ieee),
+				(Keyword::Arithmetic, Keyword::Default) => OptionVariableAndValue::ArithmeticDefault,
+				(Keyword::Math, Keyword::Ansi) => OptionVariableAndValue::Math(Some(MathOption::Ansi)),
+				(Keyword::Math, Keyword::Ieee) => OptionVariableAndValue::Math(Some(MathOption::Ieee)),
+				(Keyword::Math, Keyword::Default) => OptionVariableAndValue::Math(None),
 				_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
 			};
 			// Assemble into statement
