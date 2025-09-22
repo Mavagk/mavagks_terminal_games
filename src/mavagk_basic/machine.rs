@@ -578,6 +578,9 @@ impl Machine {
 					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
 				}
 			}
+			StatementVariant::Load(_filename_expression) => {
+				todo!()
+			}
 		}
 		Ok(false)
 	}

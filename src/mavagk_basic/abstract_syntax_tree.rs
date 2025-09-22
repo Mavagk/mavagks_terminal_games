@@ -167,6 +167,12 @@ impl Statement {
 				}
 				println!();
 			}
+			StatementVariant::Load(filename_expression) => {
+				println!("LOAD");
+				if let Some(filename_expression) = filename_expression {
+					filename_expression.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -188,6 +194,7 @@ pub enum StatementVariant {
 	ForInt { loop_variable: IntLValue, initial: IntExpression, limit: IntExpression, step: Option<IntExpression> },
 	ForFloat { loop_variable: FloatLValue, initial: FloatExpression, limit: FloatExpression, step: Option<FloatExpression> },
 	Next(Box<[AnyTypeLValue]>),
+	Load(Option<StringExpression>),
 }
 
 #[derive(Debug, Clone)]

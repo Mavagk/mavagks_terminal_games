@@ -547,7 +547,28 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				variant: StatementVariant::Option(option_variable_and_value),
 			}
 		}
-		Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
+		Keyword::Load => {
+			// Get the filename expression if it exists or return a LOAD statement without an argument if there is no expression
+			let filename_expression = match parse_expression(tokens)? {
+				Some(filename_expression) => cast_to_string_expression(filename_expression)?,
+				None => return Ok(Some(Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::Load(None),
+				})),
+			};
+			// Make sure we have at most one argument
+			match tokens.tokens.first() {
+				Some(Token { variant: TokenVariant::Comma, start_column, .. }) =>
+					return Err(ErrorVariant::Unimplemented("LOAD statement with more than one argument".into()).at_column(*start_column)),
+				_ => {},
+			}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Load(Some(filename_expression)),
+			}
+		}
+		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
 		_ => return Err(ErrorVariant::NotYetImplemented("Statement".into()).at_column(statement_keyword_start_column)),
 	}))
