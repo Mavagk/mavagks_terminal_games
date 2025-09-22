@@ -1,10 +1,12 @@
-use std::time::Duration;
+use std::{path::Path, time::Duration};
 
 use crossterm::event::{Event, KeyCode, KeyModifiers, MouseButton};
 
 use crate::console::Console;
 
 pub trait Game {
+	/// Called at the start if MTG could create/use its directory.
+	fn mtg_filepath(&mut self, _mtg_filepath: &Path) {}
 	/// Called after an event is handled if `should_redraw()` returns `true`.
 	fn draw(&mut self, _writer: &mut Console) -> Result<(), String> { Ok(()) }
 	/// Called once when the game starts

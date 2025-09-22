@@ -2,7 +2,7 @@ pub mod game;
 pub mod console;
 pub mod mavagk_basic;
 
-use std::{collections::HashMap, io::{stdin, stdout, Write}, str::FromStr, thread::yield_now, time::{Duration, Instant}};
+use std::{collections::HashMap, env::home_dir, fs::create_dir_all, io::{stdin, stdout, Write}, path::PathBuf, str::FromStr, thread::yield_now, time::{Duration, Instant}};
 
 use strum::IntoEnumIterator;
 use strum_macros::{EnumIter, FromRepr};
@@ -70,6 +70,21 @@ fn get_input_value_or_default<T: FromStr>(default: T) -> Option<T> {
 }
 
 fn main() {
+	// Get path for MTG
+	let mut mtg_path = home_dir();
+	if let Some(mtg_path) = &mut mtg_path {
+		mtg_path.push("mtg/");
+	}
+	let mut mtg_path = mtg_path.map(PathBuf::into_boxed_path);
+	// Create it if it doesn't yet exist
+	if let Some(some_mtg_path) = &mtg_path {
+		_ = create_dir_all(some_mtg_path);
+		if !some_mtg_path.exists() {
+			mtg_path = None;
+		}
+	}
+	println!("{mtg_path:?}");
+	// Print out starting info
 	println!("Mavagk's Terminal Games. Version {}", env!("CARGO_PKG_VERSION"));
 	// Print out game list
 	println!("--- Games ---");
@@ -142,6 +157,9 @@ fn main() {
 				continue;
 			}
 		};
+		if let Some(mtg_path) = &mtg_path {
+			game.mtg_filepath(&mtg_path);
+		}
 		let mut console_writer = Console::new();
 		if let Err(error) = game.first_draw(&mut console_writer) {
 			console_writer.on_game_close();

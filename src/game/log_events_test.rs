@@ -1,4 +1,4 @@
-use std::{io::{self, Write}, time::Duration};
+use std::{io::{self, Write}, path::Path, time::Duration};
 
 use crossterm::{cursor::MoveToColumn, event::{self, Event, KeyCode, KeyModifiers}, execute};
 
@@ -10,6 +10,12 @@ pub struct LogEventsTest {
 }
 
 impl Game for LogEventsTest {
+	fn mtg_filepath(&mut self, mtg_filepath: &Path) {
+		println!("Filepath: {mtg_filepath:?}");
+		io::stdout().flush().unwrap();
+		execute!(io::stdout(), MoveToColumn(0)).unwrap();
+	}
+
 	fn first_draw(&mut self, writer: &mut Console) -> Result<(), String> {
 		enable_raw_mode_on_unix();
 		writer.enable_mouse_capture();
