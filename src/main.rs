@@ -83,7 +83,6 @@ fn main() {
 			mtg_path = None;
 		}
 	}
-	println!("{mtg_path:?}");
 	// Print out starting info
 	println!("Mavagk's Terminal Games. Version {}", env!("CARGO_PKG_VERSION"));
 	// Print out game list

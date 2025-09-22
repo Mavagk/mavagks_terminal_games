@@ -352,7 +352,7 @@ impl Machine {
 							// TAB calls
 							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. })) if (&**arguments).len() == 1 => {
 								let argument_expression = &arguments[0];
-								let argument_value = self.execute_any_type_expression(expression)?
+								let argument_value = self.execute_any_type_expression(argument_expression)?
 									.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 								stdout().flush().unwrap();
 								let y_position = position().unwrap().0;
