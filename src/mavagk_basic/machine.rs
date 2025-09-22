@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
-use crossterm::{execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
+use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
@@ -347,8 +347,33 @@ impl Machine {
 				for (index, sub_expression) in sub_expressions.iter().enumerate() {
 					// Print the sub-expression
 					match sub_expression {
-						PrintOperand::Expression(expression) => print!("{}", self.execute_any_type_expression(expression)?),
+						PrintOperand::Expression(expression) => match expression {
+							// TODO: Make sure TAB calls can be overwritten when user defined functions are added.
+							// TAB calls
+							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. })) if (&**arguments).len() == 1 => {
+								let argument_expression = &arguments[0];
+								let argument_value = self.execute_any_type_expression(expression)?
+									.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+								stdout().flush().unwrap();
+								let y_position = position().unwrap().0;
+								let spaces_to_insert = &*argument_value.value - y_position;
+								let spaces_to_insert: usize = match (&spaces_to_insert).try_into() {
+									Ok(spaces_to_insert) => spaces_to_insert,
+									Err(_) => match spaces_to_insert.is_negative() {
+										true => 0,
+										false => usize::MAX,
+									}
+								};
+								for _ in 0..spaces_to_insert {
+									print!(" ")
+								}
+							}
+							// Expressions
+							_ => print!("{}", self.execute_any_type_expression(expression)?),
+						}
+						// Semicolons do nothing
 						PrintOperand::Semicolon(_) => {}
+						// TODO
 						PrintOperand::Comma(sub_expression_column) =>
 							return Err(ErrorVariant::NotYetImplemented("comma in PRINT statement".into()).at_column(*sub_expression_column))
 					}

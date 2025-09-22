@@ -517,6 +517,7 @@ pub enum SuppliedFunction {
 	Int,
 	Len,
 	Sgn,
+	Tab,
 }
 
 impl SuppliedFunction {
@@ -530,6 +531,7 @@ impl SuppliedFunction {
 			Self::Int => &["INT"],
 			Self::Len => &["LEN"],
 			Self::Sgn => &["SGN"],
+			Self::Tab => &["TAB"],
 		}
 	}
 
