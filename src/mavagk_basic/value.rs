@@ -1,4 +1,4 @@
-use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, rc::Rc};
+use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero, One};
 
@@ -44,6 +44,10 @@ impl IntValue {
 
 	pub fn is_negative(&self) -> bool {
 		self.value.is_negative()
+	}
+
+	pub fn is_positive(&self) -> bool {
+		self.value.is_positive()
 	}
 	
 	pub fn to_bool(&self) -> BoolValue {
@@ -135,6 +139,13 @@ impl IntValue {
 		let int = Rc::<BigInt>::make_mut(&mut self.value);
 		(*int) -= &*rhs.value;
 		self
+	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		match self {
+			x if x.is_negative() => write!(f, "{}", x.value),
+			x => write!(f, " {}", x.value),
+		}
 	}
 }
 
@@ -276,6 +287,13 @@ impl FloatValue {
 	pub fn floor(self) -> Self {
 		Self::new(self.value.floor())
 	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		match self {
+			x if x.is_negative() => write!(f, "{}", x.value),
+			x => write!(f, " {}", x.value),
+		}
+	}
 }
 
 impl Display for FloatValue {
@@ -393,6 +411,23 @@ impl ComplexValue {
 			value => Ok(ComplexValue::new(value)),
 		}
 	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		match (self.value.re, self.value.im) {
+			(re, im) if re > 0. && im > 0. => write!(f, " {re}+{im}i"),
+			(re, im) if re > 0. && im == 0. => write!(f, " {re}"),
+			(re, im) if re > 0. && im < 0. => write!(f, " {re}{im}i"),
+
+			(re, im) if re == 0. && im > 0. => write!(f, " {im}i"),
+			(re, im) if re == 0. && im == 0. => write!(f, " 0"),
+			(re, im) if re == 0. && im < 0. => write!(f, "{im}i"),
+
+			(re, im) if re < 0. && im > 0. => write!(f, "{re}+{im}i"),
+			(re, im) if re < 0. && im == 0. => write!(f, "{re}"),
+			(re, im) if re < 0. && im < 0. => write!(f, "{re}{im}i"),
+			_ => unreachable!()
+		}
+	}
 }
 
 impl Display for ComplexValue {
@@ -441,6 +476,10 @@ impl StringValue {
 
 	pub fn count_chars(&self) -> usize {
 		self.value.chars().count()
+	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		write!(f, "{}", self.value)
 	}
 }
 
@@ -530,6 +569,13 @@ impl BoolValue {
 	pub fn greater_than_or_equal_to(self, rhs: Self) -> Self {
 		Self::new(self.value >= rhs.value)
 	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		write!(f, "{}", match self.value {
+			true => "-1",
+			false => " 0",
+		})
+	}
 }
 
 impl Display for BoolValue {
@@ -588,6 +634,16 @@ impl AnyTypeValue {
 			Self::Float(value) => Ok(value.to_complex()),
 			Self::Complex(value) => Ok(value),
 			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
+		}
+	}
+
+	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
+		match self {
+			AnyTypeValue::Bool(value) => value.print(f),
+			AnyTypeValue::Int(value) => value.print(f),
+			AnyTypeValue::Float(value) => value.print(f),
+			AnyTypeValue::Complex(value) => value.print(f),
+			AnyTypeValue::String(value) => value.print(f),
 		}
 	}
 }

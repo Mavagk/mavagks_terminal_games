@@ -419,6 +419,9 @@ pub enum Keyword {
 	Prompt,
 	Timeout,
 	Elapsed,
+	Machine,
+	Default,
+	C64,
 }
 
 impl Keyword {
@@ -482,6 +485,9 @@ impl Keyword {
 			Self::Prompt =>      &[("PROMPT",      IdentifierType::UnmarkedOrFloat)],
 			Self::Timeout =>     &[("TIMEOUT",     IdentifierType::UnmarkedOrFloat)],
 			Self::Elapsed =>     &[("ELAPSED",     IdentifierType::UnmarkedOrFloat)],
+			Self::Machine =>     &[("MACHINE",     IdentifierType::UnmarkedOrFloat)],
+			Self::C64 =>         &[("C64",         IdentifierType::UnmarkedOrFloat)],
+			Self::Default =>     &[("DEFAULT",     IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 

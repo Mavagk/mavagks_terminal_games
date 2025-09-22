@@ -369,7 +369,7 @@ impl Machine {
 								}
 							}
 							// Expressions
-							_ => print!("{}", self.execute_any_type_expression(expression)?),
+							_ => self.execute_any_type_expression(expression)?.print(&mut stdout()).unwrap()
 						}
 						// Semicolons do nothing
 						PrintOperand::Semicolon(_) => {}
