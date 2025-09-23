@@ -186,7 +186,7 @@ impl Machine {
 		}
 	}
 
-	const fn _get_angle_option(&self) -> AngleOption {
+	const fn get_angle_option(&self) -> AngleOption {
 		match self.angle_option {
 			None => AngleOption::Radians,
 			Some(math_option) => math_option,
@@ -1097,6 +1097,30 @@ impl Machine {
 					}
 					// If it does not then generate one form the machine RNG
 					return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
+				}
+				// SIN(X)
+				(SuppliedFunction::Sin, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(
+						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
+						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.sin()
+					);
+				}
+				// COS(X)
+				(SuppliedFunction::Cos, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(
+						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
+						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.cos()
+					);
+				}
+				// TAN(X)
+				(SuppliedFunction::Tan, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(
+						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
+						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.tan()
+					);
 				}
 				_ => {}
 			}

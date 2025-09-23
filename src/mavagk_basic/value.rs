@@ -1,8 +1,8 @@
-use std::{f64::{INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
+use std::{f64::{consts::PI, INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero, One};
 
-use crate::mavagk_basic::error::ErrorVariant;
+use crate::mavagk_basic::{abstract_syntax_tree::AngleOption, error::ErrorVariant};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -291,6 +291,33 @@ impl FloatValue {
 
 	pub fn floor(self) -> Self {
 		Self::new(self.value.floor())
+	}
+
+	pub fn sin(self) -> Self {
+		Self::new(self.value.sin())
+	}
+
+	pub fn cos(self) -> Self {
+		Self::new(self.value.cos())
+	}
+
+	pub fn tan(self) -> Self {
+		Self::new(self.value.tan())
+	}
+
+	pub fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(match units {
+			AngleOption::Radians => self.value,
+			AngleOption::Degrees => self.value / 180. * PI,
+			AngleOption::Gradians => self.value / 200. * PI,
+			AngleOption::Revolutions => {
+				let radians = self.value * 2. * PI;
+				if !radians.is_finite() && !allow_overflow {
+					return Err(ErrorVariant::ValueOverflow);
+				}
+				radians
+			}
+		}))
 	}
 
 	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {

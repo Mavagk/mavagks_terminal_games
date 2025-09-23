@@ -525,6 +525,9 @@ pub enum SuppliedFunction {
 	Sgn,
 	Tab,
 	Rnd,
+	Sin,
+	Cos,
+	Tan,
 }
 
 impl SuppliedFunction {
@@ -540,6 +543,9 @@ impl SuppliedFunction {
 			Self::Sgn => &["SGN"],
 			Self::Tab => &["TAB"],
 			Self::Rnd => &["RND"],
+			Self::Sin => &["SIN"],
+			Self::Cos => &["COS"],
+			Self::Tan => &["TAN"],
 		}
 	}
 
