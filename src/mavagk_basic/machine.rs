@@ -1156,6 +1156,8 @@ impl Machine {
 		// Else try to execute a supplied (built-in) function
 		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
+				// Constants
+				(SuppliedFunction::I, _) if !has_parentheses => return Ok(ComplexValue::I),
 				// SQR#(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
@@ -1170,7 +1172,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
-		Ok(ComplexValue::zero())
+		Ok(ComplexValue::ZERO)
 	}
 
 	/// Reads a string variable or from a string array or executes a function that returns a string.

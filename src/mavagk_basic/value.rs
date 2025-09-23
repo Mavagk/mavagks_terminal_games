@@ -24,7 +24,7 @@ pub struct IntValue {
 }
 
 impl IntValue {
-	pub fn new(value: Rc<BigInt>) -> Self {
+	pub const fn new(value: Rc<BigInt>) -> Self {
 		Self {
 			value,
 		}
@@ -359,21 +359,21 @@ pub struct ComplexValue {
 }
 
 impl ComplexValue {
+	pub const ZERO: Self = Self::new(Complex64::ZERO);
+	pub const ONE: Self = Self::new(Complex64::ONE);
+	pub const I: Self = Self::new(Complex64::I);
+
 	pub const fn new(value: Complex64) -> Self {
 		Self {
 			value,
 		}
 	}
 
-	pub fn is_zero(&self) -> bool {
-		self.value.is_zero()
+	pub const fn is_zero(&self) -> bool {
+		self.value.re == 0. && self.value.im == 0.
 	}
 
-	pub fn zero() -> Self {
-		Self::new(Complex64::zero())
-	}
-
-	pub fn to_bool(&self) -> BoolValue {
+	pub const fn to_bool(&self) -> BoolValue {
 		BoolValue::new(!self.is_zero())
 	}
 
@@ -387,8 +387,8 @@ impl ComplexValue {
 		}
 	}
 
-	pub fn to_float(self) -> Result<FloatValue, ErrorVariant> {
-		if !self.value.im.is_zero() {
+	pub const fn to_float(self) -> Result<FloatValue, ErrorVariant> {
+		if self.value.im != 0. {
 			return Err(ErrorVariant::NonRealComplexValueCastToReal(self.value))
 		}
 		Ok(FloatValue::new(self.value.re))
@@ -502,7 +502,7 @@ pub struct StringValue {
 }
 
 impl StringValue {
-	pub fn new(value: Rc<String>) -> Self {
+	pub const fn new(value: Rc<String>) -> Self {
 		Self {
 			value,
 		}
@@ -555,22 +555,18 @@ pub struct BoolValue {
 }
 
 impl BoolValue {
+	pub const TRUE: Self = Self::new(true);
+	pub const FALSE: Self = Self::new(false);
+	pub const ZERO: Self = Self::new(false);
+
 	pub const fn new(value: bool) -> Self {
 		Self {
 			value,
 		}
 	}
 
-	pub fn is_zero(self) -> bool {
+	pub const fn is_zero(self) -> bool {
 		!self.value
-	}
-
-	pub fn zero() -> Self {
-		Self::new(false)
-	}
-
-	pub fn to_bool(self) -> BoolValue {
-		BoolValue::new(!self.is_zero())
 	}
 
 	pub fn to_int(self) -> IntValue {
@@ -580,53 +576,53 @@ impl BoolValue {
 		}))
 	}
 
-	pub fn to_float(self) -> FloatValue {
+	pub const fn to_float(self) -> FloatValue {
 		FloatValue::new(match self.value {
 			true => -1.,
 			false => 0.,
 		})
 	}
 
-	pub fn to_complex(&self) -> ComplexValue {
+	pub const fn to_complex(&self) -> ComplexValue {
 		ComplexValue::new(Complex64::new(match self.value {
 			true => -1.,
 			false => 0.,
 		}, 0.))
 	}
 
-	pub fn and(self, rhs: Self) -> Self {
+	pub const fn and(self, rhs: Self) -> Self {
 		Self::new(self.value && rhs.value)
 	}
 
-	pub fn or(self, rhs: Self) -> Self {
+	pub const fn or(self, rhs: Self) -> Self {
 		Self::new(self.value || rhs.value)
 	}
 
-	pub fn not(self) -> Self {
+	pub const fn not(self) -> Self {
 		Self::new(!self.value)
 	}
 
-	pub fn equal_to(self, rhs: Self) -> Self {
+	pub const fn equal_to(self, rhs: Self) -> Self {
 		Self::new(self.value == rhs.value)
 	}
 
-	pub fn not_equal_to(self, rhs: Self) -> Self {
+	pub const fn not_equal_to(self, rhs: Self) -> Self {
 		Self::new(self.value != rhs.value)
 	}
 
-	pub fn less_than(self, rhs: Self) -> Self {
+	pub const fn less_than(self, rhs: Self) -> Self {
 		Self::new(self.value < rhs.value)
 	}
 
-	pub fn less_than_or_equal_to(self, rhs: Self) -> Self {
+	pub const fn less_than_or_equal_to(self, rhs: Self) -> Self {
 		Self::new(self.value <= rhs.value)
 	}
 
-	pub fn greater_than(self, rhs: Self) -> Self {
+	pub const fn greater_than(self, rhs: Self) -> Self {
 		Self::new(self.value > rhs.value)
 	}
 
-	pub fn greater_than_or_equal_to(self, rhs: Self) -> Self {
+	pub const fn greater_than_or_equal_to(self, rhs: Self) -> Self {
 		Self::new(self.value >= rhs.value)
 	}
 

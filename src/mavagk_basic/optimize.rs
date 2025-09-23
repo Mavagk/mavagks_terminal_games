@@ -569,7 +569,7 @@ pub fn optimize_float_expression(expression: &mut FloatExpression) {
 			optimize_complex_expression(sub_expression);
 			match &mut **sub_expression {
 				ComplexExpression::ConstantValue { value, start_column } => {
-					let result = replace(value, ComplexValue::zero()).to_float();
+					let result = replace(value, ComplexValue::ZERO).to_float();
 					match result {
 						Ok(result) => *expression = FloatExpression::ConstantValue { value: result, start_column: *start_column },
 						_ => {}
