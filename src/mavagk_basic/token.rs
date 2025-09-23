@@ -534,6 +534,9 @@ pub enum SuppliedFunction {
 	NaN,
 	Inf,
 	NInf,
+	Tau,
+	Phi,
+	EGamma,
 }
 
 impl SuppliedFunction {
@@ -558,6 +561,9 @@ impl SuppliedFunction {
 			Self::NaN => &["NAN"],
 			Self::Inf => &["INF"],
 			Self::NInf => &["NINF"],
+			Self::Tau => &["TAU"],
+			Self::Phi => &["PHI"],
+			Self::EGamma => &["EGAMMA"],
 		}
 	}
 

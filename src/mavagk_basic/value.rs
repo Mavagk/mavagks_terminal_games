@@ -1,4 +1,4 @@
-use std::{f64::{consts::PI, INFINITY, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
+use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero, One};
 
@@ -166,45 +166,51 @@ pub struct FloatValue {
 }
 
 impl FloatValue {
-	pub fn new(value: f64) -> Self {
+	pub const ZERO: Self = Self::new(0.);
+	pub const ONE: Self = Self::new(1.);
+	pub const FALSE: Self = Self::new(0.);
+	pub const TRUE: Self = Self::new(-1.);
+	pub const PI: Self = Self::new(PI);
+	pub const E: Self = Self::new(E);
+	pub const TAU: Self = Self::new(TAU);
+	pub const PHI: Self = Self::new(1.618033988749894848204586834365638117720309179805762862135448622705260462818902);
+	pub const EGAMMA: Self = Self::new(0.577215664901532860606512090082402431042159335939923598805767234884867726777664);
+	pub const INFINITY: Self = Self::new(INFINITY);
+	pub const NEG_INFINITY: Self = Self::new(NEG_INFINITY);
+	pub const NAN: Self = Self::new(NAN);
+	pub const MAX: Self = Self::new(f64::MAX);
+
+	pub const fn new(value: f64) -> Self {
 		Self {
 			value,
 		}
 	}
 
 	/// Constructs a `FloatValue` from a `f64`. Returns an error if overflow is not allowed and the input value is not a finite number.
-	pub fn try_new(value: f64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub const fn try_new(value: f64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		match value.is_finite() || allow_overflow {
 			true => Ok(Self::new(value)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn is_zero(self) -> bool {
-		self.value.is_zero()
+	pub const fn is_zero(self) -> bool {
+		self.value == 0.
 	}
 
-	pub fn is_negative(self) -> bool {
+	pub const fn is_negative(self) -> bool {
 		self.value < 0.
 	}
 
-	pub fn is_positive(self) -> bool {
+	pub const fn is_positive(self) -> bool {
 		self.value > 0.
-	}
-
-	pub fn zero() -> Self {
-		Self::new(0.)
-	}
-
-	pub fn one() -> Self {
-		Self::new(1.)
 	}
 
 	pub fn is_int(self) -> bool {
 		self.value.fract().is_zero()
 	}
 
-	pub fn to_bool(self) -> BoolValue {
+	pub const fn to_bool(self) -> BoolValue {
 		BoolValue::new(!self.is_zero())
 	}
 
@@ -215,11 +221,11 @@ impl FloatValue {
 		}
 	}
 
-	pub fn to_complex(&self) -> ComplexValue {
+	pub const fn to_complex(&self) -> ComplexValue {
 		ComplexValue::new(Complex64::new(self.value, 0.))
 	}
 
-	pub fn add(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub const fn add(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value + rhs.value;
 		match float_result.is_finite() || allow_overflow {
 			true => Ok(Self::new(float_result)),
@@ -227,7 +233,7 @@ impl FloatValue {
 		}
 	}
 
-	pub fn sub(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub const fn sub(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value - rhs.value;
 		match float_result.is_finite() || allow_overflow {
 			true => Ok(Self::new(float_result)),
@@ -235,7 +241,7 @@ impl FloatValue {
 		}
 	}
 
-	pub fn mul(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub const fn mul(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		let float_result = self.value * rhs.value;
 		match float_result.is_finite() || allow_overflow {
 			true => Ok(Self::new(float_result)),
@@ -243,7 +249,7 @@ impl FloatValue {
 		}
 	}
 
-	pub fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Result<Self, ErrorVariant> {
+	pub const fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Result<Self, ErrorVariant> {
 		if rhs.is_zero() && !allow_div_by_zero {
 			return Err(ErrorVariant::DivisionByZero);
 		}
@@ -265,35 +271,35 @@ impl FloatValue {
 		}
 	}
 
-	pub fn neg(self) -> Self {
+	pub const fn neg(self) -> Self {
 		Self::new(-self.value)
 	}
 
-	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
+	pub const fn equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value == rhs.value)
 	}
 
-	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
+	pub const fn not_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value != rhs.value)
 	}
 
-	pub fn less_than(&self, rhs: &Self) -> BoolValue {
+	pub const fn less_than(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value < rhs.value)
 	}
 	
-	pub fn less_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+	pub const fn less_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value <= rhs.value)
 	}
 	
-	pub fn greater_than(&self, rhs: &Self) -> BoolValue {
+	pub const fn greater_than(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value > rhs.value)
 	}
 	
-	pub fn greater_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
+	pub const fn greater_than_or_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value >= rhs.value)
 	}
 
-	pub fn abs(self) -> Self {
+	pub const fn abs(self) -> Self {
 		Self::new(self.value.abs())
 	}
 
@@ -313,7 +319,7 @@ impl FloatValue {
 		Self::try_new(self.to_radians(units, allow_overflow)?.value.tan(), allow_overflow)
 	}
 
-	pub fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub const fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match units {
 			AngleOption::Radians => self.value,
 			AngleOption::Degrees => self.value / 180. * PI,
@@ -353,7 +359,7 @@ pub struct ComplexValue {
 }
 
 impl ComplexValue {
-	pub fn new(value: Complex64) -> Self {
+	pub const fn new(value: Complex64) -> Self {
 		Self {
 			value,
 		}
@@ -549,7 +555,7 @@ pub struct BoolValue {
 }
 
 impl BoolValue {
-	pub fn new(value: bool) -> Self {
+	pub const fn new(value: bool) -> Self {
 		Self {
 			value,
 		}

@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f64::{self, consts::{E, PI}}, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
+use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
@@ -549,7 +549,7 @@ impl Machine {
 				let final_value = self.execute_float_expression(limit)?;
 				let step_value = match step {
 					Some(step) => self.execute_float_expression(step)?,
-					None => FloatValue::one(),
+					None => FloatValue::ONE,
 				};
 				// TODO
 				if (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) {
@@ -1023,14 +1023,17 @@ impl Machine {
 		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// Constants
-				(SuppliedFunction::Pi, _) if !has_parentheses => return Ok(FloatValue::new(PI)),
-				(SuppliedFunction::E, _) if !has_parentheses => return Ok(FloatValue::new(E)),
-				(SuppliedFunction::MaxNum, _) if !has_parentheses => return Ok(FloatValue::new(f64::MAX)),
-				(SuppliedFunction::NaN, _) if !has_parentheses => return Ok(FloatValue::new(f64::NAN)),
-				(SuppliedFunction::Inf, _) if !has_parentheses => return Ok(FloatValue::new(f64::INFINITY)),
-				(SuppliedFunction::NInf, _) if !has_parentheses => return Ok(FloatValue::new(f64::NEG_INFINITY)),
-				(SuppliedFunction::True, _) if !has_parentheses => return Ok(FloatValue::new(-1.)),
-				(SuppliedFunction::False, _) if !has_parentheses => return Ok(FloatValue::new(0.)),
+				(SuppliedFunction::Pi, _) if !has_parentheses => return Ok(FloatValue::PI),
+				(SuppliedFunction::E, _) if !has_parentheses => return Ok(FloatValue::E),
+				(SuppliedFunction::Tau, _) if !has_parentheses => return Ok(FloatValue::TAU),
+				(SuppliedFunction::Phi, _) if !has_parentheses => return Ok(FloatValue::PHI),
+				(SuppliedFunction::EGamma, _) if !has_parentheses => return Ok(FloatValue::EGAMMA),
+				(SuppliedFunction::MaxNum, _) if !has_parentheses => return Ok(FloatValue::MAX),
+				(SuppliedFunction::NaN, _) if !has_parentheses => return Ok(FloatValue::NAN),
+				(SuppliedFunction::Inf, _) if !has_parentheses => return Ok(FloatValue::INFINITY),
+				(SuppliedFunction::NInf, _) if !has_parentheses => return Ok(FloatValue::NEG_INFINITY),
+				(SuppliedFunction::True, _) if !has_parentheses => return Ok(FloatValue::TRUE),
+				(SuppliedFunction::False, _) if !has_parentheses => return Ok(FloatValue::FALSE),
 				// SQR(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
@@ -1139,7 +1142,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
-		Ok(FloatValue::zero())
+		Ok(FloatValue::ZERO)
 	}
 
 	/// Reads a complex variable or from a complex array or executes a function that returns a complex.

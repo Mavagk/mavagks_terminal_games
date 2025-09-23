@@ -698,7 +698,7 @@ fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, 
 		let unary_operator = unary_operators.pop().unwrap();
 		*expression = unary_operator_to_expression(
 			unary_operator.0, unary_operator.1,
-			replace(expression, AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::zero(), start_column: 1.try_into().unwrap() }))
+			replace(expression, AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::ZERO, start_column: 1.try_into().unwrap() }))
 		)?;
 	}
 	Ok(())
