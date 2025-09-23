@@ -2,6 +2,7 @@ use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, 
 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
+use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
@@ -29,6 +30,8 @@ pub struct Machine {
 	machine_option: Option<MachineOption>,
 
 	basic_home_path: Option<Box<Path>>,
+
+	rng: SmallRng,
 }
 
 impl Machine {
@@ -47,6 +50,7 @@ impl Machine {
 			math_option: None,
 			machine_option: None,
 			basic_home_path: None,
+			rng: SmallRng::seed_from_u64(0),
 		}
 	}
 
@@ -128,6 +132,8 @@ impl Machine {
 			angle_option: None,
 			math_option: None,
 			machine_option: None,
+
+			rng: SmallRng::seed_from_u64(0),
 		}
 	}
 
@@ -187,7 +193,7 @@ impl Machine {
 		}
 	}
 
-	const fn _get_machine_option(&self) -> MachineOption {
+	const fn get_machine_option(&self) -> MachineOption {
 		match self.machine_option {
 			None => MachineOption::Ansi,
 			Some(math_option) => math_option,
@@ -401,7 +407,7 @@ impl Machine {
 								}
 							}
 							// Expressions
-							_ => self.execute_any_type_expression(expression)?.print(&mut stdout()).unwrap()
+							_ => self.execute_any_type_expression(expression)?.print(&mut stdout(), true, true).unwrap()
 						}
 						// Semicolons do nothing
 						PrintOperand::Semicolon(_) => {}
@@ -438,7 +444,10 @@ impl Machine {
 					// Print the prompt
 					// TODO: OPTION for setting if "? " should be auto printed
 					if let Some(prompt_expression) = prompt {
-						print!("{}", self.execute_any_type_expression(prompt_expression)?);
+						self.execute_any_type_expression(prompt_expression)?.print(&mut stdout(), true, true).unwrap();
+						if self.get_machine_option() == MachineOption::C64 {
+							print!("? ");
+						}
 					}
 					else {
 						print!("? ");
@@ -666,12 +675,18 @@ impl Machine {
 				return Ok(true);
 			}
 			StatementVariant::Gosub(_) => return Err(ErrorVariant::NotYetImplemented("GOSUB statement".into()).at_column(*column)),
-			StatementVariant::AssignInt(l_value, r_value_expression) =>
-				self.execute_int_l_value_write(l_value, self.execute_int_expression(r_value_expression)?)?,
-			StatementVariant::AssignFloat(l_value, r_value_expression) =>
-				self.execute_float_l_value_write(l_value, self.execute_float_expression(r_value_expression)?)?,
-			StatementVariant::AssignComplex(l_value, r_value_expression) =>
-				self.execute_complex_l_value_write(l_value, self.execute_complex_expression(r_value_expression)?)?,
+			StatementVariant::AssignInt(l_value, r_value_expression) => {
+				let value = self.execute_int_expression(r_value_expression)?;
+				self.execute_int_l_value_write(l_value, value)?
+			}
+			StatementVariant::AssignFloat(l_value, r_value_expression) => {
+				let value = self.execute_float_expression(r_value_expression)?;
+				self.execute_float_l_value_write(l_value, value)?
+			}
+			StatementVariant::AssignComplex(l_value, r_value_expression) => {
+				let value = self.execute_complex_expression(r_value_expression)?;
+				self.execute_complex_l_value_write(l_value, value)?
+			}
 			StatementVariant::AssignString(l_value, r_value_expression) =>
 				self.execute_string_l_value_write(l_value, self.execute_string_expression(r_value_expression)?)?,
 			StatementVariant::List(range_start, range_end) => {
@@ -727,12 +742,13 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an integer value.
-	fn execute_int_expression(&self, expression: &IntExpression) -> Result<IntValue, Error> {
+	fn execute_int_expression(&mut self, expression: &IntExpression) -> Result<IntValue, Error> {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
 			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression)?.to_int(),
-			IntExpression::CastFromFloat(sub_expression) =>
-				self.execute_float_expression(sub_expression)?.to_int().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
+			IntExpression::CastFromFloat(sub_expression) => {
+				self.execute_float_expression(sub_expression)?.to_int().map_err(|error| error.at_column(sub_expression.get_start_column()))?
+			}
 			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } =>
 				self.execute_int_expression(lhs_expression)?.and(self.execute_int_expression(rhs_expression)?),
 			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } =>
@@ -753,7 +769,7 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an float value.
-	fn execute_float_expression(&self, expression: &FloatExpression) -> Result<FloatValue, Error> {
+	fn execute_float_expression(&mut self, expression: &FloatExpression) -> Result<FloatValue, Error> {
 		Ok(match expression {
 			FloatExpression::ConstantValue { value, .. } => value.clone(),
 			FloatExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression)?.to_float(),
@@ -782,7 +798,7 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an complex value.
-	fn execute_complex_expression(&self, expression: &ComplexExpression) -> Result<ComplexValue, Error> {
+	fn execute_complex_expression(&mut self, expression: &ComplexExpression) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
 			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression)?.to_complex(),
@@ -808,7 +824,7 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an boolean value.
-	fn execute_bool_expression(&self, expression: &BoolExpression) -> Result<BoolValue, Error> {
+	fn execute_bool_expression(&mut self, expression: &BoolExpression) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
 			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression)?.value.is_zero()),
@@ -892,7 +908,7 @@ impl Machine {
 	}
 
 	/// Execute an expression that could return a value of any type.
-	fn execute_any_type_expression(&self, expression: &AnyTypeExpression) -> Result<AnyTypeValue, Error> {
+	fn execute_any_type_expression(&mut self, expression: &AnyTypeExpression) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression)?),
@@ -903,7 +919,7 @@ impl Machine {
 	}
 
 	/// Reads a integer variable or from an integer array or executes a function that returns an integer.
-	fn execute_int_l_value_read(&self, l_value: &IntLValue) -> Result<IntValue, Error> {
+	fn execute_int_l_value_read(&mut self, l_value: &IntLValue) -> Result<IntValue, Error> {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
@@ -987,7 +1003,7 @@ impl Machine {
 	}
 
 	/// Reads a float variable or from a float array or executes a function that returns a float.
-	fn execute_float_l_value_read(&self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
+	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
 		// Unpack
 		let FloatLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
@@ -1050,6 +1066,29 @@ impl Machine {
 							}
 						}
 					})),
+				// RND(X)
+				(SuppliedFunction::Rnd, arguments) if arguments.len() < 2 && arguments[0].is_numeric() => {
+					// If the function has an argument
+					if arguments.len() == 1 {
+						// Execute the argument and cast to a float
+						let argument_expression = &arguments[0];
+						let argument_value = self.execute_any_type_expression(argument_expression)?.to_float()
+							.map_err(|err| err.at_column(argument_expression.get_start_column()))?;
+						// A value of zero means to generate a value that is not from the machine RNG
+						if argument_value.is_zero() {
+							return Ok(FloatValue::new(random_range(0.0..1.)));
+						}
+						// If positive, generate one form the machine RNG
+						if argument_value.is_positive() {
+							return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
+						}
+						// If negative, seed first using the value, then generate from the machine RNG
+						self.rng = SmallRng::seed_from_u64(argument_value.value.to_bits());
+						return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
+					}
+					// If it does not then generate one form the machine RNG
+					return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
+				}
 				_ => {}
 			}
 		}
@@ -1062,7 +1101,7 @@ impl Machine {
 	}
 
 	/// Reads a complex variable or from a complex array or executes a function that returns a complex.
-	fn execute_complex_l_value_read(&self, l_value: &ComplexLValue) -> Result<ComplexValue, Error> {
+	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue) -> Result<ComplexValue, Error> {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
@@ -1184,18 +1223,3 @@ enum BlockOnStack {
 	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 }
-
-//enum FileType {
-//	BasicBatch,
-//	Basic,
-//}
-//
-//impl FileType {
-//	pub fn from_filename(path: &Path) -> Option<Self> {
-//		match path.extension() {
-//			Some(extension) if extension.eq_ignore_ascii_case("bas") => Some(Self::Basic),
-//			Some(extension) if extension.eq_ignore_ascii_case("basbat") => Some(Self::BasicBatch),
-//			_ => None,
-//		}
-//	}
-//}

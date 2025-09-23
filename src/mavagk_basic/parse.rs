@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::complex::Complex64;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -542,6 +542,9 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				(Keyword::Math, Keyword::Ansi) => OptionVariableAndValue::Math(Some(MathOption::Ansi)),
 				(Keyword::Math, Keyword::Ieee) => OptionVariableAndValue::Math(Some(MathOption::Ieee)),
 				(Keyword::Math, Keyword::Default) => OptionVariableAndValue::Math(None),
+				(Keyword::Machine, Keyword::Ansi) => OptionVariableAndValue::Machine(Some(MachineOption::Ansi)),
+				(Keyword::Machine, Keyword::C64) => OptionVariableAndValue::Machine(Some(MachineOption::C64)),
+				(Keyword::Machine, Keyword::Default) => OptionVariableAndValue::Machine(None),
 				_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
 			};
 			// Assemble into statement
