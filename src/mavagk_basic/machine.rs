@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
+use std::{collections::HashMap, f64::{self, consts::{E, PI}}, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
@@ -1022,6 +1022,15 @@ impl Machine {
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
+				// Constants
+				(SuppliedFunction::Pi, _) if !has_parentheses => return Ok(FloatValue::new(PI)),
+				(SuppliedFunction::E, _) if !has_parentheses => return Ok(FloatValue::new(E)),
+				(SuppliedFunction::MaxNum, _) if !has_parentheses => return Ok(FloatValue::new(f64::MAX)),
+				(SuppliedFunction::NaN, _) if !has_parentheses => return Ok(FloatValue::new(f64::NAN)),
+				(SuppliedFunction::Inf, _) if !has_parentheses => return Ok(FloatValue::new(f64::INFINITY)),
+				(SuppliedFunction::NInf, _) if !has_parentheses => return Ok(FloatValue::new(f64::NEG_INFINITY)),
+				(SuppliedFunction::True, _) if !has_parentheses => return Ok(FloatValue::new(-1.)),
+				(SuppliedFunction::False, _) if !has_parentheses => return Ok(FloatValue::new(0.)),
 				// SQR(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
@@ -1103,7 +1112,7 @@ impl Machine {
 					let argument = &arguments[0];
 					return Ok(
 						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.sin()
+							.sin(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
 					);
 				}
 				// COS(X)
@@ -1111,7 +1120,7 @@ impl Machine {
 					let argument = &arguments[0];
 					return Ok(
 						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.cos()
+							.cos(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
 					);
 				}
 				// TAN(X)
@@ -1119,7 +1128,7 @@ impl Machine {
 					let argument = &arguments[0];
 					return Ok(
 						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-						.to_radians(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?.tan()
+							.tan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
 					);
 				}
 				_ => {}

@@ -172,6 +172,14 @@ impl FloatValue {
 		}
 	}
 
+	/// Constructs a `FloatValue` from a `f64`. Returns an error if overflow is not allowed and the input value is not a finite number.
+	pub fn try_new(value: f64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		match value.is_finite() || allow_overflow {
+			true => Ok(Self::new(value)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
+	}
+
 	pub fn is_zero(self) -> bool {
 		self.value.is_zero()
 	}
@@ -293,16 +301,16 @@ impl FloatValue {
 		Self::new(self.value.floor())
 	}
 
-	pub fn sin(self) -> Self {
-		Self::new(self.value.sin())
+	pub fn sin(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(self.to_radians(units, allow_overflow)?.value.sin()))
 	}
 
-	pub fn cos(self) -> Self {
-		Self::new(self.value.cos())
+	pub fn cos(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(self.to_radians(units, allow_overflow)?.value.cos()))
 	}
 
-	pub fn tan(self) -> Self {
-		Self::new(self.value.tan())
+	pub fn tan(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.to_radians(units, allow_overflow)?.value.tan(), allow_overflow)
 	}
 
 	pub fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {

@@ -528,6 +528,12 @@ pub enum SuppliedFunction {
 	Sin,
 	Cos,
 	Tan,
+	Pi,
+	E,
+	MaxNum,
+	NaN,
+	Inf,
+	NInf,
 }
 
 impl SuppliedFunction {
@@ -546,6 +552,12 @@ impl SuppliedFunction {
 			Self::Sin => &["SIN"],
 			Self::Cos => &["COS"],
 			Self::Tan => &["TAN"],
+			Self::Pi => &["PI", "π"],
+			Self::E => &["E"],
+			Self::MaxNum => &["MAXNUM"],
+			Self::NaN => &["NAN"],
+			Self::Inf => &["INF"],
+			Self::NInf => &["NINF"],
 		}
 	}
 
