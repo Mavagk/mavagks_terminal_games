@@ -94,6 +94,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_string_expression(filename_expression);
 			}
 		}
+		StatementVariant::Stop | StatementVariant::End => {}
 	}
 }
 

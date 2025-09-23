@@ -737,6 +737,15 @@ impl Machine {
 			StatementVariant::Load(_filename_expression) => {
 				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
 			}
+			StatementVariant::End => {
+				// TODO: Should store stop location to allow a CONT
+				self.execution_source = ExecutionSource::ProgramEnded;
+				return Ok(true)
+			}
+			StatementVariant::Stop => {
+				self.execution_source = ExecutionSource::ProgramEnded;
+				return Ok(true)
+			}
 		}
 		Ok(false)
 	}
@@ -930,7 +939,7 @@ impl Machine {
 		if /* !*uses_fn_keyword && */ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR%(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return match self.execute_any_type_expression(&arguments[0])?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
 						result if result.is_negative() => Err(ErrorVariant::IntSquareRootOfNegativeNumber.at_column(*start_column)),
@@ -938,7 +947,7 @@ impl Machine {
 					};
 				}
 				// ABS%(X)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return Ok(IntValue::new(Rc::new(
 						self.execute_any_type_expression(argument)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
@@ -949,7 +958,7 @@ impl Machine {
 				// FALSE%
 				(SuppliedFunction::False, _) if !has_parentheses => return Ok(IntValue::zero()),
 				// INT%(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				(SuppliedFunction::Int, arguments) if arguments.len() == 1 =>
 					return Ok({
 						let argument = &arguments[0];
 						let value = self.execute_any_type_expression(argument)?;
@@ -971,7 +980,7 @@ impl Machine {
 					_ => {},
 				}
 				// SGN%(X)
-				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
 					return Ok(IntValue::new(Rc::new({
 						let argument = &arguments[0];
 						let value = self.execute_any_type_expression(argument)?;
@@ -995,7 +1004,7 @@ impl Machine {
 			}
 		}
 		// TODO
-		if *has_parentheses /*|| *uses_fn_keyword*/ {
+		if *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -1007,14 +1016,14 @@ impl Machine {
 		// Unpack
 		let FloatLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses/* && !*uses_fn_keyword*/ && let Some(variable) = self.float_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if /* !*uses_fn_keyword && */ let Some(supplied_function) = supplied_function {
+		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return match self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
 						// If the input is negative and that is not allowed
@@ -1030,12 +1039,12 @@ impl Machine {
 						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// ABS(X)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.abs());
 				}
 				// INT(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Int, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.floor());
 				}
@@ -1046,7 +1055,7 @@ impl Machine {
 					_ => {},
 				}
 				// SGN(X)
-				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 && arguments[0].is_numeric() =>
+				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
 					return Ok(FloatValue::new({
 						let argument = &arguments[0];
 						let value = self.execute_any_type_expression(argument)?;
@@ -1067,7 +1076,7 @@ impl Machine {
 						}
 					})),
 				// RND(X)
-				(SuppliedFunction::Rnd, arguments) if arguments.len() < 2 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Rnd, arguments) if arguments.len() < 2 => {
 					// If the function has an argument
 					if arguments.len() == 1 {
 						// Execute the argument and cast to a float
@@ -1093,7 +1102,7 @@ impl Machine {
 			}
 		}
 		// TODO
-		if *has_parentheses/* || *uses_fn_keyword*/ {
+		if *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -1112,7 +1121,7 @@ impl Machine {
 		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR#(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 && arguments[0].is_numeric() => {
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
 						.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));

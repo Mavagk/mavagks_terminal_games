@@ -184,6 +184,12 @@ impl Statement {
 					filename_expression.print(depth + 1);
 				}
 			}
+			StatementVariant::End => {
+				println!("END");
+			}
+			StatementVariant::Stop => {
+				println!("STOP");
+			}
 		}
 	}
 }
@@ -206,6 +212,8 @@ pub enum StatementVariant {
 	ForFloat { loop_variable: FloatLValue, initial: FloatExpression, limit: FloatExpression, step: Option<FloatExpression> },
 	Next(Box<[AnyTypeLValue]>),
 	Load(Option<StringExpression>),
+	End,
+	Stop,
 }
 
 #[derive(Debug, Clone)]

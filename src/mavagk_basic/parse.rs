@@ -574,6 +574,14 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				variant: StatementVariant::Load(Some(filename_expression)),
 			}
 		}
+		Keyword::End => Statement {
+			column: statement_keyword_start_column,
+			variant: StatementVariant::End,
+		},
+		Keyword::Stop => Statement {
+			column: statement_keyword_start_column,
+			variant: StatementVariant::Stop,
+		},
 		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
 		_ => return Err(ErrorVariant::NotYetImplemented("Statement".into()).at_column(statement_keyword_start_column)),
