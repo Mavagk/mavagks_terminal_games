@@ -224,6 +224,14 @@ impl Machine {
 		}
 	}
 
+	/// Returns if arc real trigonometric functions given values outside their input range should trow an error.
+	const fn allow_real_trig_out_of_range(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::Ansi => false,
+		}
+	}
+
 	/// Start executing until the program terminates
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), FullError> {
 		// For each line
@@ -1040,7 +1048,9 @@ impl Machine {
 						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// Functions that have one float argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan if arguments.len() == 1 => {
+				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn |
+				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
+				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1056,6 +1066,18 @@ impl Machine {
 							argument_value.cos(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Tan =>
 							argument_value.tan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cot =>
+							argument_value.cot(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sec =>
+							argument_value.sec(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Csc =>
+							argument_value.csc(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asin => argument_value.asin(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acos => argument_value.acos(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Atan =>
+							argument_value.atan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					})
 				}

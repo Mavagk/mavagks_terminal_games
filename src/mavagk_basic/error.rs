@@ -113,7 +113,7 @@ pub enum ErrorVariant {
 	LogOfNonPositive = 3004,
 	SquareRootOfNegative = 3005,
 	ModOrRemainderByZero = 3006,
-	ACosOrASinOutOfRange = 3007,
+	ATrigFunctionOutOfRange = 3007,
 	AngleOfZeroZero = 3008,
 }
 
@@ -190,7 +190,7 @@ impl Display for ErrorVariant {
 			Self::LogOfNonPositive => write!(f, "Logarithm of non-positive number."),
 			Self::SquareRootOfNegative => write!(f, "Square root of negative number."),
 			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
-			Self::ACosOrASinOutOfRange => write!(f, "ACOS or ASIN argument out of range."),
+			Self::ATrigFunctionOutOfRange => write!(f, "Arc real trigonometric function argument out of range."),
 			Self::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
 			Self::ExpectedColonAfterInputPrompt => write!(f, "Expected colon or semicolon after input prompt."),
 			Self::MultiplePromptsForInput => write!(f, "Multiple PROMPT arguments for an INPUT statement."),

@@ -1,6 +1,6 @@
 use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
 
-use num::{complex::Complex64, BigInt, FromPrimitive, Signed, ToPrimitive, Zero, One};
+use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
 use crate::mavagk_basic::{abstract_syntax_tree::AngleOption, error::ErrorVariant};
 
@@ -346,6 +346,39 @@ impl FloatValue {
 		Self::try_new(self.to_radians(units, allow_overflow)?.value.tan(), allow_overflow)
 	}
 
+	pub fn cot(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		let input_value_in_radians = self.to_radians(units, allow_overflow)?.value;
+		Self::try_new(input_value_in_radians.cos() / input_value_in_radians.sin(), allow_overflow)
+	}
+
+	pub fn sec(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::try_new(1. / self.to_radians(units, allow_overflow)?.value.cos(), allow_overflow)
+	}
+
+	pub fn csc(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::try_new(1. / self.to_radians(units, allow_overflow)?.value.sin(), allow_overflow)
+	}
+
+	pub fn asin(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+		let out = self.value.asin();
+		if !out.is_finite() && !allow_real_trig_out_of_range {
+			return Err(ErrorVariant::ATrigFunctionOutOfRange);
+		}
+		Self::new(out).from_radians(units, true)
+	}
+
+	pub fn acos(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+		let out = self.value.acos();
+		if !out.is_finite() && !allow_real_trig_out_of_range {
+			return Err(ErrorVariant::ATrigFunctionOutOfRange);
+		}
+		Self::new(out).from_radians(units, true)
+	}
+
+	pub fn atan(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::new(self.value.atan()).from_radians(units, allow_overflow)
+	}
+
 	pub const fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match units {
 			AngleOption::Radians => self.value,
@@ -359,6 +392,19 @@ impl FloatValue {
 				radians
 			}
 		}))
+	}
+
+	pub const fn from_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		let out = match units {
+			AngleOption::Radians => self.value,
+			AngleOption::Degrees => self.value / PI * 180.,
+			AngleOption::Gradians => self.value / PI * 200.,
+			AngleOption::Revolutions => self.value / 2. / PI,
+		};
+		if !out.is_finite() && !allow_overflow {
+			return Err(ErrorVariant::ValueOverflow);
+		}
+		Ok(Self::new(out))
 	}
 
 	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
