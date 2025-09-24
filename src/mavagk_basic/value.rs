@@ -379,6 +379,26 @@ impl FloatValue {
 		Self::new(self.value.atan()).from_radians(units, allow_overflow)
 	}
 
+	pub fn acot(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::new(1. / (self.value).atan()).from_radians(units, allow_overflow)
+	}
+
+	pub fn asec(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+		let out = (1. /self.value).acos();
+		if !out.is_finite() && !allow_real_trig_out_of_range {
+			return Err(ErrorVariant::ATrigFunctionOutOfRange);
+		}
+		Self::new(out).from_radians(units, true)
+	}
+
+	pub fn acsc(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+		let out = (1. /self.value).asin();
+		if !out.is_finite() && !allow_real_trig_out_of_range {
+			return Err(ErrorVariant::ATrigFunctionOutOfRange);
+		}
+		Self::new(out).from_radians(units, true)
+	}
+
 	pub const fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match units {
 			AngleOption::Radians => self.value,

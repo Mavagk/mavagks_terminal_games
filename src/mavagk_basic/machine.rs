@@ -1050,7 +1050,7 @@ impl Machine {
 				// Functions that have one float argument
 				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan if arguments.len() == 1 => {
+				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1078,6 +1078,12 @@ impl Machine {
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Atan =>
 							argument_value.atan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acot =>
+							argument_value.acot(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asec => argument_value.asec(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acsc => argument_value.acsc(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					})
 				}
