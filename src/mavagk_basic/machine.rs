@@ -1060,13 +1060,13 @@ impl Machine {
 					})
 				}
 				// Functions that have one complex argument
-				SuppliedFunction::Re | SuppliedFunction::Im if arguments.len() == 1 => {
+				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression)?
 						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
-						SuppliedFunction::Re => argument_value.re(),
-						SuppliedFunction::Im => argument_value.im(),
+						SuppliedFunction::Real => argument_value.re(),
+						SuppliedFunction::Imag => argument_value.im(),
 						_ => unreachable!()
 					})
 				}
