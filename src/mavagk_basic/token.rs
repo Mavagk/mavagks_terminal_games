@@ -538,6 +538,8 @@ pub enum SuppliedFunction {
 	Phi,
 	EGamma,
 	I,
+	Re,
+	Im,
 }
 
 impl SuppliedFunction {
@@ -566,6 +568,8 @@ impl SuppliedFunction {
 			Self::Phi => &["PHI"],
 			Self::EGamma => &["EGAMMA"],
 			Self::I => &["I"],
+			Self::Re => &["RE"],
+			Self::Im => &["IM"],
 		}
 	}
 

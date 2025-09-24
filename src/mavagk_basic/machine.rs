@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
-use num::{bigint::Sign, BigInt, FromPrimitive, Signed, Zero};
+use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
@@ -936,7 +936,7 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if /* !*uses_fn_keyword && */ let Some(supplied_function) = supplied_function {
+		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				// SQR%(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
@@ -974,10 +974,10 @@ impl Machine {
 						}
 					}),
 				// LEN%(X$)
-				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
-					AnyTypeExpression::String(string_expression) =>
-						return Ok(IntValue::new(Rc::new(BigInt::from_usize(self.execute_string_expression(string_expression)?.count_chars()).unwrap()))),
-					_ => {},
+				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(IntValue::from_usize(self.execute_any_type_expression(argument)?
+						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
 				}
 				// SGN%(X)
 				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
@@ -985,11 +985,7 @@ impl Machine {
 						let argument = &arguments[0];
 						let value = self.execute_any_type_expression(argument)?;
 						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => match value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.sign() {
-								Sign::Minus => (-1).into(),
-								Sign::NoSign => 0.into(),
-								Sign::Plus => 1.into(),
-							},
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => return Ok(value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.signum()),
 							_ => {
 								match value.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
 									value if value.is_zero() => 0.into(),
@@ -1014,81 +1010,74 @@ impl Machine {
 	/// Reads a float variable or from a float array or executes a function that returns a float.
 	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
 		// Unpack
-		let FloatLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
+		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
-			match (supplied_function, arguments) {
+			match supplied_function {
 				// Constants
-				(SuppliedFunction::Pi, _) if !has_parentheses => return Ok(FloatValue::PI),
-				(SuppliedFunction::E, _) if !has_parentheses => return Ok(FloatValue::E),
-				(SuppliedFunction::Tau, _) if !has_parentheses => return Ok(FloatValue::TAU),
-				(SuppliedFunction::Phi, _) if !has_parentheses => return Ok(FloatValue::PHI),
-				(SuppliedFunction::EGamma, _) if !has_parentheses => return Ok(FloatValue::EGAMMA),
-				(SuppliedFunction::MaxNum, _) if !has_parentheses => return Ok(FloatValue::MAX),
-				(SuppliedFunction::NaN, _) if !has_parentheses => return Ok(FloatValue::NAN),
-				(SuppliedFunction::Inf, _) if !has_parentheses => return Ok(FloatValue::INFINITY),
-				(SuppliedFunction::NInf, _) if !has_parentheses => return Ok(FloatValue::NEG_INFINITY),
-				(SuppliedFunction::True, _) if !has_parentheses => return Ok(FloatValue::TRUE),
-				(SuppliedFunction::False, _) if !has_parentheses => return Ok(FloatValue::FALSE),
-				// SQR(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return match self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
-						// If the input is negative and that is not allowed
-						value if value.is_negative() && !self.allow_real_square_root_of_negative() => Err(ErrorVariant::SquareRootOfNegative.at_column(*start_column)),
-						// Else square root floats
-						value => Ok(FloatValue::new(value.value.sqrt())),
-					}
+				_ if !*has_parentheses => match supplied_function {
+					SuppliedFunction::Pi => return Ok(FloatValue::PI),
+					SuppliedFunction::E => return Ok(FloatValue::E),
+					SuppliedFunction::Tau => return Ok(FloatValue::TAU),
+					SuppliedFunction::Phi => return Ok(FloatValue::PHI),
+					SuppliedFunction::EGamma => return Ok(FloatValue::EGAMMA),
+					SuppliedFunction::MaxNum => return Ok(FloatValue::MAX),
+					SuppliedFunction::NaN => return Ok(FloatValue::NAN),
+					SuppliedFunction::Inf => return Ok(FloatValue::INFINITY),
+					SuppliedFunction::NInf => return Ok(FloatValue::NEG_INFINITY),
+					SuppliedFunction::True => return Ok(FloatValue::TRUE),
+					SuppliedFunction::False => return Ok(FloatValue::FALSE),
+					_ => {}
 				}
 				// ABS(X#)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 && arguments[0].is_complex() => {
+				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
 					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
 						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
-				// ABS(X)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.abs());
+				// Functions that have one float argument
+				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression)?
+						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(match supplied_function {
+						SuppliedFunction::Sqr =>
+							argument_value.sqrt(self.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Abs => argument_value.abs(),
+						SuppliedFunction::Int => argument_value.floor(),
+						SuppliedFunction::Sgn => argument_value.signum(),
+						SuppliedFunction::Sin =>
+							argument_value.sin(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cos =>
+							argument_value.cos(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tan =>
+							argument_value.tan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!()
+					})
 				}
-				// INT(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.floor());
+				// Functions that have one complex argument
+				SuppliedFunction::Re | SuppliedFunction::Im if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression)?
+						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(match supplied_function {
+						SuppliedFunction::Re => argument_value.re(),
+						SuppliedFunction::Im => argument_value.im(),
+						_ => unreachable!()
+					})
 				}
 				// LEN(X$)
-				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => match &arguments[0] {
-					AnyTypeExpression::String(string_expression) =>
-						return Ok(FloatValue::new(self.execute_string_expression(string_expression)?.count_chars() as f64)),
-					_ => {},
+				SuppliedFunction::Len if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(FloatValue::from_usize(self.execute_any_type_expression(argument)?
+						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
 				}
-				// SGN(X)
-				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
-					return Ok(FloatValue::new({
-						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => match value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.sign() {
-								Sign::Minus => -1.,
-								Sign::NoSign => 0.,
-								Sign::Plus => 1.,
-							},
-							_ => {
-								match value.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
-									value if value.is_zero() => 0.,
-									value if value.is_negative() => -1.,
-									value if value.is_positive() => 1.,
-									value => return Err(ErrorVariant::NonNumberValueCastToInt(value.value).at_column(*start_column)),
-								}
-							}
-						}
-					})),
 				// RND(X)
-				(SuppliedFunction::Rnd, arguments) if arguments.len() < 2 => {
+				SuppliedFunction::Rnd if arguments.len() < 2 => {
 					// If the function has an argument
 					if arguments.len() == 1 {
 						// Execute the argument and cast to a float
@@ -1110,30 +1099,6 @@ impl Machine {
 					// If it does not then generate one form the machine RNG
 					return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
 				}
-				// SIN(X)
-				(SuppliedFunction::Sin, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(
-						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-							.sin(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
-					);
-				}
-				// COS(X)
-				(SuppliedFunction::Cos, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(
-						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-							.cos(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
-					);
-				}
-				// TAN(X)
-				(SuppliedFunction::Tan, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(
-						self.execute_any_type_expression(argument)?.to_float().map_err(|error| error.at_column(argument.get_start_column()))?
-							.tan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?
-					);
-				}
 				_ => {}
 			}
 		}
@@ -1150,25 +1115,28 @@ impl Machine {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses/* && !*uses_fn_keyword*/ && let Some(variable) = self.complex_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
-			match (supplied_function, arguments) {
+		if let Some(supplied_function) = supplied_function {
+			match supplied_function {
 				// Constants
-				(SuppliedFunction::I, _) if !has_parentheses => return Ok(ComplexValue::I),
-				// SQR#(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
+				SuppliedFunction::I if !*has_parentheses => return Ok(ComplexValue::I),
+				// Functions that have one complex number as an argument
+				SuppliedFunction::Sqr if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(match supplied_function {
+						SuppliedFunction::Sqr => argument_value.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!(),
+					})
 				}
 				_ => {}
 			}
 		}
 		// TODO
-		if *has_parentheses/* || *uses_fn_keyword*/ {
+		if *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
@@ -1184,13 +1152,13 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
-		if /* !*uses_fn_keyword &&*/ let Some(supplied_function) = supplied_function {
+		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
 				_ => {}
 			}
 		}
 		// TODO
-		if *has_parentheses/* || *uses_fn_keyword*/ {
+		if *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero

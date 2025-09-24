@@ -38,6 +38,10 @@ impl IntValue {
 		Self::new(Rc::new(BigInt::one()))
 	}
 
+	pub fn from_usize(value: usize) -> Self {
+		Self::new(Rc::new(BigInt::from_usize(value).unwrap()))
+	}
+
 	pub fn is_zero(&self) -> bool {
 		self.value.is_zero()
 	}
@@ -48,6 +52,10 @@ impl IntValue {
 
 	pub fn is_positive(&self) -> bool {
 		self.value.is_positive()
+	}
+
+	pub fn signum(&self) -> Self {
+		Self::new(Rc::new(self.value.signum()))
 	}
 	
 	pub fn to_bool(&self) -> BoolValue {
@@ -194,6 +202,10 @@ impl FloatValue {
 		}
 	}
 
+	pub const fn from_usize(value: usize) -> Self {
+		Self::new(value as f64)
+	}
+
 	pub const fn is_zero(self) -> bool {
 		self.value == 0.
 	}
@@ -204,6 +216,14 @@ impl FloatValue {
 
 	pub const fn is_positive(self) -> bool {
 		self.value > 0.
+	}
+
+	pub const fn signum(self) -> Self {
+		Self::new(match self.value {
+			value if value < 0. => -1.,
+			value if value > 0. => 1.,
+			value => value,
+		})
 	}
 
 	pub fn is_int(self) -> bool {
@@ -305,6 +325,13 @@ impl FloatValue {
 
 	pub fn floor(self) -> Self {
 		Self::new(self.value.floor())
+	}
+
+	pub fn sqrt(self, allow_real_square_root_of_negative: bool) -> Result<Self, ErrorVariant> {
+		match self {
+			value if value.is_negative() && !allow_real_square_root_of_negative => return Err(ErrorVariant::SquareRootOfNegative),
+			value => Ok(Self::new(value.value.sqrt())),
+		}
 	}
 
 	pub fn sin(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
@@ -469,6 +496,14 @@ impl ComplexValue {
 			value if value.is_infinite() && !allow_overflow => Err(ErrorVariant::ValueOverflow),
 			value => Ok(ComplexValue::new(value)),
 		}
+	}
+
+	pub const fn re(self) -> FloatValue {
+		FloatValue::new(self.value.re)
+	}
+
+	pub const fn im(self) -> FloatValue {
+		FloatValue::new(self.value.im)
 	}
 
 	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
@@ -682,7 +717,7 @@ impl AnyTypeValue {
 			Self::Int(value) => Ok(value),
 			Self::Float(value) => value.to_int(),
 			Self::Complex(value) => value.to_int(),
-			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
+			Self::String(_) => Err(ErrorVariant::StringCastToNumber),
 		}
 	}
 
@@ -692,7 +727,7 @@ impl AnyTypeValue {
 			Self::Int(value) => Ok(value.to_float()),
 			Self::Float(value) => Ok(value),
 			Self::Complex(value) => value.to_float(),
-			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
+			Self::String(_) => Err(ErrorVariant::StringCastToNumber),
 		}
 	}
 
@@ -702,7 +737,14 @@ impl AnyTypeValue {
 			Self::Int(value) => Ok(value.to_complex()),
 			Self::Float(value) => Ok(value.to_complex()),
 			Self::Complex(value) => Ok(value),
-			Self::String(_) => return Err(ErrorVariant::StringCastToNumber),
+			Self::String(_) => Err(ErrorVariant::StringCastToNumber),
+		}
+	}
+
+	pub fn to_string(self) -> Result<StringValue, ErrorVariant> {
+		match self {
+			Self::String(value) => return Ok(value),
+			_ => return Err(ErrorVariant::NumberCastToString),
 		}
 	}
 
