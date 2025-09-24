@@ -369,6 +369,14 @@ impl ComplexValue {
 		}
 	}
 
+	/// Constructs a `ComplexValue` from a `Complex64`. Returns an error if overflow is not allowed and the input value is not a finite number.
+	pub const fn try_new(value: Complex64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		match (value.re.is_finite() && value.im.is_finite()) || allow_overflow {
+			true => Ok(Self::new(value)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
+	}
+
 	pub const fn is_zero(&self) -> bool {
 		self.value.re == 0. && self.value.im == 0.
 	}
