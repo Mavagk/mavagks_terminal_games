@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -734,13 +734,14 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Option(option_variable_and_value) => {
-				match option_variable_and_value {
-					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
-					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
-					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
-					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
-				}
+			StatementVariant::Option(_option_variable_and_value) => {
+				return Err(ErrorVariant::NotYetImplemented("OPTION statement".into()).at_column(*column));
+				//match option_variable_and_value {
+				//	OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
+				//	OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
+				//	OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
+				//	OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
+				//}
 			}
 			StatementVariant::Load(_filename_expression) => {
 				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
