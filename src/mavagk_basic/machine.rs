@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -156,8 +156,9 @@ impl Machine {
 		match line_number {
 			// If the line has a line number
 			Some(line_number) => {
+				let line_number = Rc::new(line_number);
 				if let Some(error) = &error {
-					let error = error.clone().to_full_error(Some(line_number.clone()), Some(line_text.clone().into()));
+					let error = error.clone().to_full_error(Some((*line_number).clone()), Some(line_text.clone().into()));
 					handle_error::<()>(Err(error));
 				}
 				if unoptimized_statements.is_empty() && error.is_none() {
@@ -170,7 +171,7 @@ impl Machine {
 						error,
 						source_code: line_text,
 					};
-					program.insert_line(Rc::new(line_number), line);
+					program.insert_line(line_number, line);
 				}
 			}
 			// Run the line in direct mode if it does not have a line number
@@ -256,6 +257,9 @@ impl Machine {
 						};
 					}
 					let line_number = self.line_executing.as_ref().unwrap().clone();
+					self.angle_option = program.angle_option_at_line(line_number.clone(), 0);
+					self.machine_option = program.machine_option_at_line(line_number.clone(), 0);
+					self.math_option = program.math_option_at_line(line_number.clone(), 0);
 					// Get which sub-line to start executing from
 					let start_sub_line = match self.sub_line_executing {
 						Some(start_sub_line) => start_sub_line,
@@ -740,14 +744,13 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Option(_option_variable_and_value) => {
-				return Err(ErrorVariant::NotYetImplemented("OPTION statement".into()).at_column(*column));
-				//match option_variable_and_value {
-				//	OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
-				//	OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
-				//	OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
-				//	OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
-				//}
+			StatementVariant::Option(option_variable_and_value) => {
+				match option_variable_and_value {
+					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
+					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
+					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
+					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
+				}
 			}
 			StatementVariant::Load(_filename_expression) => {
 				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
