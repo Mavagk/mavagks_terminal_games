@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::Program, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -86,7 +86,7 @@ impl Machine {
 	fn set_line_executing_by_jumping(&mut self, program: &Program, line_number_to_jump_to: Option<Rc<BigInt>>, column_number_jumping_from: NonZeroUsize) -> Result<(), Error> {
 		self.line_executing = match line_number_to_jump_to {
 			Some(goto_line_number) => {
-				if !program.lines.contains_key(&goto_line_number) {
+				if !program.contains_line(&goto_line_number) {
 					return Err(ErrorVariant::InvalidLineNumber((*goto_line_number).clone()).at_column(column_number_jumping_from));
 				}
 				Some(goto_line_number)
@@ -161,10 +161,16 @@ impl Machine {
 					handle_error::<()>(Err(error));
 				}
 				if unoptimized_statements.is_empty() && error.is_none() {
-					program.lines.remove(&line_number);
+					program.remove_line(&line_number);
 				}
 				else {
-					program.lines.insert(Rc::new(line_number), (optimized_statements, unoptimized_statements, error, line_text));
+					let line = Line {
+						unoptimized_statements,
+						optimized_statements,
+						error,
+						source_code: line_text,
+					};
+					program.insert_line(Rc::new(line_number), line);
 				}
 			}
 			// Run the line in direct mode if it does not have a line number
@@ -241,8 +247,8 @@ impl Machine {
 				ExecutionSource::Program => {
 					// No line executing means that we should execute the first line
 					if self.line_executing.is_none() {
-						self.line_executing = match program.lines.first_key_value() {
-							Some(first_entry) => Some(first_entry.0.clone()),
+						self.line_executing = match program.get_first_line() {
+							Some(first_entry) => Some(first_entry.clone()),
 							None => {
 								self.execution_source = ExecutionSource::ProgramEnded;
 								continue 'lines_loop;
@@ -256,14 +262,14 @@ impl Machine {
 						None => 0,
 					};
 					// Execute each sub-line to be executed
-					let (optimized_statements, _, line_error, line_text) = program.lines.get(&line_number).unwrap();
-					for (sub_line, statement) in optimized_statements.iter().enumerate().skip(start_sub_line) {
+					let line = program.get_line(&line_number).unwrap();
+					for (sub_line, statement) in line.optimized_statements.iter().enumerate().skip(start_sub_line) {
 						// Set the sub line so that the statement executer can access it
 						self.sub_line_executing = Some(sub_line);
 						// Execute the sub-line
 						let flow_control_used = match self.execute_statement(statement, program) {
 							Ok(flow_control_used) => flow_control_used,
-							Err(error) => return Err(error.to_full_error(Some((*line_number).clone()), Some(line_text.clone().into_string()))),
+							Err(error) => return Err(error.to_full_error(Some((*line_number).clone()), Some(line.source_code.clone().into_string()))),
 						};
 						// We should execute from the start of the next if flow control was not used
 						if !flow_control_used {
@@ -276,12 +282,12 @@ impl Machine {
 					}
 					self.sub_line_executing = None;
 					// If there is an error at the end of the line, throw the error
-					if let Some(line_error) = line_error {
-						return Err(line_error.clone().to_full_error(Some((&*line_number).clone()), Some(line_text.clone().into_string())));
+					if let Some(line_error) = &line.error {
+						return Err(line_error.clone().to_full_error(Some((&*line_number).clone()), Some(line.source_code.clone().into_string())));
 					}
 					// Jump to the next line
-					self.line_executing = match program.lines.range(line_number..).nth(1) {
-						Some((line_number, _)) => Some(line_number.clone()),
+					self.line_executing = match program.get_first_line_after(&line_number) {
+						Some(line_number) => Some(line_number.clone()),
 						None => {
 							self.execution_source = ExecutionSource::ProgramEnded;
 							continue 'lines_loop;
@@ -707,17 +713,17 @@ impl Machine {
 					None => None,
 				};
 				let range = match (range_start_value, range_end_value) {
-					(None, None) => program.lines.range::<BigInt, RangeFull>(..),
-					(Some(range_start_value), None) => program.lines.range::<BigInt, RangeFrom<&BigInt>>(range_start_value..),
-					(None, Some(range_end_value)) => program.lines.range::<BigInt, RangeToInclusive<&BigInt>>(..=range_end_value),
-					(Some(range_start_value), Some(range_end_value)) => program.lines.range::<BigInt, RangeInclusive<&BigInt>>(range_start_value..=range_end_value),
+					(None, None) => program.get_lines().range::<BigInt, RangeFull>(..),
+					(Some(range_start_value), None) => program.get_lines().range::<BigInt, RangeFrom<&BigInt>>(range_start_value..),
+					(None, Some(range_end_value)) => program.get_lines().range::<BigInt, RangeToInclusive<&BigInt>>(..=range_end_value),
+					(Some(range_start_value), Some(range_end_value)) => program.get_lines().range::<BigInt, RangeInclusive<&BigInt>>(range_start_value..=range_end_value),
 				};
-				for (_line, (_optimized_statements, _, error, code_text)) in range {
-					if let Some(_) = error {
-						execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{code_text}\n")))).unwrap()
+				for (_line, line) in range {
+					if let Some(_) = line.error {
+						execute!(stdout(), PrintStyledContent(StyledContent::new(ContentStyle { foreground_color: Some(Color::Red), ..Default::default() }, format!("{}\n", line.source_code)))).unwrap()
 					}
 					else {
-						println!("{code_text}");
+						println!("{}", line.source_code);
 					}
 				}
 			}
