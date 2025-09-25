@@ -399,6 +399,18 @@ impl FloatValue {
 		Self::new(out).from_radians(units, true)
 	}
 
+	pub fn exp(self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.value.exp(), allow_overflow)
+	}
+
+	pub fn ln(self, allow_real_log_of_non_positive: bool) -> Result<Self, ErrorVariant> {
+		let result = self.value.ln();
+		match result.is_finite() || allow_real_log_of_non_positive {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::LogOfNonPositive)
+		}
+	}
+
 	pub const fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match units {
 			AngleOption::Radians => self.value,

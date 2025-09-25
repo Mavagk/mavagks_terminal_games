@@ -239,6 +239,14 @@ impl Machine {
 		}
 	}
 
+	/// Returns if real log functions given non-negative arguments should trow an error.
+	const fn allow_real_log_of_non_positive(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::Ansi => false,
+		}
+	}
+
 	/// Start executing until the program terminates
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), FullError> {
 		// For each line
@@ -1056,7 +1064,7 @@ impl Machine {
 						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// Functions that have one float argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn |
+				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
@@ -1092,6 +1100,9 @@ impl Machine {
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Acsc => argument_value.acsc(self.get_angle_option(), self.allow_real_trig_out_of_range())
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log =>
+							argument_value.ln(self.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Exp => argument_value.exp(self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					})
 				}

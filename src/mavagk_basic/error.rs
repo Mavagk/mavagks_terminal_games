@@ -187,7 +187,7 @@ impl Display for ErrorVariant {
 			Self::DivisionByZero => write!(f, "Division by zero."),
 			Self::NegativeNumberRaisedToNonIntegerPower => write!(f, "Negative number raised to non-integer power."),
 			Self::ZeroRaisedToNegativePower => write!(f, "Zero raised to negative power."),
-			Self::LogOfNonPositive => write!(f, "Logarithm of non-positive number."),
+			Self::LogOfNonPositive => write!(f, "Real logarithm of non-positive number."),
 			Self::SquareRootOfNegative => write!(f, "Square root of negative number."),
 			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
 			Self::ATrigFunctionOutOfRange => write!(f, "Arc real trigonometric function argument out of range."),
