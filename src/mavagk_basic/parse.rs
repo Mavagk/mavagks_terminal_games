@@ -520,6 +520,9 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			}
 		}
 		Keyword::Option => {
+			if !is_root_statement {
+				return Err(ErrorVariant::ShouldBeRootStatement.at_column(statement_keyword_start_column));
+			}
 			// Get the next two keywords
 			let (option_variable, option_variable_start_column) = match tokens.take_keyword() {
 				Some(option_variable) => option_variable,

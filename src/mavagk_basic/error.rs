@@ -105,6 +105,7 @@ pub enum ErrorVariant {
 	FilesystemError,
 	UnableToOpenFile,
 	UnableToReadFile,
+	ShouldBeRootStatement,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -206,6 +207,7 @@ impl Display for ErrorVariant {
 			Self::FilesystemError => write!(f, "Filesystem error."),
 			Self::UnableToOpenFile => write!(f, "Unable to open file."),
 			Self::UnableToReadFile => write!(f, "Unable to read from file."),
+			Self::ShouldBeRootStatement => write!(f, "Should be root statement."),
 		}
 	}
 }
