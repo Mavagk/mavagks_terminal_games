@@ -25,9 +25,9 @@ pub struct Machine {
 	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.
 	for_loop_variable_to_block_stack_index: HashMap<(Box<str>, bool), usize>,
 	// Options set via an OPTION statement
-	angle_option: Option<AngleOption>,
-	math_option: Option<MathOption>,
-	machine_option: Option<MachineOption>,
+	pub angle_option: Option<AngleOption>,
+	pub math_option: Option<MathOption>,
+	pub machine_option: Option<MachineOption>,
 
 	basic_home_path: Option<Box<Path>>,
 
@@ -257,9 +257,7 @@ impl Machine {
 						};
 					}
 					let line_number = self.line_executing.as_ref().unwrap().clone();
-					self.angle_option = program.angle_option_at_line(line_number.clone(), 0);
-					self.machine_option = program.machine_option_at_line(line_number.clone(), 0);
-					self.math_option = program.math_option_at_line(line_number.clone(), 0);
+					program.get_options(self, line_number.clone(), 0);
 					// Get which sub-line to start executing from
 					let start_sub_line = match self.sub_line_executing {
 						Some(start_sub_line) => start_sub_line,
