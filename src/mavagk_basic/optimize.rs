@@ -94,7 +94,20 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_string_expression(filename_expression);
 			}
 		}
-		StatementVariant::Stop | StatementVariant::End => {}
+		StatementVariant::Stop | StatementVariant::End | StatementVariant::Data(_) => {}
+		StatementVariant::Read { to_do_when_data_missing_statement, variables } => {
+			if let Some(to_do_when_data_missing_statement) = to_do_when_data_missing_statement {
+				optimize_statement(to_do_when_data_missing_statement);
+			}
+			for variable in variables {
+				optimize_any_type_l_value(variable);
+			}
+		}
+		StatementVariant::Restore(restore_to_line_number_expression) => {
+			if let Some(restore_to_line_number_expression) = restore_to_line_number_expression {
+				optimize_int_expression(restore_to_line_number_expression);
+			}
+		}
 	}
 }
 

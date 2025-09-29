@@ -190,6 +190,26 @@ impl Statement {
 			StatementVariant::Stop => {
 				println!("STOP");
 			}
+			StatementVariant::Data(data) => {
+				println!("DATA");
+				for datum in data {
+					datum.print(depth + 1);
+				}
+			}
+			StatementVariant::Read { to_do_when_data_missing_statement: to_do_when_data_missing, variables } => {
+				println!("READ");
+				if let Some(to_do_when_data_missing) = to_do_when_data_missing {
+					to_do_when_data_missing.print(depth + 1);
+					for variable in variables {
+						variable.print(depth + 1);
+					}
+				}
+			}
+			StatementVariant::Restore(restore_to_line) => {
+				if let Some(restore_to_line) = restore_to_line {
+					restore_to_line.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -214,6 +234,9 @@ pub enum StatementVariant {
 	Load(Option<StringExpression>),
 	End,
 	Stop,
+	Data(Box<[Datum]>),
+	Read { to_do_when_data_missing_statement: Option<Box<Statement>>, variables: Box<[AnyTypeLValue]> },
+	Restore(Option<IntExpression>),
 }
 
 #[derive(Debug, Clone)]
@@ -1021,6 +1044,38 @@ impl AnyTypeLValue {
 			AnyTypeLValue::Complex(l_value) => l_value.has_parentheses,
 			AnyTypeLValue::String(l_value) => l_value.has_parentheses,
 		}
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct Datum {
+	pub start_column: NonZeroUsize,
+	pub as_string: StringValue,
+	pub as_integer: Option<IntValue>,
+	pub as_float: Option<FloatValue>,
+	pub as_complex: Option<ComplexValue>,
+}
+
+impl Datum {
+	pub fn get_start_column(&self) -> NonZeroUsize {
+		self.start_column
+	}
+
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: Datum, String: \"{}\"", self.get_start_column(), self.as_string);
+		if let Some(as_integer) = &self.as_integer {
+			print!(", Int: {as_integer}")
+		}
+		if let Some(as_float) = &self.as_float {
+			print!(", Float: {as_float}")
+		}
+		if let Some(as_complex) = &self.as_complex {
+			print!(", Complex: {as_complex}")
+		}
+		println!();
 	}
 }
 

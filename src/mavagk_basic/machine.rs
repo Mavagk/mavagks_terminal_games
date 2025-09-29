@@ -770,6 +770,15 @@ impl Machine {
 				self.execution_source = ExecutionSource::ProgramEnded;
 				return Ok(true)
 			}
+			StatementVariant::Data(_data) => {
+				todo!()
+			}
+			StatementVariant::Read { to_do_when_data_missing_statement: _, variables: _ } => {
+				todo!()
+			}
+			StatementVariant::Restore(_restore_to_line_number_expression) => {
+				todo!()
+			}
 		}
 		Ok(false)
 	}
