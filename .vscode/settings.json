@@ -29,15 +29,19 @@
 		"nanos",
 		"NINF",
 		"olor",
+		"OUTIN",
 		"powc",
 		"Quoteless",
+		"RECSIZE",
+		"RECTYPE",
 		"reen",
 		"rngs",
 		"Seedable",
 		"termion",
 		"underflows",
 		"unflags",
-		"Ungenerated"
+		"Ungenerated",
+		"ZONEWIDTH"
 	],
 	"terminal.explorerKind": "external",
 	"terminal.integrated.defaultProfile.windows": null
