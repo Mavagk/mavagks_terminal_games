@@ -1047,7 +1047,7 @@ impl AnyTypeLValue {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Datum {
 	pub start_column: NonZeroUsize,
 	pub as_string: StringValue,

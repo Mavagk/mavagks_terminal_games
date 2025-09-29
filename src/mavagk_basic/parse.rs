@@ -765,6 +765,7 @@ fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTyp
 		TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
 		TokenVariant::SingleQuestionMark =>
 			return Err(ErrorVariant::NotYetImplemented("Question mark not as type".into()).at_column(*first_token_start_column)),
+		TokenVariant::Datum(_) => unreachable!(),
 	}))
 }
 
