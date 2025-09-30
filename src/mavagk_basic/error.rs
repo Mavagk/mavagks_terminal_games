@@ -108,6 +108,9 @@ pub enum ErrorVariant {
 	UnableToReadFile,
 	ShouldBeRootStatement,
 	QuoteInUnquotedString,
+	MalformedInteger,
+	MalformedNumber,
+	MalformedComplexNumber,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -212,6 +215,9 @@ impl Display for ErrorVariant {
 			Self::ShouldBeRootStatement => write!(f, "Should be root statement."),
 			Self::MalformedQuotedString => write!(f, "Malformed quoted string."),
 			Self::QuoteInUnquotedString => write!(f, "Quote in unquoted string."),
+			Self::MalformedInteger => write!(f, "Malformed integer."),
+			Self::MalformedNumber => write!(f, "Malformed number."),
+			Self::MalformedComplexNumber => write!(f, "Malformed complex number."),
 		}
 	}
 }

@@ -1,10 +1,10 @@
 use std::{num::NonZeroUsize, rc::Rc};
 
-use num::{BigInt, BigUint, Num};
+use num::{complex::Complex64, BigInt, BigUint, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, value::StringValue};
+use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, PartialEq)]
 /// A token received from parsing a line of text
@@ -277,11 +277,6 @@ impl<'a> Token<'a> {
 						}
 					}
 				};
-				//match line_starting_with_token[1..].find('"') {
-				//	Some(double_quote_index_in_bytes) =>
-				//		(TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
-				//	None => (TokenVariant::StringLiteral(&line_starting_with_token[1..]), ""),
-				//}
 			}
 			// TODO: Quoteless string literals in DATA statements
 			_ => return Err(ErrorVariant::InvalidToken.at_column(column_number))
@@ -442,6 +437,45 @@ pub fn parse_datum_string<'a>(input_string: &'a str, is_in_data_statement: bool)
 				input_string_remaining = &input_string_remaining[chr.len_utf8()..];
 			}
 		}
+	}
+}
+
+pub fn parse_datum_int<'a>(input_string: &'a str) -> Result<(Option<IntValue>, &'a str), ErrorVariant> {
+	let input_string = input_string.trim_ascii_start();
+	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+')).unwrap_or_else(|| input_string.len());
+	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
+	if int_string.is_empty() {
+		return Ok((None, chars_after_int_string));
+	}
+	match int_string.parse::<BigInt>() {
+		Ok(value) => Ok((Some(IntValue::new(Rc::new(value))), chars_after_int_string)),
+		Err(_) => return Err(ErrorVariant::MalformedInteger),
+	}
+}
+
+pub fn parse_datum_float<'a>(input_string: &'a str) -> Result<(Option<FloatValue>, &'a str), ErrorVariant> {
+	let input_string = input_string.trim_ascii_start();
+	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E')).unwrap_or_else(|| input_string.len());
+	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
+	if int_string.is_empty() {
+		return Ok((None, chars_after_int_string));
+	}
+	match int_string.parse::<f64>() {
+		Ok(value) => Ok((Some(FloatValue::new(value)), chars_after_int_string)),
+		Err(_) => return Err(ErrorVariant::MalformedInteger),
+	}
+}
+
+pub fn parse_datum_complex<'a>(input_string: &'a str) -> Result<(Option<ComplexValue>, &'a str), ErrorVariant> {
+	let input_string = input_string.trim_ascii_start();
+	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E' | 'i' | 'I')).unwrap_or_else(|| input_string.len());
+	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
+	if int_string.is_empty() {
+		return Ok((None, chars_after_int_string));
+	}
+	match int_string.parse::<Complex64>() {
+		Ok(value) => Ok((Some(ComplexValue::new(value)), chars_after_int_string)),
+		Err(_) => return Err(ErrorVariant::MalformedInteger),
 	}
 }
 

@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -492,50 +492,90 @@ impl Machine {
 					while !inputs_left.is_empty() {
 						let next_input = &inputs_left[0];
 						inputs_left = &inputs_left[1..];
-						let next_input_text_byte_length = input_buffer_left.find(',');
-						let next_input_text = match next_input_text_byte_length {
-							Some(next_input_text_byte_length) => {
-								let (next_input_text, text_after_next_input_text) = input_buffer_left.split_at(next_input_text_byte_length);
-								input_buffer_left = &text_after_next_input_text[1..];
-								next_input_text
-							}
-							None => {
-								if !inputs_left.is_empty() {
-									continue 'a;
-								}
-								take(&mut input_buffer_left)
-							}
-						}.trim_ascii();
 						match next_input {
 							AnyTypeLValue::Int(l_value) => {
-								let parsed_value = match next_input_text.parse() {
-									Ok(parsed_value) => IntValue::new(Rc::new(parsed_value)),
-									Err(_) => continue 'a,
+								let parsed_value;
+								(parsed_value, input_buffer_left) = match parse_datum_int(input_buffer_left) {
+									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
+									Err(_) | Ok((None, _)) => continue 'a,
 								};
 								self.execute_int_l_value_write(l_value, parsed_value)?;
 							}
 							AnyTypeLValue::Float(l_value) => {
-								let parsed_value = match next_input_text.parse() {
-									Ok(parsed_value) => FloatValue::new(parsed_value),
-									Err(_) => continue 'a,
+								let parsed_value;
+								(parsed_value, input_buffer_left) = match parse_datum_float(input_buffer_left) {
+									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
+									Err(_) | Ok((None, _)) => continue 'a,
 								};
 								self.execute_float_l_value_write(l_value, parsed_value)?;
 							}
 							AnyTypeLValue::Complex(l_value) => {
-								let parsed_value = match next_input_text.parse() {
-									Ok(parsed_value) => ComplexValue::new(parsed_value),
-									Err(_) => continue 'a,
+								let parsed_value;
+								(parsed_value, input_buffer_left) = match parse_datum_complex(input_buffer_left) {
+									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
+									Err(_) | Ok((None, _)) => continue 'a,
 								};
 								self.execute_complex_l_value_write(l_value, parsed_value)?;
 							}
 							AnyTypeLValue::String(l_value) => {
-								if next_input_text.contains('"') {
-									// TODO: Quoted text input, parse_datum_string
-									continue 'a;
-								}
-								self.execute_string_l_value_write(l_value, StringValue::new(Rc::new(next_input_text.into())))?;
+								let parsed_value;
+								(parsed_value, input_buffer_left) = match parse_datum_string(input_buffer_left, false) {
+									Ok((parsed_value, input_buffer_left)) => (parsed_value, input_buffer_left),
+									Err(_) => continue 'a,
+								};
+								self.execute_string_l_value_write(l_value, parsed_value)?;
 							}
 						}
+						input_buffer_left = input_buffer_left.trim_ascii_start();
+						match input_buffer_left.chars().next() {
+							Some(',') => input_buffer_left = &input_buffer_left[1..],
+							Some(_) => continue 'a,
+							None => {}
+						}
+						//let next_input_text_byte_length = input_buffer_left.find(',');
+						//let next_input_text = match next_input_text_byte_length {
+						//	Some(next_input_text_byte_length) => {
+						//		let (next_input_text, text_after_next_input_text) = input_buffer_left.split_at(next_input_text_byte_length);
+						//		input_buffer_left = &text_after_next_input_text[1..];
+						//		next_input_text
+						//	}
+						//	None => {
+						//		if !inputs_left.is_empty() {
+						//			continue 'a;
+						//		}
+						//		take(&mut input_buffer_left)
+						//	}
+						//}.trim_ascii();
+						//match next_input {
+						//	AnyTypeLValue::Int(l_value) => {
+						//		let parsed_value = match next_input_text.parse() {
+						//			Ok(parsed_value) => IntValue::new(Rc::new(parsed_value)),
+						//			Err(_) => continue 'a,
+						//		};
+						//		self.execute_int_l_value_write(l_value, parsed_value)?;
+						//	}
+						//	AnyTypeLValue::Float(l_value) => {
+						//		let parsed_value = match next_input_text.parse() {
+						//			Ok(parsed_value) => FloatValue::new(parsed_value),
+						//			Err(_) => continue 'a,
+						//		};
+						//		self.execute_float_l_value_write(l_value, parsed_value)?;
+						//	}
+						//	AnyTypeLValue::Complex(l_value) => {
+						//		let parsed_value = match next_input_text.parse() {
+						//			Ok(parsed_value) => ComplexValue::new(parsed_value),
+						//			Err(_) => continue 'a,
+						//		};
+						//		self.execute_complex_l_value_write(l_value, parsed_value)?;
+						//	}
+						//	AnyTypeLValue::String(l_value) => {
+						//		if next_input_text.contains('"') {
+						//			// TODO: Quoted text input, parse_datum_string
+						//			continue 'a;
+						//		}
+						//		self.execute_string_l_value_write(l_value, StringValue::new(Rc::new(next_input_text.into())))?;
+						//	}
+						//}
 					}
 					if input_buffer_left.contains(|chr: char| !chr.is_ascii_whitespace()) {
 						println!("Extra inputs ignored.");
