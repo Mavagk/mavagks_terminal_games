@@ -73,7 +73,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, is_at_start_or_after_colon: bool) -> Result<Option<(Self, &'a str)>, Error> {
+	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, _is_datum: bool) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -286,14 +286,22 @@ impl<'a> Token<'a> {
 			_ => None,
 		};
 		// Parse tokens from line until there are none left
+		let mut parenthesis_depth = 0usize;
+		let mut is_datum = false;
 		let mut tokens = Vec::new();
 		loop {
-			let is_at_start_or_after_colon = matches!(tokens.last(), None | Some(Token { variant: TokenVariant::Colon, .. }));
-			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, is_at_start_or_after_colon) {
+			let (token, remaining_string) = match Self::parse_single_token_from_str(line_text, column_number, is_datum) {
 				Err(error) => return (line_number, Err(error)),
 				Ok(None) => break,
 				Ok(Some(result)) => result,
 			};
+			match token.variant {
+				TokenVariant::LeftParenthesis => parenthesis_depth += 1,
+				TokenVariant::RightParenthesis => parenthesis_depth = parenthesis_depth.saturating_sub(1),
+				TokenVariant::Colon => is_datum = false,
+				TokenVariant::Identifier { keyword: Some(Keyword::Data), .. } if matches!(tokens.last(), None | Some(Token { variant: TokenVariant::Colon, .. })) && parenthesis_depth == 0 => is_datum = true,
+				_ => {}
+			}
 			column_number = token.end_column;
 			line_text = remaining_string;
 			tokens.push(token);
