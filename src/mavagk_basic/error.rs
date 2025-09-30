@@ -107,6 +107,7 @@ pub enum ErrorVariant {
 	UnableToOpenFile,
 	UnableToReadFile,
 	ShouldBeRootStatement,
+	QuoteInUnquotedString,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -210,6 +211,7 @@ impl Display for ErrorVariant {
 			Self::UnableToReadFile => write!(f, "Unable to read from file."),
 			Self::ShouldBeRootStatement => write!(f, "Should be root statement."),
 			Self::MalformedQuotedString => write!(f, "Malformed quoted string."),
+			Self::QuoteInUnquotedString => write!(f, "Quote in unquoted string."),
 		}
 	}
 }

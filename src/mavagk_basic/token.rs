@@ -23,7 +23,7 @@ pub enum TokenVariant<'a> {
 	/// An operator. Eg. +, -, <=.
 	Operator(Option<BinaryOperator>, Option<UnaryOperator>),
 	/// A string literal. Eg. "Hello world".
-	StringLiteral(&'a str),
+	StringLiteral(String),
 	/// An identifier. Eg. text$, ABS#, var, GOTO.
 	Identifier {
 		/// The identifier text without the trailing type chars.
@@ -250,12 +250,37 @@ impl<'a> Token<'a> {
 				}
 			}
 			// Strings
-			'"' => {
-				match line_starting_with_token[1..].find('"') {
-					Some(double_quote_index_in_bytes) =>
-						(TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
-					None => (TokenVariant::StringLiteral(&line_starting_with_token[1..]), ""),
-				}
+			'"' => 'a: {
+				let mut output_string = String::new();
+				let mut line_after_token_read = &line_starting_with_token[1..];
+				//let mut chars_remaining = line_starting_with_token;
+				loop {
+					//let mut length_of_token_in_bytes = 1;
+					match line_after_token_read.chars().next() {
+						Some('"') => {
+							line_after_token_read = &line_after_token_read[1..];
+							//length_of_token_in_bytes += 1;
+							match line_after_token_read.chars().next() {
+								Some('"') => {
+									output_string.push('"');
+									line_after_token_read = &line_after_token_read[1..];
+								}
+								Some(_) | None => break 'a (TokenVariant::StringLiteral(output_string), line_after_token_read),
+							}
+						}
+						None => break 'a (TokenVariant::StringLiteral(output_string), line_after_token_read),
+						Some(chr) => {
+							output_string.push(chr);
+							line_after_token_read = &line_after_token_read[chr.len_utf8()..];
+							//length_of_token_in_bytes += chr.len_utf8();
+						}
+					}
+				};
+				//match line_starting_with_token[1..].find('"') {
+				//	Some(double_quote_index_in_bytes) =>
+				//		(TokenVariant::StringLiteral(&line_starting_with_token[1..double_quote_index_in_bytes + 1]), &line_starting_with_token[double_quote_index_in_bytes + 2..]),
+				//	None => (TokenVariant::StringLiteral(&line_starting_with_token[1..]), ""),
+				//}
 			}
 			// TODO: Quoteless string literals in DATA statements
 			_ => return Err(ErrorVariant::InvalidToken.at_column(column_number))
@@ -369,31 +394,54 @@ impl NumericBase {
 	}
 }
 
-/// Parses `input_string` into a string value, `input_string` can either be a quoted or unquoted string.
-pub fn parse_string<'a>(input_string: &'a str) -> (Result<StringValue, ErrorVariant>, &'a str) {
-	todo!()
-	// Trim leading and trailing spaces
-	//let input_string = input_string.trim_ascii();
-	//// If the string is quoted
-	//if input_string.chars().next() == Some('"') {
-	//	// Trim quotes off string
-	//	let input_string = &input_string[1..];
-	//	let input_string = match input_string[1..].chars().last() == Some('"') {
-	//		true => &input_string[..(input_string.len() - 1)],
-	//		false => input_string,
-	//	};
-	//	if input_string.contains('"') {
-	//		return Err(ErrorVariant::Unimplemented("Double quote in quoted string literal".into()));
-	//	}
-	//	// Return
-	//	return Ok(StringValue::new(Rc::new(input_string.into())));
-	//}
-	//// If the string is unquoted
-	//if input_string.contains('"') {
-	//	return Err(ErrorVariant::Unimplemented("Double quote in unquoted string literal".into()));
-	//}
-	//// Return
-	//return Ok(StringValue::new(Rc::new(input_string.into())));
+/// Parses `input_string` into a string value and returns the remaining string, `input_string` can either be a quoted or unquoted string.
+pub fn parse_datum_string<'a>(input_string: &'a str, is_in_data_statement: bool) -> Result<(StringValue, &'a str), ErrorVariant> {
+	// Trim leading spaces
+	let mut input_string_remaining = input_string.trim_ascii_start();
+	// If this a quoted string
+	if input_string_remaining.chars().next() == Some('"') {
+		// Remove leading quote
+		input_string_remaining = &input_string_remaining[1..];
+		let mut output_string = String::new();
+		loop {
+			match input_string_remaining.chars().next() {
+				None => return Ok((StringValue::new(Rc::new(output_string)), "")),
+				Some('\\') => return Err(ErrorVariant::Unimplemented("Backslash in strings".into())),
+				Some('"') => {
+					input_string_remaining = &input_string_remaining[1..];
+					match input_string_remaining.chars().next() {
+						Some('"') => {
+							input_string_remaining = &input_string_remaining[1..];
+							output_string.push('"');
+						}
+						Some(chr) if chr.is_ascii_whitespace() || chr == ',' => return Ok((StringValue::new(Rc::new(output_string)), input_string_remaining)),
+						Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string)), input_string_remaining)),
+						Some(_) => return Err(ErrorVariant::Unimplemented("Non-whitespace character after quote".into())),
+						None => return Ok((StringValue::new(Rc::new(output_string)), "")),
+					}
+				}
+				Some(chr) => {
+					output_string.push(chr);
+					input_string_remaining = &input_string_remaining[chr.len_utf8()..];
+				}
+			}
+		}
+	}
+	// Else if this is a non-quoted string
+	let mut output_string = String::new();
+	loop {
+		match input_string_remaining.chars().next() {
+			None => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), "")),
+			Some('\\') => return Err(ErrorVariant::Unimplemented("Backslash in strings".into())),
+			Some('"') => return Err(ErrorVariant::QuoteInUnquotedString),
+			Some(',') => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), input_string_remaining)),
+			Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), input_string_remaining)),
+			Some(chr) => {
+				output_string.push(chr);
+				input_string_remaining = &input_string_remaining[chr.len_utf8()..];
+			}
+		}
+	}
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
@@ -1221,19 +1269,19 @@ mod tests {
 		// Strings
 		assert_eq!(
 			Token::parse_single_token_from_str(" \"\"a", 1.try_into().unwrap(), false).unwrap(),
-			Some((Token { variant: TokenVariant::StringLiteral(""), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "a"))
+			Some((Token { variant: TokenVariant::StringLiteral("".into()), start_column: 2.try_into().unwrap(), end_column: 4.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("\"REM ±Hello\"a", 1.try_into().unwrap(), false).unwrap(),
-			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a"))
+			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("\"REM ±Hello\"a\"", 1.try_into().unwrap(), false).unwrap(),
-			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a\""))
+			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a\""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("\"REM ±Hello", 1.try_into().unwrap(), false).unwrap(),
-			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello"), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
+			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
 		);
 	}
 
