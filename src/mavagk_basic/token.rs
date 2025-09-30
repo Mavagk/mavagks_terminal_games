@@ -257,6 +257,7 @@ impl<'a> Token<'a> {
 				loop {
 					//let mut length_of_token_in_bytes = 1;
 					match line_after_token_read.chars().next() {
+						Some('\\') => return Err(ErrorVariant::Unimplemented("Backslash in strings".into()).at_column(column_number)),
 						Some('"') => {
 							line_after_token_read = &line_after_token_read[1..];
 							//length_of_token_in_bytes += 1;
