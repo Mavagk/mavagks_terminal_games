@@ -73,7 +73,7 @@ impl<'a> Token<'a> {
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, _is_datum: bool) -> Result<Option<(Self, &'a str)>, Error> {
+	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, is_datum: bool) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -83,9 +83,35 @@ impl<'a> Token<'a> {
 		}
 		// Parse token
 		let first_char = line_starting_with_token.chars().next().unwrap();
-		let (variant, rest_of_string_with_token_removed) = match first_char {
+		let (variant, rest_of_string_with_token_removed) = match (first_char, is_datum) {
+			(':', _) => (TokenVariant::Colon, &line_starting_with_token[1..]),
+			(',', _) => (TokenVariant::Comma, &line_starting_with_token[1..]),
+			// Datum
+			(_, true) => {
+				let (string_value, line_after_token) = parse_datum_string(line_starting_with_token, true).map_err(|err| err.at_column(column_number))?;
+				let int_value = match parse_datum_int(line_starting_with_token) {
+					Ok((Some(int_value), _)) => Some(int_value),
+					_ => None,
+				};
+				let float_value = match parse_datum_float(line_starting_with_token) {
+					Ok((Some(float_value), _)) => Some(float_value),
+					_ => None,
+				};
+				let complex_value = match parse_datum_complex(line_starting_with_token) {
+					Ok((Some(complex_value), _)) => Some(complex_value),
+					_ => None,
+				};
+				// Assemble into token
+				let datum = Datum {
+					as_string: string_value,
+					as_integer: int_value,
+					as_float: float_value,
+					as_complex: complex_value,
+				};
+				(TokenVariant::Datum(datum), line_after_token)
+			}
 			// Operators
-			'+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' | '\\' => {
+			('+' | '-' | '/' | '*' | '↑' | '<' | '=' | '>' | '&' | '^' | '\\', false) => {
 				// Get the operator chars
 				let length_of_token_in_bytes = match line_starting_with_token[1..].find(|chr| !matches!(chr, '/' | '<' | '=' | '>')) {
 					Some(length_of_token_in_bytes) => length_of_token_in_bytes + 1,
@@ -101,14 +127,12 @@ impl<'a> Token<'a> {
 				(TokenVariant::Operator(binary_operator, unary_operator), rest_of_string_with_token_removed)
 			}
 			// Separators
-			'(' => (TokenVariant::LeftParenthesis, &line_starting_with_token[1..]),
-			')' => (TokenVariant::RightParenthesis, &line_starting_with_token[1..]),
-			',' => (TokenVariant::Comma, &line_starting_with_token[1..]),
-			';' => (TokenVariant::Semicolon, &line_starting_with_token[1..]),
-			':' => (TokenVariant::Colon, &line_starting_with_token[1..]),
-			'?' => (TokenVariant::SingleQuestionMark, &line_starting_with_token[1..]),
+			('(', false) => (TokenVariant::LeftParenthesis, &line_starting_with_token[1..]),
+			(')', false) => (TokenVariant::RightParenthesis, &line_starting_with_token[1..]),
+			(';', false) => (TokenVariant::Semicolon, &line_starting_with_token[1..]),
+			('?', false) => (TokenVariant::SingleQuestionMark, &line_starting_with_token[1..]),
 			// Identifier
-			'a'..='z' | 'A'..='Z' | '_' => {
+			('a'..='z' | 'A'..='Z' | '_', false) => {
 				// Get name part of identifier
 				let length_of_identifier_name_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
@@ -147,7 +171,7 @@ impl<'a> Token<'a> {
 				}, rest_of_string_with_token_removed)
 			}
 			// Numeric literal
-			'0'..='9' | '.' | '$' | '%' => {
+			('0'..='9' | '.' | '$' | '%', false) => {
 				let mut length_of_token_in_bytes = 0;
 				let mut line_after_token_read = line_starting_with_token;
 				// Read the number base
@@ -250,7 +274,7 @@ impl<'a> Token<'a> {
 				}
 			}
 			// Strings
-			'"' => 'a: {
+			('"', false) => 'a: {
 				let mut output_string = String::new();
 				let mut line_after_token_read = &line_starting_with_token[1..];
 				//let mut chars_remaining = line_starting_with_token;
@@ -430,12 +454,23 @@ pub fn parse_datum_string<'a>(input_string: &'a str, is_in_data_statement: bool)
 			None => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), "")),
 			Some('\\') => return Err(ErrorVariant::Unimplemented("Backslash in strings".into())),
 			Some('"') => return Err(ErrorVariant::QuoteInUnquotedString),
-			Some(',') => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), input_string_remaining)),
-			Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.trim_ascii_end().into())), input_string_remaining)),
-			Some(chr) => {
+			Some(',') => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
+			Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
+			Some(' ') => {
+				match input_string_remaining.trim_ascii_start().chars().next() {
+					Some(',') | None => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
+					Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
+					Some(_) => {
+						output_string.push(' ');
+						input_string_remaining = &input_string_remaining[1..];
+					}
+				}
+			}
+			Some(chr) if matches!(chr, 'A'..='Z' | 'a'..='z' | '.' | '+' | '-' | '0'..='9') => {
 				output_string.push(chr);
 				input_string_remaining = &input_string_remaining[chr.len_utf8()..];
 			}
+			Some(_) => return Err(ErrorVariant::InvalidUnquotedStringChar),
 		}
 	}
 }
@@ -1321,6 +1356,71 @@ mod tests {
 		assert_eq!(
 			Token::parse_single_token_from_str("\"REM ±Hello", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
+		);
+		// Datum
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello World      ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 18.try_into().unwrap()
+			}, "      "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World      ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, "      "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  HelloWorld      ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("HelloWorld".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 17.try_into().unwrap()
+			}, "      "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World    , a  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, "    , a  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World    : a  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, "    : a  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World, a  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, ", a  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World: a  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, ": a  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str("  Hello   World", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, ""))
 		);
 	}
 

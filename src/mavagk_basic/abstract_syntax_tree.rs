@@ -192,8 +192,8 @@ impl Statement {
 			}
 			StatementVariant::Data(data) => {
 				println!("DATA");
-				for datum in data {
-					datum.print(depth + 1);
+				for (datum, datum_start_column) in data {
+					datum.print(depth + 1, *datum_start_column);
 				}
 			}
 			StatementVariant::Read { to_do_when_data_missing_statement: to_do_when_data_missing, variables } => {
@@ -234,7 +234,7 @@ pub enum StatementVariant {
 	Load(Option<StringExpression>),
 	End,
 	Stop,
-	Data(Box<[Datum]>),
+	Data(Box<[(Datum, NonZeroUsize)]>),
 	Read { to_do_when_data_missing_statement: Option<Box<Statement>>, variables: Box<[AnyTypeLValue]> },
 	Restore(Option<IntExpression>),
 }
@@ -1049,7 +1049,6 @@ impl AnyTypeLValue {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Datum {
-	pub start_column: NonZeroUsize,
 	pub as_string: StringValue,
 	pub as_integer: Option<IntValue>,
 	pub as_float: Option<FloatValue>,
@@ -1057,15 +1056,11 @@ pub struct Datum {
 }
 
 impl Datum {
-	pub fn get_start_column(&self) -> NonZeroUsize {
-		self.start_column
-	}
-
-	pub fn print(&self, depth: usize) {
+	pub fn print(&self, depth: usize, start_column: NonZeroUsize) {
 		for _ in 0..depth {
 			print!("-");
 		}
-		print!(" {:03}: Datum, String: \"{}\"", self.get_start_column(), self.as_string);
+		print!(" {start_column:03}: Datum, String: \"{}\"", self.as_string);
 		if let Some(as_integer) = &self.as_integer {
 			print!(", Int: {as_integer}")
 		}

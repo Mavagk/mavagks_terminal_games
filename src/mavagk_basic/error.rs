@@ -111,6 +111,7 @@ pub enum ErrorVariant {
 	MalformedInteger,
 	MalformedNumber,
 	MalformedComplexNumber,
+	InvalidUnquotedStringChar,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -218,6 +219,7 @@ impl Display for ErrorVariant {
 			Self::MalformedInteger => write!(f, "Malformed integer."),
 			Self::MalformedNumber => write!(f, "Malformed number."),
 			Self::MalformedComplexNumber => write!(f, "Malformed complex number."),
+			Self::InvalidUnquotedStringChar => write!(f, "Invalid char in unquoted string."),
 		}
 	}
 }
