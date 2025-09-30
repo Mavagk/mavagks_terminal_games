@@ -1280,6 +1280,10 @@ mod tests {
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 13.try_into().unwrap() }, "a\""))
 		);
 		assert_eq!(
+			Token::parse_single_token_from_str("\"REM \"\" ±Hello\"a\"", 1.try_into().unwrap(), false).unwrap(),
+			Some((Token { variant: TokenVariant::StringLiteral("REM \" ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 16.try_into().unwrap() }, "a\""))
+		);
+		assert_eq!(
 			Token::parse_single_token_from_str("\"REM ±Hello", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token { variant: TokenVariant::StringLiteral("REM ±Hello".into()), start_column: 1.try_into().unwrap(), end_column: 12.try_into().unwrap() }, ""))
 		);
