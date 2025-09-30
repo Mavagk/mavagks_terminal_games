@@ -49,6 +49,7 @@ pub enum ErrorVariant {
 	NotYetImplemented(String), // For features that should be implemented in the future.
 	Unimplemented(String), // For features that may or may not be implemented in the future.
 	MalformedLineNumber(String),
+	MalformedQuotedString,
 	ExpectedExpression,
 	ExpectedListHyphen,
 	MoreLeftParenthesesThanRightParentheses,
@@ -208,6 +209,7 @@ impl Display for ErrorVariant {
 			Self::UnableToOpenFile => write!(f, "Unable to open file."),
 			Self::UnableToReadFile => write!(f, "Unable to read from file."),
 			Self::ShouldBeRootStatement => write!(f, "Should be root statement."),
+			Self::MalformedQuotedString => write!(f, "Malformed quoted string."),
 		}
 	}
 }

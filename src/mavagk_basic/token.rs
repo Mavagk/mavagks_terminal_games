@@ -1,10 +1,10 @@
-use std::num::NonZeroUsize;
+use std::{num::NonZeroUsize, rc::Rc};
 
 use num::{BigInt, BigUint, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}};
+use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, value::StringValue};
 
 #[derive(Debug, PartialEq)]
 /// A token received from parsing a line of text
@@ -367,6 +367,33 @@ impl NumericBase {
 			NumericBase::Hexadecimal => 16,
 		}
 	}
+}
+
+/// Parses `input_string` into a string value, `input_string` can either be a quoted or unquoted string.
+pub fn parse_string<'a>(input_string: &'a str) -> (Result<StringValue, ErrorVariant>, &'a str) {
+	todo!()
+	// Trim leading and trailing spaces
+	//let input_string = input_string.trim_ascii();
+	//// If the string is quoted
+	//if input_string.chars().next() == Some('"') {
+	//	// Trim quotes off string
+	//	let input_string = &input_string[1..];
+	//	let input_string = match input_string[1..].chars().last() == Some('"') {
+	//		true => &input_string[..(input_string.len() - 1)],
+	//		false => input_string,
+	//	};
+	//	if input_string.contains('"') {
+	//		return Err(ErrorVariant::Unimplemented("Double quote in quoted string literal".into()));
+	//	}
+	//	// Return
+	//	return Ok(StringValue::new(Rc::new(input_string.into())));
+	//}
+	//// If the string is unquoted
+	//if input_string.contains('"') {
+	//	return Err(ErrorVariant::Unimplemented("Double quote in unquoted string literal".into()));
+	//}
+	//// Return
+	//return Ok(StringValue::new(Rc::new(input_string.into())));
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
