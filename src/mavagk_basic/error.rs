@@ -78,7 +78,7 @@ pub enum ErrorVariant {
 	UnexpectedOperator,
 	ExpectedFunctionNameAfterFn,
 	LeadingCommaInFunctionArguments,
-	TrailingCommaInFunctionArguments,
+	TrailingComma,
 	TwoSequentialCommasTogetherInFunctionArguments,
 	NoCommaBetweenFunctionArguments,
 	InvalidSeparatorInFunctionArguments,
@@ -94,6 +94,7 @@ pub enum ErrorVariant {
 	ExpectedOptionArguments,
 	InvalidOptionVariableOrValue,
 	ExpectedColonAfterInputPrompt,
+	ExpectedColonAfterIfMissingThen,
 	MultiplePromptsForInput,
 	MultipleTimeoutsForInput,
 	MultipleElapsedsForInput,
@@ -113,6 +114,7 @@ pub enum ErrorVariant {
 	MalformedComplexNumber,
 	InvalidUnquotedStringChar,
 	ExpectedDatum,
+	InvalidIfMissingThenStatement,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -175,7 +177,7 @@ impl Display for ErrorVariant {
 			Self::UnexpectedOperator => write!(f, "Unexpected operator."),
 			Self::ExpectedFunctionNameAfterFn => write!(f, "Expected function name after FN keyword."),
 			Self::LeadingCommaInFunctionArguments => write!(f, "Leading comma in function arguments."),
-			Self::TrailingCommaInFunctionArguments => write!(f, "Trailing comma in function arguments."),
+			Self::TrailingComma => write!(f, "Trailing comma."),
 			Self::TwoSequentialCommasTogetherInFunctionArguments => write!(f, "Two sequential commas in function arguments."),
 			Self::NoCommaBetweenFunctionArguments => write!(f, "No comma between function arguments."),
 			Self::InvalidSeparatorInFunctionArguments => write!(f, "Invalid separator in function arguments."),
@@ -222,6 +224,8 @@ impl Display for ErrorVariant {
 			Self::MalformedComplexNumber => write!(f, "Malformed complex number."),
 			Self::InvalidUnquotedStringChar => write!(f, "Invalid char in unquoted string."),
 			Self::ExpectedDatum => write!(f, "Expected datum."),
+			Self::InvalidIfMissingThenStatement => write!(f, "Invalid sub-statement after READ IF MISSING THEN."),
+			Self::ExpectedColonAfterIfMissingThen => write!(f, "Expected colon or semicolon after READ IF MISSING THEN sub statement."),
 		}
 	}
 }

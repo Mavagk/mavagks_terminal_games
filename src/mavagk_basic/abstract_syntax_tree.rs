@@ -200,12 +200,13 @@ impl Statement {
 				println!("READ");
 				if let Some(to_do_when_data_missing) = to_do_when_data_missing {
 					to_do_when_data_missing.print(depth + 1);
-					for variable in variables {
-						variable.print(depth + 1);
-					}
+				}
+				for variable in variables {
+					variable.print(depth + 1);
 				}
 			}
 			StatementVariant::Restore(restore_to_line) => {
+				println!("RESTORE");
 				if let Some(restore_to_line) = restore_to_line {
 					restore_to_line.print(depth + 1);
 				}

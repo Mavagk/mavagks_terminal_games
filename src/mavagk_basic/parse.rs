@@ -1,6 +1,6 @@
 use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
-use num::complex::Complex64;
+use num::{bigint::ToBigInt, complex::Complex64};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
@@ -586,6 +586,9 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			variant: StatementVariant::Stop,
 		},
 		Keyword::Data => 'a: {
+			if !is_root_statement {
+				return Err(ErrorVariant::StatementCannotBeNested.at_column(statement_keyword_start_column));
+			}
 			let mut data_values = Vec::new();
 			// Get the first datum if it exists
 			match tokens.tokens.first() {
@@ -622,9 +625,89 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				}
 			}
 		}
+		Keyword::Read => {
+			// If there is a missing recovery statement
+			let missing_recovery_statement = if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::If), .. }, .. })) &&
+				matches!(tokens.tokens.iter().nth(1), Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Missing), .. }, .. }))
+			{
+				// Take IF and MISSING tokens
+				tokens.remove_tokens(2);
+				// Expect and take THEN keyword
+				match tokens.take_keyword() {
+					Some((Keyword::Then, _)) => {}
+					None => return Err(ErrorVariant::ExpectedThenKeyword.at_column(tokens.last_removed_token_end_column)),
+					Some((_, start_column)) => return Err(ErrorVariant::ExpectedThenKeyword.at_column(start_column)),
+				}
+				// Parse missing recovery statement
+				let result = match tokens.clone().take_keyword() {
+					// TODO: EXIT FOR, EXIT DO
+					Some((Keyword::Goto | Keyword::Return, _)) => parse_statement(tokens, false)?,
+					_ if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::IntegerLiteral(..), .. })) => {
+						match tokens.tokens.first().unwrap() {
+							Token { variant: TokenVariant::IntegerLiteral(goto_line_number), start_column, .. } =>
+								Some(Statement {
+									variant: StatementVariant::Goto(Some(IntExpression::ConstantValue { value: IntValue::new(Rc::new(goto_line_number.to_bigint().unwrap())), start_column: *start_column })),
+									column: *start_column
+								}),
+							_ => unreachable!(),
+						}
+					}
+					None => return Err(ErrorVariant::InvalidIfMissingThenStatement.at_column(tokens.last_removed_token_end_column)),
+					Some((_, start_column)) => return Err(ErrorVariant::InvalidIfMissingThenStatement.at_column(start_column)),
+				};
+				let result = match result {
+					None => return Err(ErrorVariant::InvalidIfMissingThenStatement.at_column(tokens.last_removed_token_end_column)),
+					Some(result) => result,
+				};
+				// Expect colon/semicolon
+				match tokens.take_next_token() {
+					None => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(tokens.last_removed_token_end_column)),
+					Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, .. }) => {},
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(*start_column)),
+				}
+				Some(Box::new(result))
+			}
+			else {
+				None
+			};
+			// Read l-values to read to
+			let mut l_values_to_read_to = Vec::new();
+			loop {
+				// Get l-value
+				let l_value = match parse_l_value(tokens)? {
+					None => match l_values_to_read_to.is_empty() {
+						true => break,
+						false => return Err(ErrorVariant::TrailingComma.at_column(tokens.last_removed_token_end_column)),
+					}
+					Some(l_value) => l_value,
+				};
+				l_values_to_read_to.push(l_value);
+				// Take comma or end statement
+				match tokens.tokens.first() {
+					Some(Token { variant: TokenVariant::Comma, .. }) => {
+						tokens.take_next_token();
+					}
+					_ => break,
+				}
+			}
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Read { to_do_when_data_missing_statement: missing_recovery_statement, variables: l_values_to_read_to.into_boxed_slice() },
+			}
+		}
+		Keyword::Restore => {
+			let restore_to = match parse_expression(tokens)? {
+				Some(expression) => Some(cast_to_int_expression(expression)?),
+				None => None,
+			};
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Restore(restore_to),
+			}
+		}
 		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
-		_ => return Err(ErrorVariant::NotYetImplemented("Statement".into()).at_column(statement_keyword_start_column)),
+		other_keyword => return Err(ErrorVariant::NotYetImplemented(format!("{} Statement", other_keyword.get_names()[0].0)).at_column(statement_keyword_start_column)),
 	}))
 }
 
