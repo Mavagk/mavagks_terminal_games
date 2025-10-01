@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::complex::Complex64;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -585,6 +585,43 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			column: statement_keyword_start_column,
 			variant: StatementVariant::Stop,
 		},
+		Keyword::Data => 'a: {
+			let mut data_values = Vec::new();
+			// Get the first datum if it exists
+			match tokens.tokens.first() {
+				Some(Token { variant: TokenVariant::Datum(datum), start_column, .. }) => {
+					data_values.push((datum.clone(), *start_column));
+					tokens.take_next_token();
+				}
+				_ => break 'a Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::Data(data_values.into_boxed_slice()),
+				}
+			}
+			// For each datum after the first datum
+			loop {
+				// The statement ends if there is not a comma
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break 'a Statement {
+						column: statement_keyword_start_column,
+						variant: StatementVariant::Data(data_values.into_boxed_slice()),
+					}
+				}
+				// Else remove the comma
+				tokens.take_next_token();
+				// If this is an empty datum, treat it as an empty string
+				if matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					data_values.push((Datum { as_string: StringValue::empty(), as_float: None, as_integer: None, as_complex: None }, tokens.last_removed_token_end_column));
+					continue;
+				}
+				// Take datum
+				match tokens.take_next_token() {
+					Some(Token { variant: TokenVariant::Datum(datum), start_column, .. }) => data_values.push((datum.clone(), *start_column)),
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedDatum.at_column(*start_column)),
+					_ => return Err(ErrorVariant::ExpectedDatum.at_column(tokens.last_removed_token_end_column)),
+				}
+			}
+		}
 		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
 		_ => return Err(ErrorVariant::NotYetImplemented("Statement".into()).at_column(statement_keyword_start_column)),
