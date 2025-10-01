@@ -482,6 +482,9 @@ pub fn parse_datum_int<'a>(input_string: &'a str) -> Result<(Option<IntValue>, &
 	if int_string.is_empty() {
 		return Ok((None, chars_after_int_string));
 	}
+	if !matches!(chars_after_int_string.trim_ascii_start().chars().next(), None | Some(',' | ':' | '!')) {
+		return Err(ErrorVariant::MalformedInteger);
+	}
 	match int_string.parse::<BigInt>() {
 		Ok(value) => Ok((Some(IntValue::new(Rc::new(value))), chars_after_int_string)),
 		Err(_) => return Err(ErrorVariant::MalformedInteger),
@@ -492,8 +495,14 @@ pub fn parse_datum_float<'a>(input_string: &'a str) -> Result<(Option<FloatValue
 	let input_string = input_string.trim_ascii_start();
 	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E')).unwrap_or_else(|| input_string.len());
 	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
+	if int_string == "." {
+		return Ok((Some(FloatValue::new(0.)), chars_after_int_string));
+	}
 	if int_string.is_empty() {
 		return Ok((None, chars_after_int_string));
+	}
+	if !matches!(chars_after_int_string.trim_ascii_start().chars().next(), None | Some(',' | ':' | '!')) {
+		return Err(ErrorVariant::MalformedInteger);
 	}
 	match int_string.parse::<f64>() {
 		Ok(value) => Ok((Some(FloatValue::new(value)), chars_after_int_string)),
@@ -505,8 +514,14 @@ pub fn parse_datum_complex<'a>(input_string: &'a str) -> Result<(Option<ComplexV
 	let input_string = input_string.trim_ascii_start();
 	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E' | 'i' | 'I')).unwrap_or_else(|| input_string.len());
 	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
+	if int_string == "." {
+		return Ok((Some(ComplexValue::new(Complex64::new(0., 0.))), chars_after_int_string));
+	}
 	if int_string.is_empty() {
 		return Ok((None, chars_after_int_string));
+	}
+	if !matches!(chars_after_int_string.trim_ascii_start().chars().next(), None | Some(',' | ':' | '!')) {
+		return Err(ErrorVariant::MalformedInteger);
 	}
 	match int_string.parse::<Complex64>() {
 		Ok(value) => Ok((Some(ComplexValue::new(value)), chars_after_int_string)),
@@ -1421,6 +1436,118 @@ mod tests {
 					as_string: StringValue::new(Rc::new("Hello   World".into())), as_integer: None, as_float: None, as_complex: None
 				}), start_column: 7.try_into().unwrap(), end_column: 20.try_into().unwrap()
 			}, ""))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5".into())), as_integer: Some(IntValue::new(Rc::new(5.into()))), as_float: Some(FloatValue::new(5.)), as_complex: Some(ComplexValue::new(Complex64::new(5., 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 7.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 7 7  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("7 7".into())), as_integer: None, as_float: None, as_complex: None
+				}), start_column: 6.try_into().unwrap(), end_column: 9.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" +5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("+5".into())), as_integer: Some(IntValue::new(Rc::new(5.into()))), as_float: Some(FloatValue::new(5.)), as_complex: Some(ComplexValue::new(Complex64::new(5., 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 8.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" -5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("-5".into())), as_integer: Some(IntValue::new(Rc::new((-5).into()))), as_float: Some(FloatValue::new(-5.)), as_complex: Some(ComplexValue::new(Complex64::new(-5., 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 8.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5E5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5E5".into())), as_integer: None, as_float: Some(FloatValue::new(5E5)), as_complex: Some(ComplexValue::new(Complex64::new(5E5, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 9.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5E+5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5E+5".into())), as_integer: None, as_float: Some(FloatValue::new(5E5)), as_complex: Some(ComplexValue::new(Complex64::new(5E5, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 10.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5E-5  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5E-5".into())), as_integer: None, as_float: Some(FloatValue::new(5E-5)), as_complex: Some(ComplexValue::new(Complex64::new(5E-5, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 10.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5.  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5.".into())), as_integer: None, as_float: Some(FloatValue::new(5.)), as_complex: Some(ComplexValue::new(Complex64::new(5., 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 8.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 5.2  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("5.2".into())), as_integer: None, as_float: Some(FloatValue::new(5.2)), as_complex: Some(ComplexValue::new(Complex64::new(5.2, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 9.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" .2  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new(".2".into())), as_integer: None, as_float: Some(FloatValue::new(0.2)), as_complex: Some(ComplexValue::new(Complex64::new(0.2, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 8.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" .  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new(".".into())), as_integer: None, as_float: Some(FloatValue::new(0.)), as_complex: Some(ComplexValue::new(Complex64::new(0., 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 7.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 2.2E+3  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("2.2E+3".into())), as_integer: None, as_float: Some(FloatValue::new(2.2E+3)), as_complex: Some(ComplexValue::new(Complex64::new(2.2E+3, 0.)))
+				}), start_column: 6.try_into().unwrap(), end_column: 12.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 2.2E+3i  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("2.2E+3i".into())), as_integer: None, as_float: None, as_complex: Some(ComplexValue::new(Complex64::new(0., 2.2E+3)))
+				}), start_column: 6.try_into().unwrap(), end_column: 13.try_into().unwrap()
+			}, "  "))
+		);
+		assert_eq!(
+			Token::parse_single_token_from_str(" 2.2E+3+4.8E-4i  ", 5.try_into().unwrap(), true).unwrap(),
+			Some((Token {
+				variant: TokenVariant::Datum(Datum {
+					as_string: StringValue::new(Rc::new("2.2E+3+4.8E-4i".into())), as_integer: None, as_float: None, as_complex: Some(ComplexValue::new(Complex64::new(2.2E+3, 4.8E-4)))
+				}), start_column: 6.try_into().unwrap(), end_column: 20.try_into().unwrap()
+			}, "  "))
 		);
 	}
 
