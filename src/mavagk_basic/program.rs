@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, ops::{RangeFrom, RangeTo}, rc::Rc};
+use std::{collections::BTreeMap, num::NonZeroUsize, ops::{RangeFrom, RangeTo}, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, MachineOption, MathOption, OptionVariableAndValue, Statement, StatementVariant}, error::Error, machine::Machine};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, Datum, MachineOption, MathOption, OptionVariableAndValue, Statement, StatementVariant}, error::Error, machine::Machine};
 
 /// A MavagkBasic program containing all its lines, does not include a direct mode line.
 pub struct Program {
@@ -12,6 +12,8 @@ pub struct Program {
 	angle_options: BTreeMap<(Rc<BigInt>, usize), Option<AngleOption>>,
 	math_options: BTreeMap<(Rc<BigInt>, usize), Option<MathOption>>,
 	machine_options: BTreeMap<(Rc<BigInt>, usize), Option<MachineOption>>,
+
+	data: BTreeMap<Rc<BigInt>, Box<[(Datum, NonZeroUsize)]>>,
 }
 
 impl Program {
@@ -21,6 +23,7 @@ impl Program {
 			angle_options: BTreeMap::new(),
 			math_options: BTreeMap::new(),
 			machine_options: BTreeMap::new(),
+			data: BTreeMap::new(),
 		}
 	}
 
@@ -38,27 +41,6 @@ impl Program {
 			None => None,
 		};
 	}
-
-	//pub fn angle_option_at_line(&self, line_number: Rc<BigInt>, sub_line: usize) -> Option<AngleOption> {
-	//	match self.angle_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	}
-	//}
-//
-	//pub fn math_option_at_line(&self, line_number: Rc<BigInt>, sub_line: usize) -> Option<MathOption> {
-	//	match self.math_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	}
-	//}
-//
-	//pub fn machine_option_at_line(&self, line_number: Rc<BigInt>, sub_line: usize) -> Option<MachineOption> {
-	//	match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	}
-	//}
 
 	pub fn contains_line(&self, line_number: &BigInt) -> bool {
 		return self.lines.contains_key(line_number);
@@ -80,11 +62,24 @@ impl Program {
 				_ => {},
 			}
 		}
+		let mut data = Vec::new();
+		for sub_line in line.optimized_statements.iter() {
+			match sub_line {
+				Statement { variant: StatementVariant::Data(statement_data), .. } => {
+					for datum in statement_data {
+						data.push(datum.clone());
+					}
+				}
+				_ => {}
+			}
+		}
+		self.data.insert(line_number.clone(), data.into_boxed_slice());
 		self.lines.insert(line_number, line);
 	}
 
 	pub fn remove_line(&mut self, line_number: &Rc<BigInt>) {
 		let line = self.lines.remove(line_number);
+		self.data.remove(line_number);
 		let line = match line {
 			Some(line) => line,
 			None => return,
@@ -116,8 +111,22 @@ impl Program {
 		}
 	}
 
+	pub fn get_first_data_line_after(&self, line_number: &BigInt) -> Option<&Rc<BigInt>> {
+		match self.data.range::<BigInt, RangeFrom<&BigInt>>(line_number..).nth(1) {
+			Some(value) => Some(value.0),
+			None => None,
+		}
+	}
+
 	pub fn get_first_line(&self) -> Option<&Rc<BigInt>> {
 		match self.lines.first_key_value() {
+			Some(value) => Some(value.0),
+			None => None,
+		}
+	}
+
+	pub fn get_first_data_line(&self) -> Option<&Rc<BigInt>> {
+		match self.data.first_key_value() {
 			Some(value) => Some(value.0),
 			None => None,
 		}

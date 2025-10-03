@@ -11,6 +11,10 @@ pub struct Machine {
 	// Program counter
 	/// The current line being executed, `None` if executing the real mode line or if the first line should be executed.
 	line_executing: Option<Rc<BigInt>>,
+	/// The line that the next READ statement should read from.
+	data_line_to_read: Option<Rc<BigInt>>,
+	/// The datum index in the line that the next READ statement should read from.
+	datum_in_data_line_to_read: usize,
 	/// The current colon separated sub-line being executed. `None` to execute the first line.
 	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
@@ -51,6 +55,8 @@ impl Machine {
 			machine_option: None,
 			basic_home_path: None,
 			rng: SmallRng::seed_from_u64(0),
+			data_line_to_read: None,
+			datum_in_data_line_to_read: 0,
 		}
 	}
 
@@ -113,7 +119,7 @@ impl Machine {
 	}
 
 	// Clears everything about the machine state except where the machine is currently executing in the program.
-	fn clear_machine_state(&mut self) {
+	fn clear_machine_state(&mut self, program: &Program) {
 		*self = Self {
 			// Stuff to keep
 			line_executing: take(&mut self.line_executing),
@@ -134,6 +140,9 @@ impl Machine {
 			machine_option: None,
 
 			rng: SmallRng::seed_from_u64(0),
+
+			data_line_to_read: program.get_first_data_line().cloned(),
+			datum_in_data_line_to_read: 0,
 		}
 	}
 
@@ -733,7 +742,7 @@ impl Machine {
 				}
 				// Clear if this is a RUN statement
 				if matches!(variant, StatementVariant::Run(..)) {
-					self.clear_machine_state();
+					self.clear_machine_state(program);
 				}
 				// Next statement
 				return Ok(true);
@@ -810,9 +819,7 @@ impl Machine {
 				self.execution_source = ExecutionSource::ProgramEnded;
 				return Ok(true)
 			}
-			StatementVariant::Data(_data) => {
-				todo!()
-			}
+			StatementVariant::Data(_data) => {}
 			StatementVariant::Read { to_do_when_data_missing_statement: _, variables: _ } => {
 				todo!()
 			}
