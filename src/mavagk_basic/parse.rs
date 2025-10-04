@@ -939,16 +939,16 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
 		_ => return Ok(Some(match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: (*identifier_name).into(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 		})),
 	}
@@ -997,23 +997,23 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 	// Return
 	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: (*identifier_name).into(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 	}))
 }
 
 /// Gets the length of an l-value
 // TODO: Remove
-fn get_l_value_length<'a>(tokens: &[Token<'a>]) -> usize {
+fn get_l_value_length(tokens: &[Token]) -> usize {
 	let mut parenthesis_depth = 0usize;
 	for (index, token) in tokens.iter().enumerate() {
 		if matches!(token.variant, TokenVariant::LeftParenthesis) {
@@ -1526,16 +1526,16 @@ fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpr
 
 #[derive(Clone, Copy)]
 /// A struct that contains a borrowed slice of tokens. Tokens can be parsed and removed from the front of the slice.
-pub struct Tokens<'a, 'b> {
+pub struct Tokens<'b> {
 	/// The borrowed slice.
-	pub tokens: &'b [Token<'a>],
+	pub tokens: &'b [Token],
 	/// The end column of the last removed token.
 	pub last_removed_token_end_column: NonZeroUsize,
 }
 
-impl<'a, 'b> Tokens<'a, 'b> {
+impl<'b> Tokens<'b> {
 	/// Create from a slice of tokens.
-	pub fn new(tokens: &'b [Token<'a>]) -> Self {
+	pub fn new(tokens: &'b [Token]) -> Self {
 		Self {
 			tokens,
 			last_removed_token_end_column: 1.try_into().unwrap(),
@@ -1553,7 +1553,7 @@ impl<'a, 'b> Tokens<'a, 'b> {
 	}
 
 	/// Removes the next token from the start of the list.
-	pub fn take_next_token(&mut self) -> Option<&Token<'_>> {
+	pub fn take_next_token(&mut self) -> Option<&Token> {
 		let tokens_removed;
 		(tokens_removed, self.tokens) = match self.tokens.split_at_checked(1) {
 			Some(result) => result,

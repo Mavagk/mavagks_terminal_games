@@ -8,9 +8,9 @@ use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVaria
 
 #[derive(Debug, PartialEq)]
 /// A token received from parsing a line of text
-pub struct Token<'a> {
+pub struct Token {
 	/// The token variant, eg. numeric literal, identifier.
-	pub variant: TokenVariant<'a>,
+	pub variant: TokenVariant,
 	/// The column of the first char that the token was parsed from. Column 1 is the first column.
 	pub start_column: NonZeroUsize,
 	/// The column of the char after the last char of the line that the token was parsed from. Column 1 is the first column.
@@ -19,7 +19,7 @@ pub struct Token<'a> {
 
 #[derive(Debug, PartialEq)]
 /// A token variant, eg. numeric literal, identifier.
-pub enum TokenVariant<'a> {
+pub enum TokenVariant {
 	/// An operator. Eg. +, -, <=.
 	Operator(Option<BinaryOperator>, Option<UnaryOperator>),
 	/// A string literal. Eg. "Hello world".
@@ -27,7 +27,7 @@ pub enum TokenVariant<'a> {
 	/// An identifier. Eg. text$, ABS#, var, GOTO.
 	Identifier {
 		/// The identifier text without the trailing type chars.
-		name: &'a str,
+		name: Box<str>,
 		/// The identifier type parsed from the trailing type chars.
 		identifier_type: IdentifierType,
 		/// Does the identifier end with a '?' char?
@@ -68,12 +68,12 @@ pub enum TokenVariant<'a> {
 	Datum(Datum)
 }
 
-impl<'a> Token<'a> {
+impl Token {
 	/// Parses a token from a string starting with a token in text form, returns:
 	/// * `Ok(Some((token, rest of string with token removed)))` if a token could be found at the start of the string.
 	/// * `Ok(None)` if the end of line or a `rem` remark was found.
 	/// * `Err(error)` if the text was malformed.
-	pub fn parse_single_token_from_str(line_starting_with_token: &'a str, column_number: NonZeroUsize, is_datum: bool) -> Result<Option<(Self, &'a str)>, Error> {
+	pub fn parse_single_token_from_str<'a>(line_starting_with_token: &'a str, column_number: NonZeroUsize, is_datum: bool) -> Result<Option<(Self, &'a str)>, Error> {
 		// Remove prefix whitespaces
 		let start_column = column_number.saturating_add(line_starting_with_token.chars().take_while(|chr| chr.is_ascii_whitespace()).count());
 		let line_starting_with_token = line_starting_with_token.trim_start_matches(|chr: char| chr.is_ascii_whitespace());
@@ -136,6 +136,9 @@ impl<'a> Token<'a> {
 				// Get name part of identifier
 				let length_of_identifier_name_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
+				// Convert to upper case
+				let mut name: Box<str> = name.into();
+				name.make_ascii_uppercase();
 				// Get type
 				let (identifier_type, is_optional, rest_of_string_with_token_removed) = match string_with_name_removed {
 					_ if string_with_name_removed.starts_with("$?") => (IdentifierType::String,         true,  &string_with_name_removed[2..]),
@@ -149,17 +152,17 @@ impl<'a> Token<'a> {
 				};
 				// Get if the token is an alphabetic operator
 				let (binary_operator, unary_operator) = match identifier_type {
-					IdentifierType::UnmarkedOrFloat if !is_optional => (BinaryOperator::from_name(name), UnaryOperator::from_name(name)),
+					IdentifierType::UnmarkedOrFloat if !is_optional => (BinaryOperator::from_name(&name), UnaryOperator::from_name(&name)),
 					_ => (None, None),
 				};
 				// Get if the identifier is a keyword
 				let keyword = match is_optional {
-					false => Keyword::from_name(name, identifier_type),
+					false => Keyword::from_name(&name, identifier_type),
 					true => None,
 				};
 				// Get if the identifier is a supplied function
 				let supplied_function = match is_optional {
-					false => SuppliedFunction::from_name(name),
+					false => SuppliedFunction::from_name(&name),
 					true => None,
 				};
 				// Get if this a reserved keyword
@@ -314,7 +317,7 @@ impl<'a> Token<'a> {
 	}
 
 	/// Takes in a line of basic code in text form. Converts it into a (line number, list of tokens) pair.
-	pub fn tokenize_line(mut line_text: &'a str) -> (Option<BigInt>, Result<Box<[Self]>, Error>) {
+	pub fn tokenize_line(mut line_text: &str) -> (Option<BigInt>, Result<Box<[Self]>, Error>) {
 		// Get line number
 		let mut column_number: NonZeroUsize = 1.try_into().unwrap();
 		let line_number = match line_text.chars().next() {
@@ -356,7 +359,7 @@ impl<'a> Token<'a> {
 	}
 }
 
-impl<'a> TokenVariant<'a> {
+impl TokenVariant {
 	/// Is can this token be used as a binary operator. Eg. +, <=, AND.
 	pub fn is_binary_operator(&self) -> bool {
 		match self {
@@ -1072,70 +1075,70 @@ mod tests {
 		assert_eq!(
 			Token::parse_single_token_from_str("a", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a".into(), identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 2.try_into().unwrap()
 			}, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("_num = 8.5", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "_num", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "_num".into(), identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 5.try_into().unwrap()
 			}, " = 8.5"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str(" var$", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "var", identifier_type: IdentifierType::String, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "var".into(), identifier_type: IdentifierType::String, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 6.try_into().unwrap()
 			}, ""))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("	my_iNt%0", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "my_iNt", identifier_type: IdentifierType::Integer, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "my_iNt".into(), identifier_type: IdentifierType::Integer, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 9.try_into().unwrap()
 			}, "0"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("		 MyComp# = 2i", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "MyComp", identifier_type: IdentifierType::ComplexNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "MyComp".into(), identifier_type: IdentifierType::ComplexNumber, is_optional: false, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 4.try_into().unwrap(), end_column: 11.try_into().unwrap()
 			}, " = 2i"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("a0?=2E5", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a0", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a0".into(), identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
 			}, "=2E5"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("a%?(val)", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a".into(), identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 4.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("a%?(val)", 10.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "a", identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "a".into(), identifier_type: IdentifierType::Integer, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 10.try_into().unwrap(), end_column: 13.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str(" _aA_01Z29_$?(val)", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "_aA_01Z29_", identifier_type: IdentifierType::String, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "_aA_01Z29_".into(), identifier_type: IdentifierType::String, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 2.try_into().unwrap(), end_column: 14.try_into().unwrap()
 			}, "(val)"))
 		);
 		assert_eq!(
 			Token::parse_single_token_from_str("VAL#?(val)", 1.try_into().unwrap(), false).unwrap(),
 			Some((Token {
-				variant: TokenVariant::Identifier { name: "VAL", identifier_type: IdentifierType::ComplexNumber, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
+				variant: TokenVariant::Identifier { name: "VAL".into(), identifier_type: IdentifierType::ComplexNumber, is_optional: true, binary_operator: None, unary_operator: None, keyword: None, is_reserved_keyword: false, supplied_function: None },
 				start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
 			}, "(val)"))
 		);
@@ -1558,7 +1561,7 @@ mod tests {
 		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
 		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
-				name: "PRINT", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
+				name: "PRINT".into(), identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
 			}, start_column: 4.try_into().unwrap(), end_column: 9.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
@@ -1576,7 +1579,7 @@ mod tests {
 		assert_eq!(tokens.1.as_ref().unwrap().len(), 4);
 		assert_eq!(tokens.1.as_ref().unwrap()[0], Token {
 			variant: TokenVariant::Identifier {
-				name: "PRINT", identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
+				name: "PRINT".into(), identifier_type: IdentifierType::UnmarkedOrFloat, is_optional: false, binary_operator: None, unary_operator: None, keyword: Some(Keyword::Print), is_reserved_keyword: true, supplied_function: None
 			}, start_column: 1.try_into().unwrap(), end_column: 6.try_into().unwrap()
 		});
 		assert_eq!(tokens.1.as_ref().unwrap()[1], Token {
