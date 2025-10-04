@@ -115,6 +115,7 @@ pub enum ErrorVariant {
 	InvalidUnquotedStringChar,
 	ExpectedDatum,
 	InvalidIfMissingThenStatement,
+	RestoreToLineWithoutData(BigInt),
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -230,6 +231,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedColonAfterIfMissingThen => write!(f, "Expected colon or semicolon after READ IF MISSING THEN sub statement."),
 			Self::NonNumericReadToNumeric(line_number, column_number) => write!(f, "Non-numeric datum at {line_number}:{column_number} read into a numeric variable or l-value."),
 			Self::ReadOutOfData => write!(f, "READ statement out of data values to read."),
+			Self::RestoreToLineWithoutData(line_to_restore_to) => write!(f, "Attempted to RESTORE to line {line_to_restore_to} but no DATA statements where present on that line."),
 		}
 	}
 }

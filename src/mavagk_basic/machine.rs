@@ -867,8 +867,20 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Restore(_restore_to_line_number_expression) => {
-				todo!()
+			StatementVariant::Restore(restore_to_line_number_expression) => {
+				let restore_to_line_number_expression = match restore_to_line_number_expression {
+					Some(restore_to_line_number_expression) => restore_to_line_number_expression,
+					None => {
+						self.data_line_number_to_read = program.get_first_data_line().cloned();
+						self.datum_index_in_data_line_to_read = 0;
+						return Ok(false);
+					}
+				};
+				let restore_to_line_number = self.execute_int_expression(restore_to_line_number_expression)?.value;
+				if !program.contains_data_line(&*restore_to_line_number) {
+					return Err(ErrorVariant::RestoreToLineWithoutData((*restore_to_line_number).clone()).at_column(restore_to_line_number_expression.get_start_column()));
+				}
+				self.data_line_number_to_read = Some(restore_to_line_number);
 			}
 		}
 		Ok(false)

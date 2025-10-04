@@ -46,6 +46,10 @@ impl Program {
 		return self.lines.contains_key(line_number);
 	}
 
+	pub fn contains_data_line(&self, line_number: &BigInt) -> bool {
+		return self.data.contains_key(line_number);
+	}
+
 	pub fn insert_line(&mut self, line_number: Rc<BigInt>, line: Line) {
 		self.lines.remove(&line_number);
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
