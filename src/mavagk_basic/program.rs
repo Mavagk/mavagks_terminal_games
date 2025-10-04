@@ -73,7 +73,9 @@ impl Program {
 				_ => {}
 			}
 		}
-		self.data.insert(line_number.clone(), data.into_boxed_slice());
+		if !data.is_empty() {
+			self.data.insert(line_number.clone(), data.into_boxed_slice());
+		}
 		self.lines.insert(line_number, line);
 	}
 
@@ -102,6 +104,10 @@ impl Program {
 
 	pub fn get_line(&self, line_number: &BigInt) -> Option<&Line> {
 		self.lines.get(line_number)
+	}
+
+	pub fn get_data_line(&self, line_number: &BigInt) -> Option<&Box<[(Datum, NonZeroUsize)]>> {
+		self.data.get(line_number)
 	}
 
 	pub fn get_first_line_after(&self, line_number: &BigInt) -> Option<&Rc<BigInt>> {

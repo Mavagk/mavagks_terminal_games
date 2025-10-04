@@ -12,9 +12,9 @@ pub struct Machine {
 	/// The current line being executed, `None` if executing the real mode line or if the first line should be executed.
 	line_executing: Option<Rc<BigInt>>,
 	/// The line that the next READ statement should read from.
-	data_line_to_read: Option<Rc<BigInt>>,
+	data_line_number_to_read: Option<Rc<BigInt>>,
 	/// The datum index in the line that the next READ statement should read from.
-	datum_in_data_line_to_read: usize,
+	datum_index_in_data_line_to_read: usize,
 	/// The current colon separated sub-line being executed. `None` to execute the first line.
 	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
@@ -55,8 +55,8 @@ impl Machine {
 			machine_option: None,
 			basic_home_path: None,
 			rng: SmallRng::seed_from_u64(0),
-			data_line_to_read: None,
-			datum_in_data_line_to_read: 0,
+			data_line_number_to_read: None,
+			datum_index_in_data_line_to_read: 0,
 		}
 	}
 
@@ -141,8 +141,8 @@ impl Machine {
 
 			rng: SmallRng::seed_from_u64(0),
 
-			data_line_to_read: program.get_first_data_line().cloned(),
-			datum_in_data_line_to_read: 0,
+			data_line_number_to_read: program.get_first_data_line().cloned(),
+			datum_index_in_data_line_to_read: 0,
 		}
 	}
 
@@ -820,8 +820,52 @@ impl Machine {
 				return Ok(true)
 			}
 			StatementVariant::Data(_data) => {}
-			StatementVariant::Read { to_do_when_data_missing_statement: _, variables: _ } => {
-				todo!()
+			StatementVariant::Read { to_do_when_data_missing_statement, variables: l_values_to_assign_to } => {
+				// For each l-value that we should read to
+				for l_value in l_values_to_assign_to {
+					// If we have run out of data to read
+					let data_line_number_to_read = match self.data_line_number_to_read.clone() {
+						Some(data_line_to_read) => data_line_to_read,
+						None => match to_do_when_data_missing_statement {
+							Some(to_do_when_data_missing_statement) => return self.execute_statement(to_do_when_data_missing_statement, program),
+							None => return Err(ErrorVariant::ReadOutOfData.at_column(l_value.get_start_column())),
+						},
+					};
+					// Else get the next datum
+					let data_line_values = program.get_data_line(&data_line_number_to_read).unwrap();
+					let (datum, datum_start_column) = data_line_values[self.datum_index_in_data_line_to_read].clone();
+					// Read datum
+					match l_value {
+						AnyTypeLValue::Int(l_value) => {
+							let datum = match &datum.as_integer {
+								Some(datum) => datum,
+								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
+							};
+							self.execute_int_l_value_write(l_value, datum.clone())?;
+						}
+						AnyTypeLValue::Float(l_value) => {
+							let datum = match &datum.as_float {
+								Some(datum) => datum,
+								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
+							};
+							self.execute_float_l_value_write(l_value, datum.clone())?;
+						}
+						AnyTypeLValue::Complex(l_value) => {
+							let datum = match &datum.as_complex {
+								Some(datum) => datum,
+								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
+							};
+							self.execute_complex_l_value_write(l_value, datum.clone())?;
+						}
+						AnyTypeLValue::String(l_value) => self.execute_string_l_value_write(l_value, datum.as_string.clone())?,
+					}
+					// Calculate new line number
+					self.datum_index_in_data_line_to_read += 1;
+					if self.datum_index_in_data_line_to_read >= data_line_values.len() {
+						self.data_line_number_to_read = program.get_first_data_line_after(&*data_line_number_to_read).cloned();
+						self.datum_index_in_data_line_to_read = 0;
+					}
+				}
 			}
 			StatementVariant::Restore(_restore_to_line_number_expression) => {
 				todo!()

@@ -125,6 +125,8 @@ pub enum ErrorVariant {
 	ModOrRemainderByZero = 3006,
 	ATrigFunctionOutOfRange = 3007,
 	AngleOfZeroZero = 3008,
+	ReadOutOfData = 8001,
+	NonNumericReadToNumeric(BigInt, NonZeroUsize) = 8101,
 }
 
 impl ErrorVariant {
@@ -226,6 +228,8 @@ impl Display for ErrorVariant {
 			Self::ExpectedDatum => write!(f, "Expected datum."),
 			Self::InvalidIfMissingThenStatement => write!(f, "Invalid sub-statement after READ IF MISSING THEN."),
 			Self::ExpectedColonAfterIfMissingThen => write!(f, "Expected colon or semicolon after READ IF MISSING THEN sub statement."),
+			Self::NonNumericReadToNumeric(line_number, column_number) => write!(f, "Non-numeric datum at {line_number}:{column_number} read into a numeric variable or l-value."),
+			Self::ReadOutOfData => write!(f, "READ statement out of data values to read."),
 		}
 	}
 }
