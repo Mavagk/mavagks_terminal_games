@@ -190,6 +190,9 @@ impl Statement {
 			StatementVariant::Stop => {
 				println!("STOP");
 			}
+			StatementVariant::Return => {
+				println!("RETURN");
+			}
 			StatementVariant::Data(data) => {
 				println!("DATA");
 				for (datum, datum_start_column) in data {
@@ -238,6 +241,7 @@ pub enum StatementVariant {
 	Data(Box<[(Datum, NonZeroUsize)]>),
 	Read { to_do_when_data_missing_statement: Option<Box<Statement>>, variables: Box<[AnyTypeLValue]> },
 	Restore(Option<IntExpression>),
+	Return,
 }
 
 #[derive(Debug, Clone)]

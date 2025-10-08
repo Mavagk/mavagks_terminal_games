@@ -585,6 +585,10 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			column: statement_keyword_start_column,
 			variant: StatementVariant::Stop,
 		},
+		Keyword::Return => Statement {
+			column: statement_keyword_start_column,
+			variant: StatementVariant::Return,
+		},
 		Keyword::Data => 'a: {
 			if !is_root_statement {
 				return Err(ErrorVariant::StatementCannotBeNested.at_column(statement_keyword_start_column));

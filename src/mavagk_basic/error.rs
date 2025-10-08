@@ -116,6 +116,7 @@ pub enum ErrorVariant {
 	ExpectedDatum,
 	InvalidIfMissingThenStatement,
 	RestoreToLineWithoutData(BigInt),
+	GosubInDirectMode,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -128,6 +129,7 @@ pub enum ErrorVariant {
 	AngleOfZeroZero = 3008,
 	ReadOutOfData = 8001,
 	NonNumericReadToNumeric(BigInt, NonZeroUsize) = 8101,
+	ReturnWithoutGosub = 10002,
 }
 
 impl ErrorVariant {
@@ -232,6 +234,8 @@ impl Display for ErrorVariant {
 			Self::NonNumericReadToNumeric(line_number, column_number) => write!(f, "Non-numeric datum at {line_number}:{column_number} read into a numeric variable or l-value."),
 			Self::ReadOutOfData => write!(f, "READ statement out of data values to read."),
 			Self::RestoreToLineWithoutData(line_to_restore_to) => write!(f, "Attempted to RESTORE to line {line_to_restore_to} but no DATA statements where present on that line."),
+			Self::GosubInDirectMode => write!(f, "Cannot use a GOSUB statement in direct mode."),
+			Self::ReturnWithoutGosub => write!(f, "RETURN statement executed without a matching GOSUB statement."),
 		}
 	}
 }

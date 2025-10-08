@@ -23,11 +23,8 @@ pub struct Machine {
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
-
-	/// A list of active loops and multi-line program structures such as the not yet implemented if blocks.
-	block_stack: Vec<BlockOnStack>,
-	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.
-	for_loop_variable_to_block_stack_index: HashMap<(Box<str>, bool), usize>,
+	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
+	gosub_stack: Vec<GosubLevel>,
 	// Options set via an OPTION statement
 	pub angle_option: Option<AngleOption>,
 	pub math_option: Option<MathOption>,
@@ -48,8 +45,9 @@ impl Machine {
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
-			block_stack: Vec::new(),
-			for_loop_variable_to_block_stack_index: HashMap::new(),
+			//block_stack: Vec::new(),
+			//for_loop_variable_to_block_stack_index: HashMap::new(),
+			gosub_stack: vec![GosubLevel::new()],
 			angle_option: None,
 			math_option: None,
 			machine_option: None,
@@ -106,16 +104,7 @@ impl Machine {
 
 	/// Removes a block from the block stack and any blocks added since it was added (blocks inside it).
 	fn truncate_block_stack(&mut self, truncate_to: usize) {
-		for block in self.block_stack.drain(truncate_to..) {
-			match block {
-				BlockOnStack::IntForLoop { name, .. } => {
-					self.for_loop_variable_to_block_stack_index.remove(&(name, false));
-				}
-				BlockOnStack::FloatForLoop { name, .. } => {
-					self.for_loop_variable_to_block_stack_index.remove(&(name, true));
-				}
-			}
-		}
+		self.gosub_stack.last_mut().unwrap().truncate_block_stack(truncate_to);
 	}
 
 	// Clears everything about the machine state except where the machine is currently executing in the program.
@@ -126,14 +115,12 @@ impl Machine {
 			sub_line_executing: self.sub_line_executing,
 			execution_source: self.execution_source,
 			basic_home_path: take(&mut self.basic_home_path),
+			gosub_stack: vec![GosubLevel::new()],
 			// Stuff to discard
 			int_variables: HashMap::new(),
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
-
-			block_stack: Vec::new(),
-			for_loop_variable_to_block_stack_index: HashMap::new(),
 
 			angle_option: None,
 			math_option: None,
@@ -608,13 +595,14 @@ impl Machine {
 				// Construct loop
 				let stack_loop = BlockOnStack::IntForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
-				match self.for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), false)) {
+				match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), false)) {
 					None => {},
 					Some(block_stack_index) => self.truncate_block_stack(*block_stack_index),
 				}
 				// Push loop
-				self.block_stack.push(stack_loop);
-				self.for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), false), self.block_stack.len() - 1);
+				self.gosub_stack.last_mut().unwrap().block_stack.push(stack_loop);
+				let index = (self.gosub_stack.last().unwrap().block_stack.len() - 1).clone();
+				self.gosub_stack.last_mut().unwrap().for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), false), index);
 			}
 			StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
 				// Execute expressions
@@ -632,19 +620,20 @@ impl Machine {
 				// Construct loop
 				let stack_loop = BlockOnStack::FloatForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
-				match self.for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), true)) {
+				match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), true)) {
 					None => {},
 					Some(block_stack_index) => self.truncate_block_stack(*block_stack_index),
 				}
 				// Push loop
-				self.block_stack.push(stack_loop);
-				self.for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), true), self.block_stack.len() - 1);
+				self.gosub_stack.last_mut().unwrap().block_stack.push(stack_loop);
+				let index = (self.gosub_stack.last().unwrap().block_stack.len() - 1).clone();
+				self.gosub_stack.last_mut().unwrap().for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), true), index);
 			}
 			StatementVariant::Next(loop_variables) => {
 				let allow_overflow = self.allow_overflow();
 				// If a NEXT without arguments is executed
 				if loop_variables.is_empty() {
-					for (index, loop_block) in self.block_stack.iter().enumerate().rev() {
+					for (index, loop_block) in self.gosub_stack.last().unwrap().block_stack.iter().enumerate().rev() {
 						match loop_block {
 							BlockOnStack::IntForLoop { name, final_value, step_value, for_line, for_sub_line } => {
 								// Get current value
@@ -682,18 +671,18 @@ impl Machine {
 				for loop_variable in loop_variables {
 					match loop_variable {
 						AnyTypeLValue::Int(IntLValue { name, start_column, .. }) => {
-							let block_stack_index = match self.for_loop_variable_to_block_stack_index.get(&(name.clone(), false)) {
+							let block_stack_index = match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(name.clone(), false)) {
 								Some(block_stack_index) => block_stack_index,
 								None => return Err(ErrorVariant::ForLoopVariableNotFound.at_column(*start_column)),
 							};
-							let (final_value, step_value, for_line, for_sub_line) = match self.block_stack.get(*block_stack_index).unwrap() {
+							let (final_value, step_value, for_line, for_sub_line) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
 								BlockOnStack::IntForLoop { final_value, step_value, for_line, for_sub_line, .. } => (final_value, step_value, for_line, for_sub_line),
 								_ => unreachable!(),
 							};
 							// Get current value
 							let loop_variable_value = self.int_variables.get_mut(name).unwrap();
 							// Increment
-							*loop_variable_value = loop_variable_value.clone().add(step_value);
+							*loop_variable_value = loop_variable_value.clone().add(&step_value);
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
 							if (step_value.is_negative() && (&*loop_variable_value.value) < (&*final_value.value)) || (!step_value.is_negative() && (&*loop_variable_value.value) > (&*final_value.value)) {
 								self.truncate_block_stack(*block_stack_index);
@@ -705,11 +694,11 @@ impl Machine {
 							return Ok(true);
 						}
 						AnyTypeLValue::Float(FloatLValue { name, start_column, .. }) => {
-							let block_stack_index = match self.for_loop_variable_to_block_stack_index.get(&(name.clone(), true)) {
+							let block_stack_index = match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(name.clone(), true)) {
 								Some(block_stack_index) => block_stack_index,
 								None => return Err(ErrorVariant::ForLoopVariableNotFound.at_column(*start_column)),
 							};
-							let (final_value, step_value, for_line, for_sub_line) = match self.block_stack.get(*block_stack_index).unwrap() {
+							let (final_value, step_value, for_line, for_sub_line) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
 								BlockOnStack::FloatForLoop { final_value, step_value, for_line, for_sub_line, .. } => (final_value, step_value, for_line, for_sub_line),
 								_ => unreachable!(),
 							};
@@ -731,7 +720,14 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) => {
+			StatementVariant::Goto(sub_expression) | StatementVariant::Run(sub_expression) | StatementVariant::Gosub(sub_expression) => {
+				// Push the return address and create a new GOSUB level if this is a GOSUB statement
+				if matches!(variant, StatementVariant::Gosub(..)) {
+					if self.execution_source == ExecutionSource::DirectModeLine {
+						return Err(ErrorVariant::GosubInDirectMode.at_column(*column));
+					}
+					self.gosub_stack.push(GosubLevel::from_return_location(self.line_executing.clone(), self.sub_line_executing.unwrap()));
+				}
 				// Set the line to be executed next
 				match sub_expression {
 					Some(sub_expression) => {
@@ -747,7 +743,6 @@ impl Machine {
 				// Next statement
 				return Ok(true);
 			}
-			StatementVariant::Gosub(_) => return Err(ErrorVariant::NotYetImplemented("GOSUB statement".into()).at_column(*column)),
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				let value = self.execute_int_expression(r_value_expression)?;
 				self.execute_int_l_value_write(l_value, value)?
@@ -881,6 +876,18 @@ impl Machine {
 					return Err(ErrorVariant::RestoreToLineWithoutData((*restore_to_line_number).clone()).at_column(restore_to_line_number_expression.get_start_column()));
 				}
 				self.data_line_number_to_read = Some(restore_to_line_number);
+			}
+			StatementVariant::Return => {
+				// A matching GOSUB statement must have been executed
+				if self.gosub_stack.len() < 2 {
+					return Err(ErrorVariant::ReturnWithoutGosub.at_column(*column));
+				}
+				// Pop GOSUB level off the stack and jump to the sub-line after the one the GOSUB was located on
+				let popped_gosub_level = self.gosub_stack.pop().unwrap();
+				self.line_executing = popped_gosub_level.return_line;
+				self.sub_line_executing = Some(popped_gosub_level.return_sub_line + 1);
+				// Flow control used
+				return Ok(true);
 			}
 		}
 		Ok(false)
@@ -1396,4 +1403,49 @@ enum ExecutionSource {
 enum BlockOnStack {
 	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
+}
+
+struct GosubLevel {
+	/// A list of active loops and multi-line program structures such as the not yet implemented if blocks.
+	pub block_stack: Vec<BlockOnStack>,
+	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.
+	pub for_loop_variable_to_block_stack_index: HashMap<(Box<str>, bool), usize>,
+	/// The line of the GOSUB statement that put this GOSUB level on the stack.
+	pub return_line: Option<Rc<BigInt>>,
+	/// The sub-line of the GOSUB statement that put this GOSUB level on the stack.
+	pub return_sub_line: usize,
+}
+
+impl GosubLevel {
+	pub fn new() -> Self {
+		Self {
+			block_stack: Vec::new(),
+			for_loop_variable_to_block_stack_index: HashMap::new(),
+			return_line: None,
+			return_sub_line: 0,
+		}
+	}
+
+	pub fn from_return_location(return_line: Option<Rc<BigInt>>, return_sub_line: usize) -> Self {
+		Self {
+			block_stack: Vec::new(),
+			for_loop_variable_to_block_stack_index: HashMap::new(),
+			return_line,
+			return_sub_line,
+		}
+	}
+
+	/// Removes a block from the block stack and any blocks added since it was added (blocks inside it).
+	fn truncate_block_stack(&mut self, truncate_to: usize) {
+		for block in self.block_stack.drain(truncate_to..) {
+			match block {
+				BlockOnStack::IntForLoop { name, .. } => {
+					self.for_loop_variable_to_block_stack_index.remove(&(name, false));
+				}
+				BlockOnStack::FloatForLoop { name, .. } => {
+					self.for_loop_variable_to_block_stack_index.remove(&(name, true));
+				}
+			}
+		}
+	}
 }

@@ -94,7 +94,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_string_expression(filename_expression);
 			}
 		}
-		StatementVariant::Stop | StatementVariant::End | StatementVariant::Data(_) => {}
+		StatementVariant::Stop | StatementVariant::End | StatementVariant::Data(_) | StatementVariant::Return => {}
 		StatementVariant::Read { to_do_when_data_missing_statement, variables } => {
 			if let Some(to_do_when_data_missing_statement) = to_do_when_data_missing_statement {
 				optimize_statement(to_do_when_data_missing_statement);
