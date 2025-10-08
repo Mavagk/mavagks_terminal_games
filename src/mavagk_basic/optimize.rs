@@ -89,7 +89,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 			}
 			optimize_string_expression(r_value);
 		}
-		StatementVariant::Load(filename_expression) => {
+		StatementVariant::Load(filename_expression) | StatementVariant::Save(filename_expression) => {
 			if let Some(filename_expression) = filename_expression {
 				optimize_string_expression(filename_expression);
 			}

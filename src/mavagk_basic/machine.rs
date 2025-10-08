@@ -391,6 +391,29 @@ impl Machine {
 				}
 				Ok(false)
 			}
+			StatementVariant::Save(filepath_expression) => {
+				// Execute expression
+				let filename_value = match filepath_expression {
+					Some(filepath_expression) => self.execute_string_expression(filepath_expression)?,
+					None => return Err(ErrorVariant::Unimplemented("SAVE without arguments".into()).at_column(*column)),
+				};
+				// Convert string value to filepath
+				let filepath = self.string_to_full_filepath(&filename_value.value)
+					.map_err(|error| error.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				// Open file
+				let mut file = File::create(filepath).map_err(|_| ErrorVariant::UnableToOpenFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				// Save lines
+				let mut is_first_line = true;
+				for (_, line) in program.get_lines() {
+					if !is_first_line {
+						file.write_all(b"\n").map_err(|_| ErrorVariant::UnableToWriteFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+					}
+					file.write_all(line.source_code.as_bytes()).map_err(|_| ErrorVariant::UnableToWriteFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+					is_first_line = false;
+				}
+				file.flush().map_err(|_| ErrorVariant::UnableToWriteFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
+				Ok(false)
+			}
 			_ => self.execute_statement(statement, program),
 		}
 	}
@@ -802,7 +825,7 @@ impl Machine {
 					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
 				}
 			}
-			StatementVariant::Load(_filename_expression) => {
+			StatementVariant::Load(_filename_expression) | StatementVariant::Save(_filename_expression) => {
 				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
 			}
 			StatementVariant::End => {
