@@ -912,6 +912,9 @@ impl Machine {
 				// Flow control used
 				return Ok(true);
 			}
+			StatementVariant::Dimension(_arrays) => {
+				todo!()
+			}
 		}
 		Ok(false)
 	}

@@ -108,6 +108,16 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_int_expression(restore_to_line_number_expression);
 			}
 		}
+		StatementVariant::Dimension(arrays) => {
+			for array in arrays {
+				for (lower_bound, upper_bound) in array.dimensions.iter_mut() {
+					if let Some(lower_bound) = lower_bound {
+						optimize_int_expression(lower_bound);
+					}
+					optimize_int_expression(upper_bound);
+				}
+			}
+		}
 	}
 }
 

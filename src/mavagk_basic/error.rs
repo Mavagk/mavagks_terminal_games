@@ -118,6 +118,8 @@ pub enum ErrorVariant {
 	InvalidIfMissingThenStatement,
 	RestoreToLineWithoutData(BigInt),
 	GosubInDirectMode,
+	ExpectedIdentifier,
+	ExpectedLeftParenthesis,
 	// TODO Different overflows
 	ValueOverflow,
 	DivisionByZero = 3001,
@@ -180,6 +182,7 @@ impl Display for ErrorVariant {
 			Self::InvalidToken => write!(f, "Invalid token."),
 			Self::ExpectedStatementKeyword => write!(f, "Expected statement keyword."),
 			Self::ExpectedRightParenthesis => write!(f, "Expected right parenthesis."),
+			Self::ExpectedLeftParenthesis => write!(f, "Expected left parenthesis."),
 			Self::UnexpectedOperator => write!(f, "Unexpected operator."),
 			Self::ExpectedFunctionNameAfterFn => write!(f, "Expected function name after FN keyword."),
 			Self::LeadingCommaInFunctionArguments => write!(f, "Leading comma in function arguments."),
@@ -238,6 +241,7 @@ impl Display for ErrorVariant {
 			Self::RestoreToLineWithoutData(line_to_restore_to) => write!(f, "Attempted to RESTORE to line {line_to_restore_to} but no DATA statements where present on that line."),
 			Self::GosubInDirectMode => write!(f, "Cannot use a GOSUB statement in direct mode."),
 			Self::ReturnWithoutGosub => write!(f, "RETURN statement executed without a matching GOSUB statement."),
+			Self::ExpectedIdentifier => write!(f, "Expected an identifier."),
 		}
 	}
 }

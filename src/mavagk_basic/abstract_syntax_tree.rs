@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use crate::mavagk_basic::{token::SuppliedFunction, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -220,6 +220,12 @@ impl Statement {
 					restore_to_line.print(depth + 1);
 				}
 			}
+			StatementVariant::Dimension(arrays) => {
+				println!("DIM");
+				for array in arrays {
+					array.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -249,6 +255,7 @@ pub enum StatementVariant {
 	Read { to_do_when_data_missing_statement: Option<Box<Statement>>, variables: Box<[AnyTypeLValue]> },
 	Restore(Option<IntExpression>),
 	Return,
+	Dimension(Box<[ArrayDimension]>),
 }
 
 #[derive(Debug, Clone)]
@@ -1083,6 +1090,41 @@ impl Datum {
 			print!(", Complex: {as_complex}")
 		}
 		println!();
+	}
+}
+
+#[derive(Debug, Clone)]
+pub struct ArrayDimension {
+	pub name: Box<str>,
+	pub array_type: IdentifierType,
+	pub dimensions: Box<[(Option<IntExpression>, IntExpression)]>,
+	pub start_column: NonZeroUsize,
+}
+
+impl ArrayDimension {
+	pub fn print(&self, depth: usize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: ", self.start_column);
+		match self.array_type {
+			IdentifierType::Integer => print!("Integer/%"),
+			IdentifierType::String => print!("String/$"),
+			IdentifierType::UnmarkedOrFloat => print!("Float"),
+			IdentifierType::ComplexNumber => print!("Complex/#"),
+		}
+		println!("Array \"{}\"", self.name);
+		for (lower_bound, upper_bound) in self.dimensions.iter() {
+			let depth = depth + 1;
+			for _ in 0..depth {
+				print!("-");
+			}
+			println!(" Dimension");
+			if let Some(lower_bound) = lower_bound {
+				lower_bound.print(depth + 1);
+			}
+			upper_bound.print(depth + 1);
+		}
 	}
 }
 

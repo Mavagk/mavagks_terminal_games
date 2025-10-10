@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{bigint::ToBigInt, complex::Complex64};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -715,6 +715,87 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			Statement {
 				column: statement_keyword_start_column,
 				variant: StatementVariant::Restore(restore_to),
+			}
+		}
+		Keyword::Dim => {
+			// Read each array
+			let mut arrays = Vec::new();
+			loop {
+				// Remove and parse name and type
+				let (array_name, array_type, is_optional, array_start_column) = match tokens.take_next_token() {
+					Some(Token { variant: TokenVariant::Identifier { name, identifier_type, is_optional, .. }, start_column, .. }) =>
+						(name.clone(), *identifier_type, *is_optional, *start_column),
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedIdentifier.at_column(*start_column)),
+					None => return Err(ErrorVariant::ExpectedIdentifier.at_column(tokens.last_removed_token_end_column)),
+				};
+				if is_optional {
+					return Err(ErrorVariant::Unimplemented("Optional types".into()).at_column(array_start_column));
+				}
+				// Remove left parenthesis
+				match tokens.take_next_token() {
+					Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {}
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedLeftParenthesis.at_column(*start_column)),
+					None => return Err(ErrorVariant::ExpectedLeftParenthesis.at_column(tokens.last_removed_token_end_column)),
+				}
+				// Get each dimension
+				let mut dimensions = Vec::new();
+				loop {
+					// Read the first expression of the dimension
+					let first_dimension_bound = match parse_expression(tokens)? {
+						Some(first_dimension_bound) => cast_to_int_expression(first_dimension_bound)?,
+						None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+					};
+					// If there is no TO keyword, add the dimension to the list and go on to the next dimension
+					if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::To), .. }, .. })) {
+						dimensions.push((None, first_dimension_bound));
+						// End the dimension list if there is not a comma
+						if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+							break;
+						}
+						// If there is a comma take it and go on to parse the next dimension
+						tokens.take_next_token();
+						continue;
+					}
+					// Remove the TO keyword
+					tokens.take_next_token();
+					// Read the second expression of the dimension
+					let second_dimension_bound = match parse_expression(tokens)? {
+						Some(second_dimension_bound) => cast_to_int_expression(second_dimension_bound)?,
+						None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+					};
+					// Push bound to list
+					dimensions.push((Some(first_dimension_bound), second_dimension_bound));
+					// End the dimension list if there is not a comma
+					if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+						break;
+					}
+					// If there is a comma take it and go on to parse the next dimension
+					tokens.take_next_token();
+				}
+				// Remove right parenthesis
+				match tokens.take_next_token() {
+					Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {}
+					Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(*start_column)),
+					None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
+				}
+				// Assemble into array
+				arrays.push(ArrayDimension {
+					array_type: array_type,
+					name: array_name,
+					dimensions: dimensions.into_boxed_slice(),
+					start_column: array_start_column,
+				});
+				// If the next token is not a comma, this is the end of the array list
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				// If there is a comma take it and go on to parse the next array
+				tokens.take_next_token();
+			}
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Dimension(arrays.into_boxed_slice()),
 			}
 		}
 		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
