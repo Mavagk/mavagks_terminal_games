@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BaseOption, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -34,6 +34,7 @@ pub struct Machine {
 	pub angle_option: Option<AngleOption>,
 	pub math_option: Option<MathOption>,
 	pub machine_option: Option<MachineOption>,
+	pub base_option: Option<BaseOption>,
 
 	basic_home_path: Option<Box<Path>>,
 
@@ -60,6 +61,7 @@ impl Machine {
 			angle_option: None,
 			math_option: None,
 			machine_option: None,
+			base_option: None,
 			basic_home_path: None,
 			rng: SmallRng::seed_from_u64(0),
 			data_line_number_to_read: None,
@@ -139,6 +141,7 @@ impl Machine {
 			angle_option: None,
 			math_option: None,
 			machine_option: None,
+			base_option: None,
 
 			rng: SmallRng::seed_from_u64(0),
 
@@ -217,6 +220,13 @@ impl Machine {
 		}
 	}
 
+	const fn get_base_option(&self) -> BaseOption {
+		match self.base_option {
+			None => BaseOption::Zero,
+			Some(base_option) => base_option,
+		}
+	}
+
 	/// Returns false if taking the real square root of a negative number should throw an error, returns true if it should return NaN.
 	const fn allow_real_square_root_of_negative(&self) -> bool {
 		match self.get_math_option() {
@@ -259,6 +269,14 @@ impl Machine {
 
 	/// Returns if reading an uninitialized value should trow an error.
 	const fn allow_uninitialized_read(&self) -> bool {
+		match self.get_machine_option() {
+			MachineOption::Ansi => false,
+			MachineOption::C64 => true,
+		}
+	}
+
+	/// Returns if a DIM statement will create an array or if it will be created when first accessed.
+	const fn arrays_created_on_dim_execution(&self) -> bool {
 		match self.get_machine_option() {
 			MachineOption::Ansi => false,
 			MachineOption::C64 => true,
@@ -455,7 +473,7 @@ impl Machine {
 							// TAB calls
 							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. })) if (&**arguments).len() == 1 => {
 								let argument_expression = &arguments[0];
-								let argument_value = self.execute_any_type_expression(argument_expression)?
+								let argument_value = self.execute_any_type_expression(argument_expression, Some(program))?
 									.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 								stdout().flush().unwrap();
 								let y_position = position().unwrap().0;
@@ -472,7 +490,7 @@ impl Machine {
 								}
 							}
 							// Expressions
-							_ => self.execute_any_type_expression(expression)?.print(&mut stdout(), true, true).unwrap()
+							_ => self.execute_any_type_expression(expression, Some(program))?.print(&mut stdout(), true, true).unwrap()
 						}
 						// Semicolons do nothing
 						PrintOperand::Semicolon(_) => {}
@@ -509,7 +527,7 @@ impl Machine {
 					// Print the prompt
 					// TODO: OPTION for setting if "? " should be auto printed
 					if let Some(prompt_expression) = prompt {
-						self.execute_any_type_expression(prompt_expression)?.print(&mut stdout(), true, true).unwrap();
+						self.execute_any_type_expression(prompt_expression, Some(program))?.print(&mut stdout(), true, true).unwrap();
 						if self.get_machine_option() == MachineOption::C64 {
 							print!("? ");
 						}
@@ -626,10 +644,10 @@ impl Machine {
 			}
 			StatementVariant::ForInt { loop_variable, initial, limit, step } => {
 				// Execute expressions
-				let initial_value = self.execute_int_expression(initial)?;
-				let final_value = self.execute_int_expression(limit)?;
+				let initial_value = self.execute_int_expression(initial, Some(program))?;
+				let final_value = self.execute_int_expression(limit, Some(program))?;
 				let step_value = match step {
-					Some(step) => self.execute_int_expression(step)?,
+					Some(step) => self.execute_int_expression(step, Some(program))?,
 					None => IntValue::one(),
 				};
 				// TODO
@@ -651,10 +669,10 @@ impl Machine {
 			}
 			StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
 				// Execute expressions
-				let initial_value = self.execute_float_expression(initial)?;
-				let final_value = self.execute_float_expression(limit)?;
+				let initial_value = self.execute_float_expression(initial, Some(program))?;
+				let final_value = self.execute_float_expression(limit, Some(program))?;
 				let step_value = match step {
-					Some(step) => self.execute_float_expression(step)?,
+					Some(step) => self.execute_float_expression(step, Some(program))?,
 					None => FloatValue::ONE,
 				};
 				// TODO
@@ -776,7 +794,7 @@ impl Machine {
 				// Set the line to be executed next
 				match sub_expression {
 					Some(sub_expression) => {
-						let line_number_to_jump_to = self.execute_int_expression(sub_expression)?.value;
+						let line_number_to_jump_to = self.execute_int_expression(sub_expression, Some(program))?.value;
 						self.set_line_executing_by_jumping(program, Some(line_number_to_jump_to), sub_expression.get_start_column())?;
 					}
 					None => self.set_line_executing_by_jumping(program, None, *column)?,
@@ -789,26 +807,26 @@ impl Machine {
 				return Ok(true);
 			}
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
-				let value = self.execute_int_expression(r_value_expression)?;
+				let value = self.execute_int_expression(r_value_expression, Some(program))?;
 				self.execute_int_l_value_write(l_value, value)?
 			}
 			StatementVariant::AssignFloat(l_value, r_value_expression) => {
-				let value = self.execute_float_expression(r_value_expression)?;
+				let value = self.execute_float_expression(r_value_expression, Some(program))?;
 				self.execute_float_l_value_write(l_value, value)?
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
-				let value = self.execute_complex_expression(r_value_expression)?;
+				let value = self.execute_complex_expression(r_value_expression, Some(program))?;
 				self.execute_complex_l_value_write(l_value, value)?
 			}
 			StatementVariant::AssignString(l_value, r_value_expression) =>
 				self.execute_string_l_value_write(l_value, self.execute_string_expression(r_value_expression)?)?,
 			StatementVariant::List(range_start, range_end) => {
 				let range_start_value = match range_start {
-					Some(range_start) => Some(&*self.execute_int_expression(range_start)?.value),
+					Some(range_start) => Some(&*self.execute_int_expression(range_start, Some(program))?.value),
 					None => None,
 				};
 				let range_end_value = match range_end {
-					Some(range_end) => Some(&*self.execute_int_expression(range_end)?.value),
+					Some(range_end) => Some(&*self.execute_int_expression(range_end, Some(program))?.value),
 					None => None,
 				};
 				let range = match (range_start_value, range_end_value) {
@@ -828,7 +846,7 @@ impl Machine {
 			}
 			StatementVariant::OneLineIf { condition_expression: condition, then_statement, else_statement } => {
 				// Execute condition
-				let condition_value = self.execute_bool_expression(condition)?;
+				let condition_value = self.execute_bool_expression(condition, Some(program))?;
 				// Execute statement
 				if condition_value.value {
 					return self.execute_statement(then_statement, program);
@@ -845,6 +863,7 @@ impl Machine {
 					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
 					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
 					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
+					OptionVariableAndValue::Base(base_option) => self.base_option = *base_option,
 				}
 			}
 			StatementVariant::Load(_filename_expression) | StatementVariant::Save(_filename_expression) => {
@@ -916,7 +935,7 @@ impl Machine {
 						return Ok(false);
 					}
 				};
-				let restore_to_line_number = self.execute_int_expression(restore_to_line_number_expression)?.value;
+				let restore_to_line_number = self.execute_int_expression(restore_to_line_number_expression, Some(program))?.value;
 				if !program.contains_data_line(&*restore_to_line_number) {
 					return Err(ErrorVariant::RestoreToLineWithoutData((*restore_to_line_number).clone()).at_column(restore_to_line_number_expression.get_start_column()));
 				}
@@ -934,153 +953,196 @@ impl Machine {
 				// Flow control used
 				return Ok(true);
 			}
-			StatementVariant::Dimension(_arrays) => {
-				todo!()
+			StatementVariant::Dimension(arrays) => {
+				if self.arrays_created_on_dim_execution() {
+					for array in arrays {
+						self.execute_declaration(statement, program, &array.name, array.array_type);
+					}
+				}
 			}
 		}
 		Ok(false)
 	}
 
+	fn execute_declaration(&mut self, statement: &Statement, program: &Program, name: &str, declaration_type: IdentifierType) -> Result<(), Error> {
+		//program.get_options(self, line_number, sub_line);
+		let Statement { variant, column: _ } = &statement;
+		match variant {
+			StatementVariant::Dimension(arrays) => {
+				for array in arrays {
+					if &*array.name == name && array.array_type == declaration_type {
+						match declaration_type {
+							IdentifierType::UnmarkedOrFloat => {
+								let mut dimensions = Vec::new();
+								for dimension_expression in &array.dimensions {
+									let lower_bound = match &dimension_expression.0 {
+										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
+										None => match self.get_base_option() {
+											BaseOption::Zero => IntValue::zero(),
+											BaseOption::One => IntValue::one(),
+										}
+									};
+									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
+									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = match dimension_length.to_usize() {
+										Some(dimension_length) => dimension_length,
+										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
+									};
+									dimensions.push((dimension_length, lower_bound));
+								}
+								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
+								self.float_arrays.insert(name.into(), array);
+							}
+							_ => todo!(),
+						}
+					}
+				}
+				Ok(())
+			},
+			_ => unreachable!(),
+		}
+	}
+
 	/// Execute an expression that returns an integer value.
-	fn execute_int_expression(&mut self, expression: &IntExpression) -> Result<IntValue, Error> {
+	fn execute_int_expression(&mut self, expression: &IntExpression, program: Option<&Program>) -> Result<IntValue, Error> {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
-			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression)?.to_int(),
+			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression, program)?.to_int(),
 			IntExpression::CastFromFloat(sub_expression) => {
-				self.execute_float_expression(sub_expression)?.to_int().map_err(|error| error.at_column(sub_expression.get_start_column()))?
+				self.execute_float_expression(sub_expression, program)?.to_int().map_err(|error| error.at_column(sub_expression.get_start_column()))?
 			}
 			IntExpression::BitwiseAnd { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.and(self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.and(self.execute_int_expression(rhs_expression, program)?),
 			IntExpression::BitwiseOr { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.or(self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.or(self.execute_int_expression(rhs_expression, program)?),
 			IntExpression::Addition { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.add(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.add(&self.execute_int_expression(rhs_expression, program)?),
 			IntExpression::Subtraction { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.sub(self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.sub(self.execute_int_expression(rhs_expression, program)?),
 			IntExpression::Multiplication { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.mul(self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.mul(self.execute_int_expression(rhs_expression, program)?),
 			IntExpression::FlooredDivision { lhs_expression, rhs_expression, start_column } =>
-				self.execute_int_expression(lhs_expression)?.floored_div(self.execute_int_expression(rhs_expression)?)
+				self.execute_int_expression(lhs_expression, program)?.floored_div(self.execute_int_expression(rhs_expression, program)?)
 					.map_err(|error| error.at_column(*start_column))?,
-			IntExpression::BitwiseNot { sub_expression, .. } => self.execute_int_expression(sub_expression)?.not(),
-			IntExpression::Negation { sub_expression, .. } => self.execute_int_expression(sub_expression)?.neg(),
-			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value)?,
+			IntExpression::BitwiseNot { sub_expression, .. } => self.execute_int_expression(sub_expression, program)?.not(),
+			IntExpression::Negation { sub_expression, .. } => self.execute_int_expression(sub_expression, program)?.neg(),
+			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an float value.
-	fn execute_float_expression(&mut self, expression: &FloatExpression) -> Result<FloatValue, Error> {
+	fn execute_float_expression(&mut self, expression: &FloatExpression, program: Option<&Program>) -> Result<FloatValue, Error> {
 		Ok(match expression {
 			FloatExpression::ConstantValue { value, .. } => value.clone(),
-			FloatExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression)?.to_float(),
+			FloatExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, program)?.to_float(),
 			FloatExpression::CastFromComplex(sub_expression) =>
-				self.execute_complex_expression(sub_expression)?.to_float().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
+				self.execute_complex_expression(sub_expression, program)?.to_float().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
 			FloatExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.add(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.add(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.sub(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.sub(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?.mul(self.execute_float_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.mul(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Division { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?
-					.div(self.execute_float_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
+				self.execute_float_expression(lhs_expression, program)?
+					.div(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression)?
-					.pow(self.execute_float_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
+				self.execute_float_expression(lhs_expression, program)?
+					.pow(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
-			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression)?.neg(),
-			FloatExpression::LValue(l_value) => self.execute_float_l_value_read(l_value)?,
+			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression, program)?.neg(),
+			FloatExpression::LValue(l_value) => self.execute_float_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an complex value.
-	fn execute_complex_expression(&mut self, expression: &ComplexExpression) -> Result<ComplexValue, Error> {
+	fn execute_complex_expression(&mut self, expression: &ComplexExpression, program: Option<&Program>) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
-			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression)?.to_complex(),
+			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression, program)?.to_complex(),
 			ComplexExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.add(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.add(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.sub(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.sub(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.mul(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.mul(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Division { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?
-					.div(self.execute_complex_expression(rhs_expression)?, self.allow_overflow(), self.allow_divide_by_zero())
+				self.execute_complex_expression(lhs_expression, program)?
+					.div(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression)?.pow(self.execute_complex_expression(rhs_expression)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.pow(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
-			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression)?.neg(),
-			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value)?,
+			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression, program)?.neg(),
+			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an boolean value.
-	fn execute_bool_expression(&mut self, expression: &BoolExpression) -> Result<BoolValue, Error> {
+	fn execute_bool_expression(&mut self, expression: &BoolExpression, program: Option<&Program>) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
-			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression)?.value.is_zero()),
-			BoolExpression::FloatIsNonZero(float_expression) => BoolValue::new(!self.execute_float_expression(&float_expression)?.is_zero()),
-			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue::new(!self.execute_complex_expression(&complex_expression)?.value.is_zero()),
+			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression, program)?.value.is_zero()),
+			BoolExpression::FloatIsNonZero(float_expression) => BoolValue::new(!self.execute_float_expression(&float_expression, program)?.is_zero()),
+			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue::new(!self.execute_complex_expression(&complex_expression, program)?.value.is_zero()),
 			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue::new(!self.execute_string_expression(&string_expression)?.value.is_empty()),
 
 			BoolExpression::And { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.and(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.and(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::Or { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.or(self.execute_bool_expression(rhs_expression)?),
-			BoolExpression::Not { sub_expression, .. } => self.execute_bool_expression(sub_expression)?.not(),
+				self.execute_bool_expression(lhs_expression, program)?.or(self.execute_bool_expression(rhs_expression, program)?),
+			BoolExpression::Not { sub_expression, .. } => self.execute_bool_expression(sub_expression, program)?.not(),
 
 			BoolExpression::BoolEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.equal_to(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.equal_to(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::BoolNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.not_equal_to(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.not_equal_to(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::BoolLessThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.less_than(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.less_than(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::BoolLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.less_than_or_equal_to(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.less_than_or_equal_to(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::BoolGreaterThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.greater_than(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.greater_than(self.execute_bool_expression(rhs_expression, program)?),
 			BoolExpression::BoolGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_bool_expression(lhs_expression)?.greater_than_or_equal_to(self.execute_bool_expression(rhs_expression)?),
+				self.execute_bool_expression(lhs_expression, program)?.greater_than_or_equal_to(self.execute_bool_expression(rhs_expression, program)?),
 			
 			BoolExpression::IntEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.equal_to(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.equal_to(&self.execute_int_expression(rhs_expression, program)?),
 			BoolExpression::IntNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.not_equal_to(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.not_equal_to(&self.execute_int_expression(rhs_expression, program)?),
 			BoolExpression::IntLessThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.less_than(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.less_than(&self.execute_int_expression(rhs_expression, program)?),
 			BoolExpression::IntLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.less_than_or_equal_to(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.less_than_or_equal_to(&self.execute_int_expression(rhs_expression, program)?),
 			BoolExpression::IntGreaterThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.greater_than(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.greater_than(&self.execute_int_expression(rhs_expression, program)?),
 			BoolExpression::IntGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_int_expression(lhs_expression)?.greater_than_or_equal_to(&self.execute_int_expression(rhs_expression)?),
+				self.execute_int_expression(lhs_expression, program)?.greater_than_or_equal_to(&self.execute_int_expression(rhs_expression, program)?),
 
 			BoolExpression::FloatEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.equal_to(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.equal_to(&self.execute_float_expression(rhs_expression, program)?),
 			BoolExpression::FloatNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.not_equal_to(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.not_equal_to(&self.execute_float_expression(rhs_expression, program)?),
 			BoolExpression::FloatLessThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.less_than(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.less_than(&self.execute_float_expression(rhs_expression, program)?),
 			BoolExpression::FloatLessThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.less_than_or_equal_to(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.less_than_or_equal_to(&self.execute_float_expression(rhs_expression, program)?),
 			BoolExpression::FloatGreaterThan { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.greater_than(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.greater_than(&self.execute_float_expression(rhs_expression, program)?),
 			BoolExpression::FloatGreaterThanOrEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_float_expression(lhs_expression)?.greater_than_or_equal_to(&self.execute_float_expression(rhs_expression)?),
+				self.execute_float_expression(lhs_expression, program)?.greater_than_or_equal_to(&self.execute_float_expression(rhs_expression, program)?),
 
 			BoolExpression::ComplexEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_complex_expression(lhs_expression)?.equal_to(self.execute_complex_expression(rhs_expression)?),
+				self.execute_complex_expression(lhs_expression, program)?.equal_to(self.execute_complex_expression(rhs_expression, program)?),
 			BoolExpression::ComplexNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_complex_expression(lhs_expression)?.not_equal_to(self.execute_complex_expression(rhs_expression)?),
+				self.execute_complex_expression(lhs_expression, program)?.not_equal_to(self.execute_complex_expression(rhs_expression, program)?),
 
 			BoolExpression::StringEqualTo { lhs_expression, rhs_expression, .. } =>
 				self.execute_string_expression(lhs_expression)?.equal_to(&self.execute_string_expression(rhs_expression)?),
@@ -1108,18 +1170,18 @@ impl Machine {
 	}
 
 	/// Execute an expression that could return a value of any type.
-	fn execute_any_type_expression(&mut self, expression: &AnyTypeExpression) -> Result<AnyTypeValue, Error> {
+	fn execute_any_type_expression(&mut self, expression: &AnyTypeExpression, program: Option<&Program>) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
-			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression)?),
-			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression)?),
-			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression)?),
-			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression)?),
+			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, program)?),
+			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, program)?),
+			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression, program)?),
+			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, program)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression)?),
 		})
 	}
 
 	/// Reads a integer variable or from an integer array or executes a function that returns an integer.
-	fn execute_int_l_value_read(&mut self, l_value: &IntLValue) -> Result<IntValue, Error> {
+	fn execute_int_l_value_read(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<IntValue, Error> {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
@@ -1132,7 +1194,7 @@ impl Machine {
 				// SQR%(X)
 				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
-					return match self.execute_any_type_expression(&arguments[0])?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
+					return match self.execute_any_type_expression(&arguments[0], program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
 						result if result.is_negative() => Err(ErrorVariant::IntSquareRootOfNegativeNumber.at_column(*start_column)),
 						result => Ok(IntValue::new(Rc::new(result.value.sqrt())))
 					};
@@ -1141,7 +1203,7 @@ impl Machine {
 				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
 					return Ok(IntValue::new(Rc::new(
-						self.execute_any_type_expression(argument)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
+						self.execute_any_type_expression(argument, program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
 					)))
 				}
 				// TRUE%
@@ -1152,7 +1214,7 @@ impl Machine {
 				(SuppliedFunction::Int, arguments) if arguments.len() == 1 =>
 					return Ok({
 						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument)?;
+						let value = self.execute_any_type_expression(argument, program)?;
 						match value {
 							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?,
 							_ => {
@@ -1167,14 +1229,14 @@ impl Machine {
 				// LEN%(X$)
 				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => {
 					let argument = &arguments[0];
-					return Ok(IntValue::from_usize(self.execute_any_type_expression(argument)?
+					return Ok(IntValue::from_usize(self.execute_any_type_expression(argument, program)?
 						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
 				}
 				// SGN%(X)
 				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
 					return Ok(IntValue::new(Rc::new({
 						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument)?;
+						let value = self.execute_any_type_expression(argument, program)?;
 						match value {
 							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => return Ok(value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.signum()),
 							_ => {
@@ -1199,18 +1261,38 @@ impl Machine {
 	}
 
 	/// Reads a float variable or from a float array or executes a function that returns a float.
-	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue) -> Result<FloatValue, Error> {
+	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<FloatValue, Error> {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
+		{
+			if float_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = float_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
 		// If the user has defined an array, read from it.
-		if self.float_arrays.contains_key(name) {
+		if *has_parentheses && self.float_arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
 			let element = self.float_arrays.get(name).unwrap()
 				.read_element(&indices, self.allow_uninitialized_read())
@@ -1238,7 +1320,7 @@ impl Machine {
 				// ABS(X#)
 				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
-					return self.execute_any_type_expression(argument)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
+					return self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
 						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// Functions that have one float argument
@@ -1246,7 +1328,7 @@ impl Machine {
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression)?
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
 						SuppliedFunction::Sqr =>
@@ -1287,7 +1369,7 @@ impl Machine {
 				// Functions that have one complex argument
 				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression)?
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
 						SuppliedFunction::Real => argument_value.re(),
@@ -1298,7 +1380,7 @@ impl Machine {
 				// LEN(X$)
 				SuppliedFunction::Len if arguments.len() == 1 => {
 					let argument = &arguments[0];
-					return Ok(FloatValue::from_usize(self.execute_any_type_expression(argument)?
+					return Ok(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
 						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
 				}
 				// RND(X)
@@ -1307,7 +1389,7 @@ impl Machine {
 					if arguments.len() == 1 {
 						// Execute the argument and cast to a float
 						let argument_expression = &arguments[0];
-						let argument_value = self.execute_any_type_expression(argument_expression)?.to_float()
+						let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_float()
 							.map_err(|err| err.at_column(argument_expression.get_start_column()))?;
 						// A value of zero means to generate a value that is not from the machine RNG
 						if argument_value.is_zero() {
@@ -1339,7 +1421,7 @@ impl Machine {
 	}
 
 	/// Reads a complex variable or from a complex array or executes a function that returns a complex.
-	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue) -> Result<ComplexValue, Error> {
+	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<ComplexValue, Error> {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// If it is a user defined variable that has been defined, get it
@@ -1354,7 +1436,7 @@ impl Machine {
 				// Functions that have one complex number as an argument
 				SuppliedFunction::Sqr if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
 						SuppliedFunction::Sqr => argument_value.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
@@ -1522,7 +1604,7 @@ struct Array<T: Value> {
 
 impl<T: Value> Array<T> {
 	/// Creates a new array with the given dimension lengths and lower bounds.
-	pub fn _new(dimensions: Box<[(usize, IntValue)]>) -> Result<Self, ErrorVariant> {
+	pub fn new(dimensions: Box<[(usize, IntValue)]>) -> Result<Self, ErrorVariant> {
 		// Get the total amount of elements the array should have
 		let mut total_element_count = 1usize;
 		for (dimension_length, _) in dimensions.iter() {

@@ -661,6 +661,7 @@ pub enum Keyword {
 	Write,
 	ZoneWidth,
 	Width,
+	Base,
 }
 
 impl Keyword {
@@ -793,6 +794,7 @@ impl Keyword {
 			Self::Mat =>          &[("MAT",          IdentifierType::UnmarkedOrFloat)],
 			Self::Rest =>         &[("REST",         IdentifierType::UnmarkedOrFloat)],
 			Self::In =>           &[("IN",           IdentifierType::UnmarkedOrFloat)],
+			Self::Base =>         &[("BASE",         IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 

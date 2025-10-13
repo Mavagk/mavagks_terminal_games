@@ -1,8 +1,8 @@
 use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
-use num::{bigint::ToBigInt, complex::Complex64};
+use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, ArrayDimension, BaseOption, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -528,26 +528,29 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				Some(option_variable) => option_variable,
 				None => return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column)),
 			};
-			let (option_value, _) = match tokens.take_keyword() {
+			let option_value = match tokens.take_next_token() {
 				Some(option_value) => option_value,
 				None => return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column)),
 			};
 			// Get the option variable/value pair
 			let option_variable_and_value = match (option_variable, option_value) {
-				(Keyword::Angle, Keyword::Radians) => OptionVariableAndValue::Angle(Some(AngleOption::Radians)),
-				(Keyword::Angle, Keyword::Degrees) => OptionVariableAndValue::Angle(Some(AngleOption::Degrees)),
-				(Keyword::Angle, Keyword::Gradians) => OptionVariableAndValue::Angle(Some(AngleOption::Gradians)),
-				(Keyword::Angle, Keyword::Revolutions) => OptionVariableAndValue::Angle(Some(AngleOption::Revolutions)),
-				(Keyword::Angle, Keyword::Default) => OptionVariableAndValue::Angle(None),
-				(Keyword::Arithmetic, Keyword::Decimal) => OptionVariableAndValue::ArithmeticDecimal,
-				(Keyword::Arithmetic, Keyword::Native) => OptionVariableAndValue::ArithmeticNative,
-				(Keyword::Arithmetic, Keyword::Default) => OptionVariableAndValue::ArithmeticDefault,
-				(Keyword::Math, Keyword::Ansi) => OptionVariableAndValue::Math(Some(MathOption::Ansi)),
-				(Keyword::Math, Keyword::Ieee) => OptionVariableAndValue::Math(Some(MathOption::Ieee)),
-				(Keyword::Math, Keyword::Default) => OptionVariableAndValue::Math(None),
-				(Keyword::Machine, Keyword::Ansi) => OptionVariableAndValue::Machine(Some(MachineOption::Ansi)),
-				(Keyword::Machine, Keyword::C64) => OptionVariableAndValue::Machine(Some(MachineOption::C64)),
-				(Keyword::Machine, Keyword::Default) => OptionVariableAndValue::Machine(None),
+				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Radians), .. }, .. }) => OptionVariableAndValue::Angle(Some(AngleOption::Radians)),
+				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Degrees), .. }, .. }) => OptionVariableAndValue::Angle(Some(AngleOption::Degrees)),
+				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Gradians), .. }, .. }) => OptionVariableAndValue::Angle(Some(AngleOption::Gradians)),
+				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Revolutions), .. }, .. }) => OptionVariableAndValue::Angle(Some(AngleOption::Revolutions)),
+				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }) => OptionVariableAndValue::Angle(None),
+				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Decimal), .. }, .. }) => OptionVariableAndValue::ArithmeticDecimal,
+				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Native), .. }, .. }) => OptionVariableAndValue::ArithmeticNative,
+				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }) => OptionVariableAndValue::ArithmeticDefault,
+				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }) => OptionVariableAndValue::Math(Some(MathOption::Ansi)),
+				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ieee), .. }, .. }) => OptionVariableAndValue::Math(Some(MathOption::Ieee)),
+				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }) => OptionVariableAndValue::Math(None),
+				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }) => OptionVariableAndValue::Machine(Some(MachineOption::Ansi)),
+				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::C64), .. }, .. }) => OptionVariableAndValue::Machine(Some(MachineOption::C64)),
+				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }) => OptionVariableAndValue::Machine(None),
+				(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }) if value.is_zero() => OptionVariableAndValue::Base(Some(BaseOption::Zero)),
+				(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }) if value.is_one() => OptionVariableAndValue::Base(Some(BaseOption::One)),
+				(Keyword::Base, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }) => OptionVariableAndValue::Base(None),
 				_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
 			};
 			// Assemble into statement

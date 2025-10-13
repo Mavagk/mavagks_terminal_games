@@ -1,8 +1,8 @@
-use std::{collections::BTreeMap, num::NonZeroUsize, ops::{RangeFrom, RangeTo}, rc::Rc};
+use std::{collections::{BTreeMap, HashSet}, num::NonZeroUsize, ops::{RangeFrom, RangeTo}, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, Datum, MachineOption, MathOption, OptionVariableAndValue, Statement, StatementVariant}, error::Error, machine::Machine};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, BaseOption, Datum, MachineOption, MathOption, OptionVariableAndValue, Statement, StatementVariant}, error::Error, machine::Machine, token::IdentifierType};
 
 /// A MavagkBasic program containing all its lines, does not include a direct mode line.
 pub struct Program {
@@ -12,6 +12,12 @@ pub struct Program {
 	angle_options: BTreeMap<(Rc<BigInt>, usize), Option<AngleOption>>,
 	math_options: BTreeMap<(Rc<BigInt>, usize), Option<MathOption>>,
 	machine_options: BTreeMap<(Rc<BigInt>, usize), Option<MachineOption>>,
+	base_options: BTreeMap<(Rc<BigInt>, usize), Option<BaseOption>>,
+
+	pub float_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub int_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub complex_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub string_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 
 	data: BTreeMap<Rc<BigInt>, Box<[(Datum, NonZeroUsize)]>>,
 }
@@ -23,6 +29,11 @@ impl Program {
 			angle_options: BTreeMap::new(),
 			math_options: BTreeMap::new(),
 			machine_options: BTreeMap::new(),
+			base_options: BTreeMap::new(),
+			float_array_declarations: BTreeMap::new(),
+			int_array_declarations: BTreeMap::new(),
+			complex_array_declarations: BTreeMap::new(),
+			string_array_declarations: BTreeMap::new(),
 			data: BTreeMap::new(),
 		}
 	}
@@ -36,7 +47,11 @@ impl Program {
 			Some(option) => *option.1,
 			None => None,
 		};
-		machine.machine_option = match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
+		machine.machine_option = match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+			Some(option) => *option.1,
+			None => None,
+		};
+		machine.base_option = match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
 			Some(option) => *option.1,
 			None => None,
 		};
@@ -51,17 +66,63 @@ impl Program {
 	}
 
 	pub fn insert_line(&mut self, line_number: Rc<BigInt>, line: Line) {
-		self.lines.remove(&line_number);
+		self.remove_line(&line_number);
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
-			match statement.variant {
+			match &statement.variant {
 				StatementVariant::Option(OptionVariableAndValue::Angle(option)) => {
-					self.angle_options.insert((line_number.clone(), sub_line_number), option);
+					self.angle_options.insert((line_number.clone(), sub_line_number), *option);
 				}
 				StatementVariant::Option(OptionVariableAndValue::Math(option)) => {
-					self.math_options.insert((line_number.clone(), sub_line_number), option);
+					self.math_options.insert((line_number.clone(), sub_line_number), *option);
 				}
 				StatementVariant::Option(OptionVariableAndValue::Machine(option)) => {
-					self.machine_options.insert((line_number.clone(), sub_line_number), option);
+					self.machine_options.insert((line_number.clone(), sub_line_number), *option);
+				}
+				StatementVariant::Dimension(arrays) => {
+					for array in arrays {
+						match array.array_type {
+							IdentifierType::UnmarkedOrFloat => {
+								let declarations_of_array = match self.float_array_declarations.get_mut(&array.name) {
+									Some(declarations_of_array) => declarations_of_array,
+									None => {
+										self.float_array_declarations.insert(array.name.clone(), HashSet::new());
+										self.float_array_declarations.get_mut(&array.name).unwrap()
+									}
+								};
+								declarations_of_array.insert((line_number.clone(), sub_line_number));
+							}
+							IdentifierType::Integer => {
+								let declarations_of_array = match self.int_array_declarations.get_mut(&array.name) {
+									Some(declarations_of_array) => declarations_of_array,
+									None => {
+										self.int_array_declarations.insert(array.name.clone(), HashSet::new());
+										self.int_array_declarations.get_mut(&array.name).unwrap()
+									}
+								};
+								declarations_of_array.insert((line_number.clone(), sub_line_number));
+							}
+							IdentifierType::ComplexNumber => {
+								let declarations_of_array = match self.complex_array_declarations.get_mut(&array.name) {
+									Some(declarations_of_array) => declarations_of_array,
+									None => {
+										self.complex_array_declarations.insert(array.name.clone(), HashSet::new());
+										self.complex_array_declarations.get_mut(&array.name).unwrap()
+									}
+								};
+								declarations_of_array.insert((line_number.clone(), sub_line_number));
+							}
+							IdentifierType::String => {
+								let declarations_of_array = match self.string_array_declarations.get_mut(&array.name) {
+									Some(declarations_of_array) => declarations_of_array,
+									None => {
+										self.string_array_declarations.insert(array.name.clone(), HashSet::new());
+										self.string_array_declarations.get_mut(&array.name).unwrap()
+									}
+								};
+								declarations_of_array.insert((line_number.clone(), sub_line_number));
+							}
+						}
+					}
 				}
 				_ => {},
 			}
@@ -91,7 +152,7 @@ impl Program {
 			None => return,
 		};
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
-			match statement.variant {
+			match &statement.variant {
 				StatementVariant::Option(OptionVariableAndValue::Angle(_)) => {
 					self.angle_options.remove(&(line_number.clone(), sub_line_number));
 				}
@@ -100,6 +161,19 @@ impl Program {
 				}
 				StatementVariant::Option(OptionVariableAndValue::Machine(_)) => {
 					self.machine_options.remove(&(line_number.clone(), sub_line_number));
+				}
+				StatementVariant::Option(OptionVariableAndValue::Base(_)) => {
+					self.base_options.remove(&(line_number.clone(), sub_line_number));
+				}
+				StatementVariant::Dimension(arrays) => {
+					for array in arrays {
+						match array.array_type {
+							IdentifierType::UnmarkedOrFloat => self.float_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
+							IdentifierType::Integer => self.int_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
+							IdentifierType::ComplexNumber => self.complex_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
+							IdentifierType::String => self.string_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
+						};
+					}
 				}
 				_ => {},
 			}
@@ -148,6 +222,13 @@ impl Program {
 
 	pub fn clear_program(&mut self) {
 		*self = Self::new();
+	}
+
+	pub fn base_option_at(&self, line: (Rc<BigInt>, usize)) -> Option<BaseOption> {
+		match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..line).last() {
+			Some(option) => *option.1,
+			None => None,
+		}
 	}
 }
 

@@ -123,6 +123,8 @@ pub enum ErrorVariant {
 	ArrayDimensionCountMismatch,
 	ArrayReadUninitialized,
 	VariableReadUninitialized,
+	MultipleDeclarationsOfArray,
+	InvalidArrayDimensionLength,
 	// TODO Different overflows
 	ValueOverflow,
 	ArrayIndexOutOfBounds = 2001,
@@ -250,6 +252,8 @@ impl Display for ErrorVariant {
 			Self::ArrayReadUninitialized => write!(f, "Attempted to read an uninitialized array element."),
 			Self::VariableReadUninitialized => write!(f, "Attempted to read an uninitialized variable."),
 			Self::ArrayIndexOutOfBounds => write!(f, "Array index out of bounds."),
+			Self::MultipleDeclarationsOfArray => write!(f, "Multiple declarations of array."),
+			Self::InvalidArrayDimensionLength => write!(f, "Invalid array dimension length."),
 		}
 	}
 }

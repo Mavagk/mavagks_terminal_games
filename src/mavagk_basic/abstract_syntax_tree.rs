@@ -172,6 +172,14 @@ impl Statement {
 							None => print!("DEFAULT"),
 						}
 					}
+					OptionVariableAndValue::Base(machine_option) => {
+						print!("BASE ");
+						match machine_option {
+							Some(BaseOption::Zero) => print!("0"),
+							Some(BaseOption::One) => print!("1"),
+							None => print!("DEFAULT"),
+						}
+					}
 					OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
 					OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
 					OptionVariableAndValue::ArithmeticDefault => print!("ARITHMETIC DEFAULT"),
@@ -294,6 +302,7 @@ pub enum OptionVariableAndValue {
 	Angle(Option<AngleOption>),
 	Math(Option<MathOption>),
 	Machine(Option<MachineOption>),
+	Base(Option<BaseOption>),
 	ArithmeticDecimal,
 	ArithmeticNative,
 	ArithmeticDefault,
@@ -317,6 +326,12 @@ pub enum MathOption {
 pub enum MachineOption {
 	Ansi,
 	C64,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum BaseOption {
+	Zero,
+	One,
 }
 
 #[derive(Debug, Clone)]
