@@ -382,7 +382,7 @@ impl Machine {
 			StatementVariant::Load(filepath_expression) => {
 				// Execute expression
 				let filename_value = match filepath_expression {
-					Some(filepath_expression) => self.execute_string_expression(filepath_expression)?,
+					Some(filepath_expression) => self.execute_string_expression(filepath_expression, Some(program))?,
 					None => return Err(ErrorVariant::Unimplemented("LOAD without arguments".into()).at_column(*column)),
 				};
 				// Convert string value to filepath
@@ -434,7 +434,7 @@ impl Machine {
 			StatementVariant::Save(filepath_expression) => {
 				// Execute expression
 				let filename_value = match filepath_expression {
-					Some(filepath_expression) => self.execute_string_expression(filepath_expression)?,
+					Some(filepath_expression) => self.execute_string_expression(filepath_expression, Some(program))?,
 					None => return Err(ErrorVariant::Unimplemented("SAVE without arguments".into()).at_column(*column)),
 				};
 				// Convert string value to filepath
@@ -558,7 +558,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_int_l_value_write(l_value, parsed_value)?;
+								self.execute_int_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Float(l_value) => {
 								let parsed_value;
@@ -574,7 +574,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_complex_l_value_write(l_value, parsed_value)?;
+								self.execute_complex_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::String(l_value) => {
 								let parsed_value;
@@ -582,7 +582,7 @@ impl Machine {
 									Ok((parsed_value, input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) => continue 'a,
 								};
-								self.execute_string_l_value_write(l_value, parsed_value)?;
+								self.execute_string_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 						}
 						input_buffer_left = input_buffer_left.trim_ascii_start();
@@ -654,7 +654,7 @@ impl Machine {
 				if (step_value.is_negative() && (&*initial_value.value < &*final_value.value)) || (!step_value.is_negative() && (&*initial_value.value > &*final_value.value)) {
 					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
 				}
-				self.execute_int_l_value_write(loop_variable, initial_value)?;
+				self.execute_int_l_value_write(loop_variable, initial_value, Some(program))?;
 				// Construct loop
 				let stack_loop = BlockOnStack::IntForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
@@ -779,7 +779,7 @@ impl Machine {
 							self.sub_line_executing = Some(for_sub_line + 1);
 							return Ok(true);
 						}
-						_ => todo!()
+						_ => unreachable!(),
 					}
 				}
 			}
@@ -808,7 +808,7 @@ impl Machine {
 			}
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				let value = self.execute_int_expression(r_value_expression, Some(program))?;
-				self.execute_int_l_value_write(l_value, value)?
+				self.execute_int_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::AssignFloat(l_value, r_value_expression) => {
 				let value = self.execute_float_expression(r_value_expression, Some(program))?;
@@ -816,10 +816,12 @@ impl Machine {
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				let value = self.execute_complex_expression(r_value_expression, Some(program))?;
-				self.execute_complex_l_value_write(l_value, value)?
+				self.execute_complex_l_value_write(l_value, value, Some(program))?
 			}
-			StatementVariant::AssignString(l_value, r_value_expression) =>
-				self.execute_string_l_value_write(l_value, self.execute_string_expression(r_value_expression)?)?,
+			StatementVariant::AssignString(l_value, r_value_expression) => {
+				let value = self.execute_string_expression(r_value_expression, Some(program))?;
+				self.execute_string_l_value_write(l_value, value, Some(program))?
+			}
 			StatementVariant::List(range_start, range_end) => {
 				let range_start_value = match range_start {
 					Some(range_start) => Some(&*self.execute_int_expression(range_start, Some(program))?.value),
@@ -900,7 +902,7 @@ impl Machine {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_int_l_value_write(l_value, datum.clone())?;
+							self.execute_int_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Float(l_value) => {
 							let datum = match &datum.as_float {
@@ -914,9 +916,9 @@ impl Machine {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_complex_l_value_write(l_value, datum.clone())?;
+							self.execute_complex_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
-						AnyTypeLValue::String(l_value) => self.execute_string_l_value_write(l_value, datum.as_string.clone())?,
+						AnyTypeLValue::String(l_value) => self.execute_string_l_value_write(l_value, datum.as_string.clone(), Some(program))?,
 					}
 					// Calculate new line number
 					self.datum_index_in_data_line_to_read += 1;
@@ -993,7 +995,69 @@ impl Machine {
 								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
 								self.float_arrays.insert(name.into(), array);
 							}
-							_ => todo!(),
+							IdentifierType::Integer => {
+								let mut dimensions = Vec::new();
+								for dimension_expression in &array.dimensions {
+									let lower_bound = match &dimension_expression.0 {
+										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
+										None => match self.get_base_option() {
+											BaseOption::Zero => IntValue::zero(),
+											BaseOption::One => IntValue::one(),
+										}
+									};
+									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
+									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = match dimension_length.to_usize() {
+										Some(dimension_length) => dimension_length,
+										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
+									};
+									dimensions.push((dimension_length, lower_bound));
+								}
+								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
+								self.int_arrays.insert(name.into(), array);
+							}
+							IdentifierType::ComplexNumber => {
+								let mut dimensions = Vec::new();
+								for dimension_expression in &array.dimensions {
+									let lower_bound = match &dimension_expression.0 {
+										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
+										None => match self.get_base_option() {
+											BaseOption::Zero => IntValue::zero(),
+											BaseOption::One => IntValue::one(),
+										}
+									};
+									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
+									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = match dimension_length.to_usize() {
+										Some(dimension_length) => dimension_length,
+										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
+									};
+									dimensions.push((dimension_length, lower_bound));
+								}
+								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
+								self.complex_arrays.insert(name.into(), array);
+							}
+							IdentifierType::String => {
+								let mut dimensions = Vec::new();
+								for dimension_expression in &array.dimensions {
+									let lower_bound = match &dimension_expression.0 {
+										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
+										None => match self.get_base_option() {
+											BaseOption::Zero => IntValue::zero(),
+											BaseOption::One => IntValue::one(),
+										}
+									};
+									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
+									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = match dimension_length.to_usize() {
+										Some(dimension_length) => dimension_length,
+										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
+									};
+									dimensions.push((dimension_length, lower_bound));
+								}
+								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
+								self.string_arrays.insert(name.into(), array);
+							}
 						}
 					}
 				}
@@ -1092,7 +1156,7 @@ impl Machine {
 			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression, program)?.value.is_zero()),
 			BoolExpression::FloatIsNonZero(float_expression) => BoolValue::new(!self.execute_float_expression(&float_expression, program)?.is_zero()),
 			BoolExpression::ComplexIsNonZero(complex_expression) => BoolValue::new(!self.execute_complex_expression(&complex_expression, program)?.value.is_zero()),
-			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue::new(!self.execute_string_expression(&string_expression)?.value.is_empty()),
+			BoolExpression::StringIsNotEmpty(string_expression) => BoolValue::new(!self.execute_string_expression(&string_expression, program)?.value.is_empty()),
 
 			BoolExpression::And { lhs_expression, rhs_expression, .. } =>
 				self.execute_bool_expression(lhs_expression, program)?.and(self.execute_bool_expression(rhs_expression, program)?),
@@ -1145,9 +1209,9 @@ impl Machine {
 				self.execute_complex_expression(lhs_expression, program)?.not_equal_to(self.execute_complex_expression(rhs_expression, program)?),
 
 			BoolExpression::StringEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_string_expression(lhs_expression)?.equal_to(&self.execute_string_expression(rhs_expression)?),
+				self.execute_string_expression(lhs_expression, program)?.equal_to(&self.execute_string_expression(rhs_expression, program)?),
 			BoolExpression::StringNotEqualTo { lhs_expression, rhs_expression, .. } =>
-				self.execute_string_expression(lhs_expression)?.not_equal_to(&self.execute_string_expression(rhs_expression)?),
+				self.execute_string_expression(lhs_expression, program)?.not_equal_to(&self.execute_string_expression(rhs_expression, program)?),
 			BoolExpression::StringLessThan { lhs_expression: _, rhs_expression: _, start_column } =>
 				return Err(ErrorVariant::NotYetImplemented("String <, <=, >, >= operators".into()).at_column(*start_column)),
 			BoolExpression::StringLessThanOrEqualTo { lhs_expression: _, rhs_expression: _, start_column } =>
@@ -1160,12 +1224,12 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an string value.
-	fn execute_string_expression(&self, expression: &StringExpression) -> Result<StringValue, Error> {
+	fn execute_string_expression(&mut self, expression: &StringExpression, program: Option<&Program>) -> Result<StringValue, Error> {
 		Ok(match expression {
 			StringExpression::ConstantValue { value, .. } => value.clone(),
 			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } =>
-				self.execute_string_expression(lhs_expression)?.concat(self.execute_string_expression(rhs_expression)?),
-			StringExpression::LValue(l_value) => self.execute_string_l_value_read(l_value)?,
+				self.execute_string_expression(lhs_expression, program)?.concat(self.execute_string_expression(rhs_expression, program)?),
+			StringExpression::LValue(l_value) => self.execute_string_l_value_read(l_value, program)?,
 		})
 	}
 
@@ -1176,7 +1240,7 @@ impl Machine {
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, program)?),
 			AnyTypeExpression::Float(expression) => AnyTypeValue::Float(self.execute_float_expression(expression, program)?),
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, program)?),
-			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression)?),
+			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression, program)?),
 		})
 	}
 
@@ -1184,6 +1248,41 @@ impl Machine {
 	fn execute_int_l_value_read(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<IntValue, Error> {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
+		{
+			if int_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = int_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, read from it.
+		if *has_parentheses && self.int_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			let element = self.int_arrays.get(name).unwrap()
+				.read_element(&indices, self.allow_uninitialized_read())
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(element);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses /*&& !*uses_fn_keyword*/ && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
@@ -1254,7 +1353,7 @@ impl Machine {
 		}
 		// TODO
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
 		Ok(IntValue::zero())
@@ -1411,7 +1510,7 @@ impl Machine {
 		}
 		// TODO
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Else
 		match self.allow_uninitialized_read() {
@@ -1424,6 +1523,41 @@ impl Machine {
 	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<ComplexValue, Error> {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
+		{
+			if complex_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, read from it.
+		if *has_parentheses && self.complex_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			let element = self.complex_arrays.get(name).unwrap()
+				.read_element(&indices, self.allow_uninitialized_read())
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(element);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
@@ -1447,16 +1581,51 @@ impl Machine {
 		}
 		// TODO
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
 		Ok(ComplexValue::ZERO)
 	}
 
 	/// Reads a string variable or from a string array or executes a function that returns a string.
-	fn execute_string_l_value_read(&self, l_value: &StringLValue) -> Result<StringValue, Error> {
+	fn execute_string_l_value_read(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<StringValue, Error> {
 		// Unpack
 		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
+		{
+			if string_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = string_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, read from it.
+		if *has_parentheses && self.string_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			let element = self.string_arrays.get(name).unwrap()
+				.read_element(&indices, self.allow_uninitialized_read())
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(element);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses /* && !*uses_fn_keyword*/ && let Some(variable) = self.string_variables.get(name) {
 			return Ok(variable.clone());
@@ -1469,19 +1638,50 @@ impl Machine {
 		}
 		// TODO
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Else return zero
 		Ok(StringValue::empty())
 	}
 
 	/// Writes to a integer variable or to an integer array.
-	fn execute_int_l_value_write(&mut self, l_value: &IntLValue, value: IntValue) -> Result<(), Error> {
+	fn execute_int_l_value_write(&mut self, l_value: &IntLValue, value: IntValue, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
 		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
+		{
+			if int_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = int_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, write to it.
+		if *has_parentheses && self.int_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			self.int_arrays.get_mut(name).unwrap()
+				.write_element(&indices, value)
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(());
+		}
 		// TODO
 		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
 		self.int_variables.insert(name.clone(), value);
@@ -1526,7 +1726,7 @@ impl Machine {
 		}
 		// TODO
 		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
 		self.float_variables.insert(name.clone(), value);
@@ -1535,12 +1735,43 @@ impl Machine {
 	}
 
 	/// Writes to a complex variable or to an complex array.
-	fn execute_complex_l_value_write(&mut self, l_value: &ComplexLValue, value: ComplexValue) -> Result<(), Error> {
+	fn execute_complex_l_value_write(&mut self, l_value: &ComplexLValue, value: ComplexValue, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
 		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
+		{
+			if complex_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, write to it.
+		if *has_parentheses && self.complex_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			self.complex_arrays.get_mut(name).unwrap()
+				.write_element(&indices, value)
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(());
+		}
 		// TODO
 		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
 		self.complex_variables.insert(name.clone(), value);
@@ -1549,12 +1780,43 @@ impl Machine {
 	}
 
 	/// Writes to a string variable or to an string array.
-	fn execute_string_l_value_write(&mut self, l_value: &StringLValue, value: StringValue) -> Result<(), Error> {
+	fn execute_string_l_value_write(&mut self, l_value: &StringLValue, value: StringValue, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
 		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
+		{
+			if string_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = string_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, write to it.
+		if *has_parentheses && self.string_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			self.string_arrays.get_mut(name).unwrap()
+				.write_element(&indices, value)
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(());
+		}
 		// TODO
 		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
 		self.string_variables.insert(name.clone(), value);
