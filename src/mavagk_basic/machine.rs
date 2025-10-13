@@ -566,7 +566,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_float_l_value_write(l_value, parsed_value)?;
+								self.execute_float_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Complex(l_value) => {
 								let parsed_value;
@@ -679,7 +679,7 @@ impl Machine {
 				if (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) {
 					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
 				}
-				self.execute_float_l_value_write(loop_variable, initial_value)?;
+				self.execute_float_l_value_write(loop_variable, initial_value, Some(program))?;
 				// Construct loop
 				let stack_loop = BlockOnStack::FloatForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
@@ -812,7 +812,7 @@ impl Machine {
 			}
 			StatementVariant::AssignFloat(l_value, r_value_expression) => {
 				let value = self.execute_float_expression(r_value_expression, Some(program))?;
-				self.execute_float_l_value_write(l_value, value)?
+				self.execute_float_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				let value = self.execute_complex_expression(r_value_expression, Some(program))?;
@@ -907,7 +907,7 @@ impl Machine {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_float_l_value_write(l_value, datum.clone())?;
+							self.execute_float_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Complex(l_value) => {
 							let datum = match &datum.as_complex {
@@ -956,7 +956,7 @@ impl Machine {
 			StatementVariant::Dimension(arrays) => {
 				if self.arrays_created_on_dim_execution() {
 					for array in arrays {
-						self.execute_declaration(statement, program, &array.name, array.array_type);
+						self.execute_declaration(statement, program, &array.name, array.array_type)?;
 					}
 				}
 			}
@@ -1490,9 +1490,40 @@ impl Machine {
 	}
 
 	/// Writes to a float variable or to an float array.
-	fn execute_float_l_value_write(&mut self, l_value: &FloatLValue, value: FloatValue) -> Result<(), Error> {
+	fn execute_float_l_value_write(&mut self, l_value: &FloatLValue, value: FloatValue, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
+		// Create the array if it is not yet created
+		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
+		{
+			if float_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+			}
+			let array_declarations_location = float_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			let math_option = self.math_option;
+			let base_option = self.base_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
+			self.math_option = math_option;
+			self.base_option = base_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+		}
+		// If the user has defined an array, write to it.
+		if *has_parentheses && self.float_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			self.float_arrays.get_mut(name).unwrap()
+				.write_element(&indices, value)
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(());
+		}
 		// TODO
 		if !arguments.is_empty() || *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
@@ -1661,7 +1692,7 @@ impl<T: Value> Array<T> {
 	}
 
 	/// Writes an element to the array at the given indices.
-	pub fn _write_element(&mut self, indices: &[IntValue], element: T) -> Result<(), ErrorVariant> {
+	pub fn write_element(&mut self, indices: &[IntValue], element: T) -> Result<(), ErrorVariant> {
 		let index = self.indices_to_elements_index(indices)?;
 		self.elements[index] = Some(element);
 		Ok(())
