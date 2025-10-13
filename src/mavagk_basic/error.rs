@@ -72,7 +72,6 @@ pub enum ErrorVariant {
 	ExpectedEqualSign,
 	ExpectedToKeyword,
 	InvalidLValue,
-	VariableNotFound,
 	ExpectedStatementKeyword,
 	ExpectedRightParenthesis,
 	UnexpectedOperator,
@@ -120,8 +119,13 @@ pub enum ErrorVariant {
 	GosubInDirectMode,
 	ExpectedIdentifier,
 	ExpectedLeftParenthesis,
+	ArrayTooLarge,
+	ArrayDimensionCountMismatch,
+	ArrayReadUninitialized,
+	VariableReadUninitialized,
 	// TODO Different overflows
 	ValueOverflow,
+	ArrayIndexOutOfBounds = 2001,
 	DivisionByZero = 3001,
 	NegativeNumberRaisedToNonIntegerPower = 3002,
 	ZeroRaisedToNegativePower = 3003,
@@ -178,7 +182,6 @@ impl Display for ErrorVariant {
 			Self::FlooredDivisionByZero => write!(f, "Floored division by zero."),
 			Self::ExpectedEqualSign => write!(f, "Expected equal sign."),
 			Self::InvalidLValue => write!(f, "Invalid l-value."),
-			Self::VariableNotFound => write!(f, "Variable not found."),
 			Self::InvalidToken => write!(f, "Invalid token."),
 			Self::ExpectedStatementKeyword => write!(f, "Expected statement keyword."),
 			Self::ExpectedRightParenthesis => write!(f, "Expected right parenthesis."),
@@ -242,6 +245,11 @@ impl Display for ErrorVariant {
 			Self::GosubInDirectMode => write!(f, "Cannot use a GOSUB statement in direct mode."),
 			Self::ReturnWithoutGosub => write!(f, "RETURN statement executed without a matching GOSUB statement."),
 			Self::ExpectedIdentifier => write!(f, "Expected an identifier."),
+			Self::ArrayTooLarge => write!(f, "Array too large."),
+			Self::ArrayDimensionCountMismatch => write!(f, "Dimension count mismatch while accessing array."),
+			Self::ArrayReadUninitialized => write!(f, "Attempted to read an uninitialized array element."),
+			Self::VariableReadUninitialized => write!(f, "Attempted to read an uninitialized variable."),
+			Self::ArrayIndexOutOfBounds => write!(f, "Array index out of bounds."),
 		}
 	}
 }

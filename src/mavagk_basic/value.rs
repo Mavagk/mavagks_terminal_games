@@ -18,6 +18,10 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 	}
 }
 
+pub trait Value: Default + Clone {
+
+}
+
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntValue {
 	pub value: Rc<BigInt>,
@@ -159,6 +163,20 @@ impl IntValue {
 			true => write!(f, " "),
 			false => write!(f, ""),
 		}
+	}
+
+	pub fn to_usize(&self) -> Option<usize> {
+		self.value.to_usize()
+	}
+}
+
+impl Value for IntValue {
+
+}
+
+impl Default for IntValue {
+	fn default() -> Self {
+		IntValue::zero()
 	}
 }
 
@@ -452,6 +470,16 @@ impl FloatValue {
 	}
 }
 
+impl Value for FloatValue {
+	
+}
+
+impl Default for FloatValue {
+	fn default() -> Self {
+		FloatValue::ZERO
+	}
+}
+
 impl Display for FloatValue {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", self.value)
@@ -611,6 +639,16 @@ impl ComplexValue {
 	}
 }
 
+impl Value for ComplexValue {
+	
+}
+
+impl Default for ComplexValue {
+	fn default() -> Self {
+		ComplexValue::ZERO
+	}
+}
+
 impl Display for ComplexValue {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", self.value)
@@ -661,6 +699,16 @@ impl StringValue {
 
 	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
 		write!(f, "{}", self.value)
+	}
+}
+
+impl Value for StringValue {
+	
+}
+
+impl Default for StringValue {
+	fn default() -> Self {
+		StringValue::empty()
 	}
 }
 
@@ -760,6 +808,16 @@ impl BoolValue {
 	}
 }
 
+impl Value for BoolValue {
+	
+}
+
+impl Default for BoolValue {
+	fn default() -> Self {
+		BoolValue::FALSE
+	}
+}
+
 impl Display for BoolValue {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", match self.value {
@@ -834,6 +892,16 @@ impl AnyTypeValue {
 			AnyTypeValue::Complex(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space),
 			AnyTypeValue::String(value) => value.print(f),
 		}
+	}
+}
+
+impl Value for AnyTypeValue {
+	
+}
+
+impl Default for AnyTypeValue {
+	fn default() -> Self {
+		AnyTypeValue::Bool(BoolValue::FALSE)
 	}
 }
 

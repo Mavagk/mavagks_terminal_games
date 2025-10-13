@@ -1,10 +1,10 @@
-use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
+use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -23,6 +23,11 @@ pub struct Machine {
 	complex_variables: HashMap<Box<str>, ComplexValue>,
 	int_variables: HashMap<Box<str>, IntValue>,
 	string_variables: HashMap<Box<str>, StringValue>,
+	// Arrays
+	float_arrays: HashMap<Box<str>, Array<FloatValue>>,
+	int_arrays: HashMap<Box<str>, Array<IntValue>>,
+	complex_arrays: HashMap<Box<str>, Array<ComplexValue>>,
+	string_arrays: HashMap<Box<str>, Array<StringValue>>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
 	gosub_stack: Vec<GosubLevel>,
 	// Options set via an OPTION statement
@@ -45,6 +50,10 @@ impl Machine {
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
+			int_arrays: HashMap::new(),
+			float_arrays: HashMap::new(),
+			complex_arrays: HashMap::new(),
+			string_arrays: HashMap::new(),
 			//block_stack: Vec::new(),
 			//for_loop_variable_to_block_stack_index: HashMap::new(),
 			gosub_stack: vec![GosubLevel::new()],
@@ -121,6 +130,11 @@ impl Machine {
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
 			string_variables: HashMap::new(),
+
+			int_arrays: HashMap::new(),
+			float_arrays: HashMap::new(),
+			complex_arrays: HashMap::new(),
+			string_arrays: HashMap::new(),
 
 			angle_option: None,
 			math_option: None,
@@ -240,6 +254,14 @@ impl Machine {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
 			MathOption::Ansi => false,
+		}
+	}
+
+	/// Returns if reading an uninitialized value should trow an error.
+	const fn allow_uninitialized_read(&self) -> bool {
+		match self.get_machine_option() {
+			MachineOption::Ansi => false,
+			MachineOption::C64 => true,
 		}
 	}
 
@@ -1184,6 +1206,17 @@ impl Machine {
 		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
+		// If the user has defined an array, read from it.
+		if self.float_arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			let element = self.float_arrays.get(name).unwrap()
+				.read_element(&indices, self.allow_uninitialized_read())
+				.map_err(|err| err.at_column(*start_column))?;
+			return Ok(element);
+		}
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
@@ -1298,8 +1331,11 @@ impl Machine {
 		if *has_parentheses {
 			return Err(ErrorVariant::NotYetImplemented("Arrays and user defined functions".into()).at_column(*start_column));
 		}
-		// Else return zero
-		Ok(FloatValue::ZERO)
+		// Else
+		match self.allow_uninitialized_read() {
+			true => Ok(FloatValue::ZERO),
+			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
+		}
 	}
 
 	/// Reads a complex variable or from a complex array or executes a function that returns a complex.
@@ -1473,5 +1509,79 @@ impl GosubLevel {
 				}
 			}
 		}
+	}
+}
+
+/// A BASIC multidimensional array.
+struct Array<T: Value> {
+	/// A list of dimensions, each dimension has a (dimension length, dimension lower bound) tuple.
+	dimension_lengths_starts: Box<[(usize, IntValue)]>,
+	/// All the elements in the array, `None` is uninitialized.
+	elements: Vec<Option<T>>,
+}
+
+impl<T: Value> Array<T> {
+	/// Creates a new array with the given dimension lengths and lower bounds.
+	pub fn _new(dimensions: Box<[(usize, IntValue)]>) -> Result<Self, ErrorVariant> {
+		// Get the total amount of elements the array should have
+		let mut total_element_count = 1usize;
+		for (dimension_length, _) in dimensions.iter() {
+			total_element_count = match total_element_count.checked_mul(*dimension_length) {
+				Some(total_element_count) => total_element_count,
+				None => return Err(ErrorVariant::ArrayTooLarge),
+			};
+		}
+		// Create element list of uninitialized values
+		let elements = Vec::from_iter(repeat_n(None, total_element_count));
+		// Assemble into object
+		Ok(Self {
+			dimension_lengths_starts: dimensions,
+			elements,
+		})
+	}
+
+	/// Takes a list of indices and converts them into an index into the `elements` list.
+	fn indices_to_elements_index(&self, indices: &[IntValue]) -> Result<usize, ErrorVariant> {
+		// The dimension counts must match
+		if self.dimension_lengths_starts.len() != indices.len() {
+			return Err(ErrorVariant::ArrayDimensionCountMismatch);
+		}
+		// For each dimension of the array
+		let mut elements_index = 0;
+		let mut dimension_stride = 1;
+		for (dimension, index) in indices.iter().enumerate() {
+			let (dimension_length, dimension_start) = &self.dimension_lengths_starts[dimension];
+			// Subtract the dimension lower bound from the dimension index to the a 0-indexed index
+			let index_zero_indexed = match index.clone().sub(dimension_start.clone()).to_usize() {
+				Some(index_usize) => index_usize,
+				None => return Err(ErrorVariant::ArrayIndexOutOfBounds),
+			};
+			// Make sure the dimension index is not out of bounds
+			if index_zero_indexed > *dimension_length {
+				return Err(ErrorVariant::ArrayIndexOutOfBounds);
+			}
+			// Adjust the index based of the index and dimension stride
+			elements_index += index_zero_indexed * dimension_stride;
+			// Calculate the dimension stride for the next dimension
+			dimension_stride *= dimension_length;
+		}
+		Ok(elements_index)
+	}
+
+	/// Reads an element from the array at the given indices.
+	pub fn read_element(&self, indices: &[IntValue], allow_uninitialized_read: bool) -> Result<T, ErrorVariant> {
+		let index = self.indices_to_elements_index(indices)?;
+		match (&self.elements[index], allow_uninitialized_read) {
+			(Some(element), _) => Ok(element.clone()),
+			(None, true) => Ok(T::default()),
+			(None, false) => Err(ErrorVariant::ArrayReadUninitialized),
+		}
+	}
+
+	/// Writes an element to the array at the given indices.
+	pub fn _write_element(&mut self, indices: &[IntValue], element: T) -> Result<(), ErrorVariant> {
+		let index = self.indices_to_elements_index(indices)?;
+		self.elements[index] = Some(element);
+		Ok(())
 	}
 }
