@@ -985,7 +985,7 @@ impl Machine {
 										}
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
-									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
 									let dimension_length = match dimension_length.to_usize() {
 										Some(dimension_length) => dimension_length,
 										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
@@ -1006,7 +1006,7 @@ impl Machine {
 										}
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
-									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
 									let dimension_length = match dimension_length.to_usize() {
 										Some(dimension_length) => dimension_length,
 										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
@@ -1027,7 +1027,7 @@ impl Machine {
 										}
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
-									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
 									let dimension_length = match dimension_length.to_usize() {
 										Some(dimension_length) => dimension_length,
 										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
@@ -1048,7 +1048,7 @@ impl Machine {
 										}
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
-									let dimension_length = upper_bound.sub(lower_bound.clone());
+									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
 									let dimension_length = match dimension_length.to_usize() {
 										Some(dimension_length) => dimension_length,
 										None => return Err(ErrorVariant::InvalidArrayDimensionLength.at_column(array.start_column)),
