@@ -1615,8 +1615,8 @@ fn upcast(lhs: AnyTypeExpression, rhs: AnyTypeExpression) -> Result<(AnyTypeExpr
 		(AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..), AnyTypeExpression::Float(..)) => (AnyTypeExpression::Float(cast_to_float_expression(lhs)?), rhs),
 		(AnyTypeExpression::Complex(..), AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..)) => (lhs, AnyTypeExpression::Complex(cast_to_complex_expression(rhs)?)),
 		(AnyTypeExpression::Bool(..) | AnyTypeExpression::Int(..) | AnyTypeExpression::Float(..), AnyTypeExpression::Complex(..)) => (AnyTypeExpression::Complex(cast_to_complex_expression(lhs)?), rhs),
-		(AnyTypeExpression::String(..), _) => (lhs, AnyTypeExpression::Complex(cast_to_complex_expression(rhs)?)),
-		(_, AnyTypeExpression::String(..)) => (AnyTypeExpression::Complex(cast_to_complex_expression(lhs)?), rhs),
+		(AnyTypeExpression::String(..), rhs) => return Err(ErrorVariant::NumberCastToString.at_column(rhs.get_start_column())),
+		(lhs, AnyTypeExpression::String(..)) => return Err(ErrorVariant::NumberCastToString.at_column(lhs.get_start_column())),
 	})
 }
 
