@@ -459,7 +459,7 @@ pub fn parse_datum_string<'a>(input_string: &'a str, is_in_data_statement: bool)
 			Some('"') => return Err(ErrorVariant::QuoteInUnquotedString),
 			Some(',') => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
 			Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
-			Some(' ') => {
+			Some(chr) if chr.is_ascii_whitespace() => {
 				match input_string_remaining.trim_ascii_start().chars().next() {
 					Some(',') | None => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
 					Some(':' | '!') if is_in_data_statement => return Ok((StringValue::new(Rc::new(output_string.into())), input_string_remaining)),
