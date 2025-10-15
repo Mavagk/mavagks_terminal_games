@@ -128,6 +128,7 @@ pub enum ErrorVariant {
 	MultipleDeclarationsOfFunctionAndArray,
 	InvalidArrayDimensionLength,
 	InvalidFunctionParameter,
+	ArrayOrFunctionNotDefined,
 	// TODO Different overflows
 	ValueOverflow,
 	ArrayIndexOutOfBounds = 2001,
@@ -260,6 +261,7 @@ impl Display for ErrorVariant {
 			Self::MultipleDeclarationsOfFunctionAndArray => write!(f, "Array and function with same name."),
 			Self::InvalidArrayDimensionLength => write!(f, "Invalid array dimension length."),
 			Self::InvalidFunctionParameter => write!(f, "Invalid function parameter."),
+			Self::ArrayOrFunctionNotDefined => write!(f, "Array or function not defined."),
 		}
 	}
 }

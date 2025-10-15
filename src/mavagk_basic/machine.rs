@@ -1422,6 +1422,57 @@ impl Machine {
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
+		// If a function with the argument count is defined, get it
+		if let Some((function_parameters, function_expression, function_location)) = self.int_functions.get(&(name.clone(), arguments.len())).cloned() {
+			// Push GOSUB level for function execution
+			let mut gosub_level_to_push = GosubLevel::new();
+			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+				let argument = &arguments[argument_index];
+				match function_parameter {
+					AnyTypeLValue::Float(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Int(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Complex(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::String(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+					}
+				}
+			}
+			self.gosub_stack.push(gosub_level_to_push);
+			let line_executing = self.line_executing.clone();
+			let sub_line_executing = self.sub_line_executing;
+			let base_option = self.base_option;
+			let math_option = self.math_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			if let Some(function_location) = function_location {
+				self.line_executing = Some(function_location.0);
+				self.sub_line_executing = Some(function_location.1);
+			}
+			if let Some(program) = program {
+				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			}
+			// Execute
+			let result = self.execute_int_expression(&function_expression, program)?;
+			// Pop
+			self.gosub_stack.pop();
+			self.line_executing = line_executing;
+			self.sub_line_executing = sub_line_executing;
+			self.base_option = base_option;
+			self.math_option = math_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+			return Ok(result);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
@@ -1490,12 +1541,15 @@ impl Machine {
 				_ => {}
 			}
 		}
-		// TODO
+		//
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
-		// Else return zero
-		Ok(IntValue::zero())
+		// Else
+		match self.allow_uninitialized_read() {
+			true => Ok(IntValue::zero()),
+			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
+		}
 	}
 
 	/// Reads a float variable or from a float array or executes a function that returns a float.
@@ -1557,8 +1611,55 @@ impl Machine {
 			return Ok(element);
 		}
 		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.float_functions.get(&(name.clone(), arguments.len())) {
-			todo!()
+		if let Some((function_parameters, function_expression, function_location)) = self.float_functions.get(&(name.clone(), arguments.len())).cloned() {
+			// Push GOSUB level for function execution
+			let mut gosub_level_to_push = GosubLevel::new();
+			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+				let argument = &arguments[argument_index];
+				match function_parameter {
+					AnyTypeLValue::Float(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Int(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Complex(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::String(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+					}
+				}
+			}
+			self.gosub_stack.push(gosub_level_to_push);
+			let line_executing = self.line_executing.clone();
+			let sub_line_executing = self.sub_line_executing;
+			let base_option = self.base_option;
+			let math_option = self.math_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			if let Some(function_location) = function_location {
+				self.line_executing = Some(function_location.0);
+				self.sub_line_executing = Some(function_location.1);
+			}
+			if let Some(program) = program {
+				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			}
+			// Execute
+			let result = self.execute_float_expression(&function_expression, program)?;
+			// Pop
+			self.gosub_stack.pop();
+			self.line_executing = line_executing;
+			self.sub_line_executing = sub_line_executing;
+			self.base_option = base_option;
+			self.math_option = math_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+			return Ok(result);
 		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
@@ -1674,9 +1775,9 @@ impl Machine {
 				_ => {}
 			}
 		}
-		// TODO
+		//
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
 		// Else
 		match self.allow_uninitialized_read() {
@@ -1743,6 +1844,57 @@ impl Machine {
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
+		// If a function with the argument count is defined, get it
+		if let Some((function_parameters, function_expression, function_location)) = self.complex_functions.get(&(name.clone(), arguments.len())).cloned() {
+			// Push GOSUB level for function execution
+			let mut gosub_level_to_push = GosubLevel::new();
+			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+				let argument = &arguments[argument_index];
+				match function_parameter {
+					AnyTypeLValue::Float(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Int(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Complex(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::String(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+					}
+				}
+			}
+			self.gosub_stack.push(gosub_level_to_push);
+			let line_executing = self.line_executing.clone();
+			let sub_line_executing = self.sub_line_executing;
+			let base_option = self.base_option;
+			let math_option = self.math_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			if let Some(function_location) = function_location {
+				self.line_executing = Some(function_location.0);
+				self.sub_line_executing = Some(function_location.1);
+			}
+			if let Some(program) = program {
+				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			}
+			// Execute
+			let result = self.execute_complex_expression(&function_expression, program)?;
+			// Pop
+			self.gosub_stack.pop();
+			self.line_executing = line_executing;
+			self.sub_line_executing = sub_line_executing;
+			self.base_option = base_option;
+			self.math_option = math_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+			return Ok(result);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
@@ -1764,12 +1916,15 @@ impl Machine {
 				_ => {}
 			}
 		}
-		// TODO
+		//
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
-		// Else return zero
-		Ok(ComplexValue::ZERO)
+		// Else
+		match self.allow_uninitialized_read() {
+			true => Ok(ComplexValue::ZERO),
+			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
+		}
 	}
 
 	/// Reads a string variable or from a string array or executes a function that returns a string.
@@ -1830,6 +1985,57 @@ impl Machine {
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
+		// If a function with the argument count is defined, get it
+		if let Some((function_parameters, function_expression, function_location)) = self.string_functions.get(&(name.clone(), arguments.len())).cloned() {
+			// Push GOSUB level for function execution
+			let mut gosub_level_to_push = GosubLevel::new();
+			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+				let argument = &arguments[argument_index];
+				match function_parameter {
+					AnyTypeLValue::Float(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Int(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Complex(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::String(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+					}
+				}
+			}
+			self.gosub_stack.push(gosub_level_to_push);
+			let line_executing = self.line_executing.clone();
+			let sub_line_executing = self.sub_line_executing;
+			let base_option = self.base_option;
+			let math_option = self.math_option;
+			let angle_option = self.angle_option;
+			let machine_option = self.machine_option;
+			if let Some(function_location) = function_location {
+				self.line_executing = Some(function_location.0);
+				self.sub_line_executing = Some(function_location.1);
+			}
+			if let Some(program) = program {
+				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			}
+			// Execute
+			let result = self.execute_string_expression(&function_expression, program)?;
+			// Pop
+			self.gosub_stack.pop();
+			self.line_executing = line_executing;
+			self.sub_line_executing = sub_line_executing;
+			self.base_option = base_option;
+			self.math_option = math_option;
+			self.angle_option = angle_option;
+			self.machine_option = machine_option;
+			return Ok(result);
+		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
 			return Ok(variable.clone());
@@ -1840,12 +2046,15 @@ impl Machine {
 				_ => {}
 			}
 		}
-		// TODO
+		//
 		if *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
-		// Else return zero
-		Ok(StringValue::empty())
+		// Else
+		match self.allow_uninitialized_read() {
+			true => Ok(StringValue::empty()),
+			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
+		}
 	}
 
 	/// Writes to a integer variable or to an integer array.
@@ -2055,6 +2264,11 @@ struct GosubLevel {
 	pub return_line: Option<Rc<BigInt>>,
 	/// The sub-line of the GOSUB statement that put this GOSUB level on the stack.
 	pub return_sub_line: usize,
+	// Variables
+	pub local_float_variables: HashMap<Box<str>, FloatValue>,
+	pub local_complex_variables: HashMap<Box<str>, ComplexValue>,
+	pub local_int_variables: HashMap<Box<str>, IntValue>,
+	pub local_string_variables: HashMap<Box<str>, StringValue>,
 }
 
 impl GosubLevel {
@@ -2064,6 +2278,10 @@ impl GosubLevel {
 			for_loop_variable_to_block_stack_index: HashMap::new(),
 			return_line: None,
 			return_sub_line: 0,
+			local_complex_variables: HashMap::new(),
+			local_float_variables: HashMap::new(),
+			local_int_variables: HashMap::new(),
+			local_string_variables: HashMap::new(),
 		}
 	}
 
@@ -2073,6 +2291,10 @@ impl GosubLevel {
 			for_loop_variable_to_block_stack_index: HashMap::new(),
 			return_line,
 			return_sub_line,
+			local_complex_variables: HashMap::new(),
+			local_float_variables: HashMap::new(),
+			local_int_variables: HashMap::new(),
+			local_string_variables: HashMap::new(),
 		}
 	}
 
