@@ -125,6 +125,7 @@ pub enum ErrorVariant {
 	VariableReadUninitialized,
 	MultipleDeclarationsOfArray,
 	InvalidArrayDimensionLength,
+	InvalidFunctionParameter,
 	// TODO Different overflows
 	ValueOverflow,
 	ArrayIndexOutOfBounds = 2001,
@@ -254,6 +255,7 @@ impl Display for ErrorVariant {
 			Self::ArrayIndexOutOfBounds => write!(f, "Array index out of bounds."),
 			Self::MultipleDeclarationsOfArray => write!(f, "Multiple declarations of array."),
 			Self::InvalidArrayDimensionLength => write!(f, "Invalid array dimension length."),
+			Self::InvalidFunctionParameter => write!(f, "Invalid function parameter."),
 		}
 	}
 }

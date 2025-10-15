@@ -1064,6 +1064,16 @@ impl AnyTypeExpression {
 			_ => false,
 		}
 	}
+
+	pub fn is_valid_function_argument(&self) -> bool {
+		match self {
+			Self::Float(FloatExpression::LValue(FloatLValue { has_parentheses: false, .. })) => true,
+			Self::Int(IntExpression::LValue(IntLValue { has_parentheses: false, .. })) => true,
+			Self::Complex(ComplexExpression::LValue(ComplexLValue { has_parentheses: false, .. })) => true,
+			Self::String(StringExpression::LValue(StringLValue { has_parentheses: false, .. })) => true,
+			_ => false,
+		}
+	}
 }
 
 #[derive(Debug, Clone)]

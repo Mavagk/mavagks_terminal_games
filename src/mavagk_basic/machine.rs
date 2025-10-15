@@ -297,6 +297,14 @@ impl Machine {
 		}
 	}
 
+	/// Returns if a FN statement will define a function or if it will be created when first accessed.
+	const fn functions_defined_on_fn_execution(&self) -> bool {
+		match self.get_machine_option() {
+			MachineOption::Ansi => false,
+			MachineOption::C64 => true,
+		}
+	}
+
 	/// Start executing until the program terminates
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), FullError> {
 		// For each line
@@ -933,16 +941,24 @@ impl Machine {
 				}
 			}
 			StatementVariant::DefFloat(_l_value, _expression) => {
-				todo!();
+				if self.functions_defined_on_fn_execution() {
+					self.execute_function_declaration(statement)?;
+				}
 			}
 			StatementVariant::DefInt(_l_value, _expression) => {
-				todo!();
+				if self.functions_defined_on_fn_execution() {
+					self.execute_function_declaration(statement)?;
+				}
 			}
 			StatementVariant::DefComplex(_l_value, _expression) => {
-				todo!();
+				if self.functions_defined_on_fn_execution() {
+					self.execute_function_declaration(statement)?;
+				}
 			}
 			StatementVariant::DefString(_l_value, _expression) => {
-				todo!();
+				if self.functions_defined_on_fn_execution() {
+					self.execute_function_declaration(statement)?;
+				}
 			}
 		}
 		Ok(false)
@@ -1048,20 +1064,96 @@ impl Machine {
 		}
 	}
 
-	fn execute_function_declaration(&mut self, statement: &Statement, program: &Program, name: &str, declaration_type: IdentifierType, argument_count: usize) -> Result<(), Error> {
+	fn execute_function_declaration(&mut self, statement: &Statement) -> Result<(), Error> {
 		let Statement { variant, column: _ } = &statement;
 		match variant {
 			StatementVariant::DefFloat(l_value, expression) => {
-				todo!()
+				let mut parameters = Vec::new();
+				let def_location = match &self.line_executing {
+					None => None,
+					Some(line_executing) => Some((line_executing.clone(), self.sub_line_executing.unwrap())),
+				};
+				for function_parameter in l_value.arguments.iter() {
+					if !function_parameter.is_valid_function_argument() {
+						return Err(ErrorVariant::InvalidFunctionParameter.at_column(l_value.start_column));
+					}
+					match function_parameter {
+						AnyTypeExpression::Float(FloatExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Float(parameter.clone())),
+						AnyTypeExpression::Int(IntExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Int(parameter.clone())),
+						AnyTypeExpression::Complex(ComplexExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Complex(parameter.clone())),
+						AnyTypeExpression::String(StringExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::String(parameter.clone())),
+						_ => unreachable!(),
+					}
+				}
+				self.float_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.float_arrays.remove(&l_value.name);
+				Ok(())
 			}
 			StatementVariant::DefInt(l_value, expression) => {
-				todo!()
+				let mut parameters = Vec::new();
+				let def_location = match &self.line_executing {
+					None => None,
+					Some(line_executing) => Some((line_executing.clone(), self.sub_line_executing.unwrap())),
+				};
+				for function_parameter in l_value.arguments.iter() {
+					if !function_parameter.is_valid_function_argument() {
+						return Err(ErrorVariant::InvalidFunctionParameter.at_column(l_value.start_column));
+					}
+					match function_parameter {
+						AnyTypeExpression::Float(FloatExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Float(parameter.clone())),
+						AnyTypeExpression::Int(IntExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Int(parameter.clone())),
+						AnyTypeExpression::Complex(ComplexExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Complex(parameter.clone())),
+						AnyTypeExpression::String(StringExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::String(parameter.clone())),
+						_ => unreachable!(),
+					}
+				}
+				self.int_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.int_arrays.remove(&l_value.name);
+				Ok(())
 			}
 			StatementVariant::DefComplex(l_value, expression) => {
-				todo!()
+				let mut parameters = Vec::new();
+				let def_location = match &self.line_executing {
+					None => None,
+					Some(line_executing) => Some((line_executing.clone(), self.sub_line_executing.unwrap())),
+				};
+				for function_parameter in l_value.arguments.iter() {
+					if !function_parameter.is_valid_function_argument() {
+						return Err(ErrorVariant::InvalidFunctionParameter.at_column(l_value.start_column));
+					}
+					match function_parameter {
+						AnyTypeExpression::Float(FloatExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Float(parameter.clone())),
+						AnyTypeExpression::Int(IntExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Int(parameter.clone())),
+						AnyTypeExpression::Complex(ComplexExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Complex(parameter.clone())),
+						AnyTypeExpression::String(StringExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::String(parameter.clone())),
+						_ => unreachable!(),
+					}
+				}
+				self.complex_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.complex_arrays.remove(&l_value.name);
+				Ok(())
 			}
 			StatementVariant::DefString(l_value, expression) => {
-				todo!()
+				let mut parameters = Vec::new();
+				let def_location = match &self.line_executing {
+					None => None,
+					Some(line_executing) => Some((line_executing.clone(), self.sub_line_executing.unwrap())),
+				};
+				for function_parameter in l_value.arguments.iter() {
+					if !function_parameter.is_valid_function_argument() {
+						return Err(ErrorVariant::InvalidFunctionParameter.at_column(l_value.start_column));
+					}
+					match function_parameter {
+						AnyTypeExpression::Float(FloatExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Float(parameter.clone())),
+						AnyTypeExpression::Int(IntExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Int(parameter.clone())),
+						AnyTypeExpression::Complex(ComplexExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::Complex(parameter.clone())),
+						AnyTypeExpression::String(StringExpression::LValue(parameter)) => parameters.push(AnyTypeLValue::String(parameter.clone())),
+						_ => unreachable!(),
+					}
+				}
+				self.string_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.string_arrays.remove(&l_value.name);
+				Ok(())
 			}
 			_ => unreachable!(),
 		}
