@@ -234,6 +234,26 @@ impl Statement {
 					array.print(depth + 1);
 				}
 			}
+			StatementVariant::DefInt(l_value, expression) => {
+				println!("DEF (Integer)");
+				l_value.print(depth + 1);
+				expression.print(depth + 1);
+			}
+			StatementVariant::DefFloat(l_value, expression) => {
+				println!("DEF (Float)");
+				l_value.print(depth + 1);
+				expression.print(depth + 1);
+			}
+			StatementVariant::DefComplex(l_value, expression) => {
+				println!("DEF (Complex)");
+				l_value.print(depth + 1);
+				expression.print(depth + 1);
+			}
+			StatementVariant::DefString(l_value, expression) => {
+				println!("DEF (String)");
+				l_value.print(depth + 1);
+				expression.print(depth + 1);
+			}
 		}
 	}
 }
@@ -264,6 +284,10 @@ pub enum StatementVariant {
 	Restore(Option<IntExpression>),
 	Return,
 	Dimension(Box<[ArrayDimension]>),
+	DefInt(IntLValue, IntExpression),
+	DefFloat(FloatLValue, FloatExpression),
+	DefComplex(ComplexLValue, ComplexExpression),
+	DefString(StringLValue, StringExpression),
 }
 
 #[derive(Debug, Clone)]

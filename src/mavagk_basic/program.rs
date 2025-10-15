@@ -19,6 +19,11 @@ pub struct Program {
 	pub complex_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 	pub string_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 
+	pub float_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub int_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub complex_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub string_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+
 	data: BTreeMap<Rc<BigInt>, Box<[(Datum, NonZeroUsize)]>>,
 }
 
@@ -34,6 +39,10 @@ impl Program {
 			int_array_declarations: BTreeMap::new(),
 			complex_array_declarations: BTreeMap::new(),
 			string_array_declarations: BTreeMap::new(),
+			complex_functions: BTreeMap::new(),
+			float_functions: BTreeMap::new(),
+			int_functions: BTreeMap::new(),
+			string_functions: BTreeMap::new(),
 			data: BTreeMap::new(),
 		}
 	}
@@ -124,6 +133,46 @@ impl Program {
 						}
 					}
 				}
+				StatementVariant::DefFloat(l_value, _) => {
+					let declarations_of_function = match self.float_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())) {
+						Some(declarations_of_function) => declarations_of_function,
+						None => {
+							self.float_functions.insert((l_value.name.clone(), l_value.arguments.len()), HashSet::new());
+							self.float_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap()
+						}
+					};
+					declarations_of_function.insert((line_number.clone(), sub_line_number));
+				}
+				StatementVariant::DefInt(l_value, _) => {
+					let declarations_of_function = match self.int_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())) {
+						Some(declarations_of_function) => declarations_of_function,
+						None => {
+							self.int_functions.insert((l_value.name.clone(), l_value.arguments.len()), HashSet::new());
+							self.int_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap()
+						}
+					};
+					declarations_of_function.insert((line_number.clone(), sub_line_number));
+				}
+				StatementVariant::DefComplex(l_value, _) => {
+					let declarations_of_function = match self.complex_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())) {
+						Some(declarations_of_function) => declarations_of_function,
+						None => {
+							self.complex_functions.insert((l_value.name.clone(), l_value.arguments.len()), HashSet::new());
+							self.complex_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap()
+						}
+					};
+					declarations_of_function.insert((line_number.clone(), sub_line_number));
+				}
+				StatementVariant::DefString(l_value, _) => {
+					let declarations_of_function = match self.string_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())) {
+						Some(declarations_of_function) => declarations_of_function,
+						None => {
+							self.string_functions.insert((l_value.name.clone(), l_value.arguments.len()), HashSet::new());
+							self.string_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap()
+						}
+					};
+					declarations_of_function.insert((line_number.clone(), sub_line_number));
+				}
 				_ => {},
 			}
 		}
@@ -168,11 +217,55 @@ impl Program {
 				StatementVariant::Dimension(arrays) => {
 					for array in arrays {
 						match array.array_type {
-							IdentifierType::UnmarkedOrFloat => self.float_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
-							IdentifierType::Integer => self.int_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
-							IdentifierType::ComplexNumber => self.complex_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
-							IdentifierType::String => self.string_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number)),
+							IdentifierType::UnmarkedOrFloat => {
+								self.float_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.float_array_declarations.get_mut(&array.name).unwrap().is_empty() {
+									self.float_array_declarations.remove(&array.name);
+								}
+							}
+							IdentifierType::Integer => {
+								self.int_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.int_array_declarations.get_mut(&array.name).unwrap().is_empty() {
+									self.int_array_declarations.remove(&array.name);
+								}
+							}
+							IdentifierType::ComplexNumber => {
+								self.complex_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.complex_array_declarations.get_mut(&array.name).unwrap().is_empty() {
+									self.complex_array_declarations.remove(&array.name);
+								}
+							}
+							IdentifierType::String => {
+								self.string_array_declarations.get_mut(&array.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.string_array_declarations.get_mut(&array.name).unwrap().is_empty() {
+									self.string_array_declarations.remove(&array.name);
+								}
+							}
 						};
+					}
+				}
+				StatementVariant::DefFloat(l_value, _) => {
+					self.float_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().remove(&(line_number.clone(), sub_line_number));
+					if self.float_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().is_empty() {
+						self.float_functions.remove(&(l_value.name.clone(), l_value.arguments.len()));
+					}
+				}
+				StatementVariant::DefInt(l_value, _) => {
+					self.int_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().remove(&(line_number.clone(), sub_line_number));
+					if self.int_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().is_empty() {
+						self.int_functions.remove(&(l_value.name.clone(), l_value.arguments.len()));
+					}
+				}
+				StatementVariant::DefComplex(l_value, _) => {
+					self.complex_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().remove(&(line_number.clone(), sub_line_number));
+					if self.complex_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().is_empty() {
+						self.complex_functions.remove(&(l_value.name.clone(), l_value.arguments.len()));
+					}
+				}
+				StatementVariant::DefString(l_value, _) => {
+					self.string_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().remove(&(line_number.clone(), sub_line_number));
+					if self.string_functions.get_mut(&(l_value.name.clone(), l_value.arguments.len())).unwrap().is_empty() {
+						self.string_functions.remove(&(l_value.name.clone(), l_value.arguments.len()));
 					}
 				}
 				_ => {},

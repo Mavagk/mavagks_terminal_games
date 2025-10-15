@@ -118,6 +118,22 @@ pub fn optimize_statement(statement: &mut Statement) {
 				}
 			}
 		}
+		StatementVariant::DefInt(l_value, expression) => {
+			optimize_int_l_value(l_value);
+			optimize_int_expression(expression);
+		}
+		StatementVariant::DefFloat(l_value, expression) => {
+			optimize_float_l_value(l_value);
+			optimize_float_expression(expression);
+		}
+		StatementVariant::DefComplex(l_value, expression) => {
+			optimize_complex_l_value(l_value);
+			optimize_complex_expression(expression);
+		}
+		StatementVariant::DefString(l_value, expression) => {
+			optimize_string_l_value(l_value);
+			optimize_string_expression(expression);
+		}
 	}
 }
 

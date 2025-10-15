@@ -28,6 +28,11 @@ pub struct Machine {
 	int_arrays: HashMap<Box<str>, Array<IntValue>>,
 	complex_arrays: HashMap<Box<str>, Array<ComplexValue>>,
 	string_arrays: HashMap<Box<str>, Array<StringValue>>,
+	// Functions
+	float_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, FloatExpression, Option<(Rc<BigInt>, usize)>)>,
+	int_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, IntExpression, Option<(Rc<BigInt>, usize)>)>,
+	complex_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, ComplexExpression, Option<(Rc<BigInt>, usize)>)>,
+	string_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, StringExpression, Option<(Rc<BigInt>, usize)>)>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
 	gosub_stack: Vec<GosubLevel>,
 	// Options set via an OPTION statement
@@ -55,6 +60,10 @@ impl Machine {
 			float_arrays: HashMap::new(),
 			complex_arrays: HashMap::new(),
 			string_arrays: HashMap::new(),
+			complex_functions: HashMap::new(),
+			float_functions: HashMap::new(),
+			int_functions: HashMap::new(),
+			string_functions: HashMap::new(),
 			//block_stack: Vec::new(),
 			//for_loop_variable_to_block_stack_index: HashMap::new(),
 			gosub_stack: vec![GosubLevel::new()],
@@ -137,6 +146,11 @@ impl Machine {
 			float_arrays: HashMap::new(),
 			complex_arrays: HashMap::new(),
 			string_arrays: HashMap::new(),
+
+			complex_functions: HashMap::new(),
+			float_functions: HashMap::new(),
+			int_functions: HashMap::new(),
+			string_functions: HashMap::new(),
 
 			angle_option: None,
 			math_option: None,
@@ -591,50 +605,6 @@ impl Machine {
 							Some(_) => continue 'a,
 							None => {}
 						}
-						//let next_input_text_byte_length = input_buffer_left.find(',');
-						//let next_input_text = match next_input_text_byte_length {
-						//	Some(next_input_text_byte_length) => {
-						//		let (next_input_text, text_after_next_input_text) = input_buffer_left.split_at(next_input_text_byte_length);
-						//		input_buffer_left = &text_after_next_input_text[1..];
-						//		next_input_text
-						//	}
-						//	None => {
-						//		if !inputs_left.is_empty() {
-						//			continue 'a;
-						//		}
-						//		take(&mut input_buffer_left)
-						//	}
-						//}.trim_ascii();
-						//match next_input {
-						//	AnyTypeLValue::Int(l_value) => {
-						//		let parsed_value = match next_input_text.parse() {
-						//			Ok(parsed_value) => IntValue::new(Rc::new(parsed_value)),
-						//			Err(_) => continue 'a,
-						//		};
-						//		self.execute_int_l_value_write(l_value, parsed_value)?;
-						//	}
-						//	AnyTypeLValue::Float(l_value) => {
-						//		let parsed_value = match next_input_text.parse() {
-						//			Ok(parsed_value) => FloatValue::new(parsed_value),
-						//			Err(_) => continue 'a,
-						//		};
-						//		self.execute_float_l_value_write(l_value, parsed_value)?;
-						//	}
-						//	AnyTypeLValue::Complex(l_value) => {
-						//		let parsed_value = match next_input_text.parse() {
-						//			Ok(parsed_value) => ComplexValue::new(parsed_value),
-						//			Err(_) => continue 'a,
-						//		};
-						//		self.execute_complex_l_value_write(l_value, parsed_value)?;
-						//	}
-						//	AnyTypeLValue::String(l_value) => {
-						//		if next_input_text.contains('"') {
-						//			// TODO: Quoted text input, parse_datum_string
-						//			continue 'a;
-						//		}
-						//		self.execute_string_l_value_write(l_value, StringValue::new(Rc::new(next_input_text.into())))?;
-						//	}
-						//}
 					}
 					if input_buffer_left.contains(|chr: char| !chr.is_ascii_whitespace()) {
 						println!("Extra inputs ignored.");
@@ -958,16 +928,27 @@ impl Machine {
 			StatementVariant::Dimension(arrays) => {
 				if self.arrays_created_on_dim_execution() {
 					for array in arrays {
-						self.execute_declaration(statement, program, &array.name, array.array_type)?;
+						self.execute_array_declaration(statement, program, &array.name, array.array_type)?;
 					}
 				}
+			}
+			StatementVariant::DefFloat(_l_value, _expression) => {
+				todo!();
+			}
+			StatementVariant::DefInt(_l_value, _expression) => {
+				todo!();
+			}
+			StatementVariant::DefComplex(_l_value, _expression) => {
+				todo!();
+			}
+			StatementVariant::DefString(_l_value, _expression) => {
+				todo!();
 			}
 		}
 		Ok(false)
 	}
 
-	fn execute_declaration(&mut self, statement: &Statement, program: &Program, name: &str, declaration_type: IdentifierType) -> Result<(), Error> {
-		//program.get_options(self, line_number, sub_line);
+	fn execute_array_declaration(&mut self, statement: &Statement, program: &Program, name: &str, declaration_type: IdentifierType) -> Result<(), Error> {
 		let Statement { variant, column: _ } = &statement;
 		match variant {
 			StatementVariant::Dimension(arrays) => {
@@ -1063,6 +1044,25 @@ impl Machine {
 				}
 				Ok(())
 			},
+			_ => unreachable!(),
+		}
+	}
+
+	fn execute_function_declaration(&mut self, statement: &Statement, program: &Program, name: &str, declaration_type: IdentifierType, argument_count: usize) -> Result<(), Error> {
+		let Statement { variant, column: _ } = &statement;
+		match variant {
+			StatementVariant::DefFloat(l_value, expression) => {
+				todo!()
+			}
+			StatementVariant::DefInt(l_value, expression) => {
+				todo!()
+			}
+			StatementVariant::DefComplex(l_value, expression) => {
+				todo!()
+			}
+			StatementVariant::DefString(l_value, expression) => {
+				todo!()
+			}
 			_ => unreachable!(),
 		}
 	}
@@ -1266,7 +1266,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1381,7 +1381,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1541,7 +1541,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1609,7 +1609,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1662,7 +1662,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1707,7 +1707,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1752,7 +1752,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;
@@ -1797,7 +1797,7 @@ impl Machine {
 			let angle_option = self.angle_option;
 			let machine_option = self.machine_option;
 			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
+			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
 			self.math_option = math_option;
 			self.base_option = base_option;
 			self.angle_option = angle_option;

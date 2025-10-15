@@ -801,6 +801,51 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				variant: StatementVariant::Dimension(arrays.into_boxed_slice()),
 			}
 		}
+		Keyword::Def => {
+			// Get l-value
+			let l_value = match parse_l_value(tokens)? {
+				Some(l_value) => l_value,
+				None => return Err(ErrorVariant::InvalidLValue.at_column(tokens.last_removed_token_end_column)),
+			};
+			// Expect equal sign
+			expect_and_remove_equal_sign(tokens)?;
+			// Get expression
+			let expression = match parse_expression(tokens)? {
+				Some(l_value) => l_value,
+				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+			};
+			// Assemble into statement
+			match l_value {
+				AnyTypeLValue::Int(l_value) => Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::DefInt(
+						l_value,
+						cast_to_int_expression(expression)?
+					),
+				},
+				AnyTypeLValue::Float(l_value) => Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::DefFloat(
+						l_value,
+						cast_to_float_expression(expression)?
+					),
+				},
+				AnyTypeLValue::Complex(l_value) => Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::DefComplex(
+						l_value,
+						cast_to_complex_expression(expression)?
+					),
+				},
+				AnyTypeLValue::String(l_value) => Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::DefString(
+						l_value,
+						cast_to_string_expression(expression)?
+					),
+				},
+			}
+		}
 		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
 		other_keyword => return Err(ErrorVariant::NotYetImplemented(format!("{} Statement", other_keyword.get_names()[0].0)).at_column(statement_keyword_start_column)),
