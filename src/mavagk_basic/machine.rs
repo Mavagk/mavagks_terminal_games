@@ -1473,12 +1473,12 @@ impl Machine {
 			self.machine_option = machine_option;
 			return Ok(result);
 		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// If it is a local user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_int_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1665,12 +1665,12 @@ impl Machine {
 			self.machine_option = machine_option;
 			return Ok(result);
 		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// If it is a local user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_float_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1903,12 +1903,12 @@ impl Machine {
 			self.machine_option = machine_option;
 			return Ok(result);
 		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// If it is a local user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_complex_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -2048,12 +2048,12 @@ impl Machine {
 			self.machine_option = machine_option;
 			return Ok(result);
 		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// If it is a local user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_string_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
