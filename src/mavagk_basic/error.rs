@@ -124,6 +124,8 @@ pub enum ErrorVariant {
 	ArrayReadUninitialized,
 	VariableReadUninitialized,
 	MultipleDeclarationsOfArray,
+	MultipleDeclarationsOfFunction,
+	MultipleDeclarationsOfFunctionAndArray,
 	InvalidArrayDimensionLength,
 	InvalidFunctionParameter,
 	// TODO Different overflows
@@ -254,6 +256,8 @@ impl Display for ErrorVariant {
 			Self::VariableReadUninitialized => write!(f, "Attempted to read an uninitialized variable."),
 			Self::ArrayIndexOutOfBounds => write!(f, "Array index out of bounds."),
 			Self::MultipleDeclarationsOfArray => write!(f, "Multiple declarations of array."),
+			Self::MultipleDeclarationsOfFunction => write!(f, "Multiple declarations of function with same name and parameter count."),
+			Self::MultipleDeclarationsOfFunctionAndArray => write!(f, "Array and function with same name."),
 			Self::InvalidArrayDimensionLength => write!(f, "Invalid array dimension length."),
 			Self::InvalidFunctionParameter => write!(f, "Invalid function parameter."),
 		}

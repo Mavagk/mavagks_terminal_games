@@ -1086,7 +1086,14 @@ impl Machine {
 					}
 				}
 				self.float_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
-				self.float_arrays.remove(&l_value.name);
+				match l_value.has_parentheses {
+					true => {
+						self.float_arrays.remove(&l_value.name);
+					}
+					false => {
+						self.float_variables.remove(&l_value.name);
+					}
+				}
 				Ok(())
 			}
 			StatementVariant::DefInt(l_value, expression) => {
@@ -1108,7 +1115,14 @@ impl Machine {
 					}
 				}
 				self.int_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
-				self.int_arrays.remove(&l_value.name);
+				match l_value.has_parentheses {
+					true => {
+						self.int_arrays.remove(&l_value.name);
+					}
+					false => {
+						self.int_variables.remove(&l_value.name);
+					}
+				}
 				Ok(())
 			}
 			StatementVariant::DefComplex(l_value, expression) => {
@@ -1130,7 +1144,14 @@ impl Machine {
 					}
 				}
 				self.complex_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
-				self.complex_arrays.remove(&l_value.name);
+				match l_value.has_parentheses {
+					true => {
+						self.complex_arrays.remove(&l_value.name);
+					}
+					false => {
+						self.complex_variables.remove(&l_value.name);
+					}
+				}
 				Ok(())
 			}
 			StatementVariant::DefString(l_value, expression) => {
@@ -1152,7 +1173,14 @@ impl Machine {
 					}
 				}
 				self.string_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
-				self.string_arrays.remove(&l_value.name);
+				match l_value.has_parentheses {
+					true => {
+						self.string_arrays.remove(&l_value.name);
+					}
+					false => {
+						self.string_variables.remove(&l_value.name);
+					}
+				}
 				Ok(())
 			}
 			_ => unreachable!(),
@@ -1340,10 +1368,6 @@ impl Machine {
 	fn execute_int_l_value_read(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<IntValue, Error> {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// Create the array if it is not yet created
 		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
@@ -1364,6 +1388,29 @@ impl Machine {
 			self.angle_option = angle_option;
 			self.machine_option = machine_option;
 		}
+		// Define function if it is not yet defined
+		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
+		{
+			if float_functions.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
+			}
+			if !arguments.is_empty() && self.float_arrays.contains_key(name) {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
+			}
+			let float_function = float_functions.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&float_function.0).unwrap().optimized_statements[float_function.1];
+			//let math_option = self.math_option;
+			//let base_option = self.base_option;
+			//let angle_option = self.angle_option;
+			//let machine_option = self.machine_option;
+			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
+			self.execute_function_declaration(statement)?;
+			//self.math_option = math_option;
+			//self.base_option = base_option;
+			//self.angle_option = angle_option;
+			//self.machine_option = machine_option;
+		}
 		// If the user has defined an array, read from it.
 		if *has_parentheses && self.int_arrays.contains_key(name) {
 			let mut indices = Vec::new();
@@ -1376,7 +1423,7 @@ impl Machine {
 			return Ok(element);
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses /*&& !*uses_fn_keyword*/ && let Some(variable) = self.int_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1455,10 +1502,6 @@ impl Machine {
 	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<FloatValue, Error> {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// Create the array if it is not yet created
 		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
@@ -1479,6 +1522,29 @@ impl Machine {
 			self.angle_option = angle_option;
 			self.machine_option = machine_option;
 		}
+		// Define function if it is not yet defined
+		if !self.int_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+			program.is_some() && let Some(int_functions) = program.unwrap().int_functions.get(&(name.clone(), arguments.len()))
+		{
+			if int_functions.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
+			}
+			if !arguments.is_empty() && self.int_arrays.contains_key(name) {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
+			}
+			let int_function = int_functions.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&int_function.0).unwrap().optimized_statements[int_function.1];
+			//let math_option = self.math_option;
+			//let base_option = self.base_option;
+			//let angle_option = self.angle_option;
+			//let machine_option = self.machine_option;
+			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
+			self.execute_function_declaration(statement)?;
+			//self.math_option = math_option;
+			//self.base_option = base_option;
+			//self.angle_option = angle_option;
+			//self.machine_option = machine_option;
+		}
 		// If the user has defined an array, read from it.
 		if *has_parentheses && self.float_arrays.contains_key(name) {
 			let mut indices = Vec::new();
@@ -1489,6 +1555,14 @@ impl Machine {
 				.read_element(&indices, self.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
+		}
+		// If a function with the argument count is defined, get it
+		if let Some((function_parameters, function_expression, function_location)) = self.float_functions.get(&(name.clone(), arguments.len())) {
+			todo!()
+		}
+		// If it is a user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
+			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
@@ -1615,10 +1689,6 @@ impl Machine {
 	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<ComplexValue, Error> {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// Create the array if it is not yet created
 		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
@@ -1638,6 +1708,29 @@ impl Machine {
 			self.base_option = base_option;
 			self.angle_option = angle_option;
 			self.machine_option = machine_option;
+		}
+		// Define function if it is not yet defined
+		if !self.complex_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+			program.is_some() && let Some(complex_functions) = program.unwrap().complex_functions.get(&(name.clone(), arguments.len()))
+		{
+			if complex_functions.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
+			}
+			if !arguments.is_empty() && self.complex_arrays.contains_key(name) {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
+			}
+			let complex_function = complex_functions.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&complex_function.0).unwrap().optimized_statements[complex_function.1];
+			//let math_option = self.math_option;
+			//let base_option = self.base_option;
+			//let angle_option = self.angle_option;
+			//let machine_option = self.machine_option;
+			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
+			self.execute_function_declaration(statement)?;
+			//self.math_option = math_option;
+			//self.base_option = base_option;
+			//self.angle_option = angle_option;
+			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
 		if *has_parentheses && self.complex_arrays.contains_key(name) {
@@ -1683,10 +1776,6 @@ impl Machine {
 	fn execute_string_l_value_read(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<StringValue, Error> {
 		// Unpack
 		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
-			return Ok(variable.clone());
-		}
 		// Create the array if it is not yet created
 		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
@@ -1707,6 +1796,29 @@ impl Machine {
 			self.angle_option = angle_option;
 			self.machine_option = machine_option;
 		}
+		// Define function if it is not yet defined
+		if !self.string_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+			program.is_some() && let Some(string_functions) = program.unwrap().string_functions.get(&(name.clone(), arguments.len()))
+		{
+			if string_functions.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
+			}
+			if !arguments.is_empty() && self.string_arrays.contains_key(name) {
+				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
+			}
+			let string_function = string_functions.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&string_function.0).unwrap().optimized_statements[string_function.1];
+			//let math_option = self.math_option;
+			//let base_option = self.base_option;
+			//let angle_option = self.angle_option;
+			//let machine_option = self.machine_option;
+			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
+			self.execute_function_declaration(statement)?;
+			//self.math_option = math_option;
+			//self.base_option = base_option;
+			//self.angle_option = angle_option;
+			//self.machine_option = machine_option;
+		}
 		// If the user has defined an array, read from it.
 		if *has_parentheses && self.string_arrays.contains_key(name) {
 			let mut indices = Vec::new();
@@ -1719,7 +1831,7 @@ impl Machine {
 			return Ok(element);
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses /* && !*uses_fn_keyword*/ && let Some(variable) = self.string_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
