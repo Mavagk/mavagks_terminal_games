@@ -1477,6 +1477,10 @@ impl Machine {
 		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
 			return Ok(variable.clone());
 		}
+		// If it is a local user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_int_variables.get(name) {
+			return Ok(variable.clone());
+		}
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match (supplied_function, arguments) {
@@ -1577,17 +1581,17 @@ impl Machine {
 			self.machine_option = machine_option;
 		}
 		// Define function if it is not yet defined
-		if !self.int_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
-			program.is_some() && let Some(int_functions) = program.unwrap().int_functions.get(&(name.clone(), arguments.len()))
+		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
 		{
-			if int_functions.len() > 1 {
+			if float_functions.len() > 1 {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
 			}
-			if !arguments.is_empty() && self.int_arrays.contains_key(name) {
+			if !arguments.is_empty() && self.float_arrays.contains_key(name) {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
 			}
-			let int_function = int_functions.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&int_function.0).unwrap().optimized_statements[int_function.1];
+			let float_function = float_functions.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&float_function.0).unwrap().optimized_statements[float_function.1];
 			//let math_option = self.math_option;
 			//let base_option = self.base_option;
 			//let angle_option = self.angle_option;
@@ -1663,6 +1667,10 @@ impl Machine {
 		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a local user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_float_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1899,6 +1907,10 @@ impl Machine {
 		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
 			return Ok(variable.clone());
 		}
+		// If it is a local user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_complex_variables.get(name) {
+			return Ok(variable.clone());
+		}
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
@@ -2038,6 +2050,10 @@ impl Machine {
 		}
 		// If it is a user defined variable that has been defined, get it
 		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// If it is a local user defined variable that has been defined, get it
+		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_string_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
