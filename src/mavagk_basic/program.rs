@@ -9,25 +9,29 @@ pub struct Program {
 	/// Maps line numbers to lines
 	lines: BTreeMap<Rc<BigInt>, Line>,
 
+	// Maps line and sub-line numbers to options
 	angle_options: BTreeMap<(Rc<BigInt>, usize), Option<AngleOption>>,
 	math_options: BTreeMap<(Rc<BigInt>, usize), Option<MathOption>>,
 	machine_options: BTreeMap<(Rc<BigInt>, usize), Option<MachineOption>>,
 	base_options: BTreeMap<(Rc<BigInt>, usize), Option<BaseOption>>,
 
+	// Maps line and sub-line numbers to array declarations
 	pub float_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 	pub int_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 	pub complex_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 	pub string_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 
+	// Maps line and sub-line numbers to function declarations
 	pub float_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
 	pub int_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
 	pub complex_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
 	pub string_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
-
+	/// Maps line numbers to all DATA values on said line if it has data statements.
 	data: BTreeMap<Rc<BigInt>, Box<[(Datum, NonZeroUsize)]>>,
 }
 
 impl Program {
+	/// Creates a new blank program containing no lines.
 	pub fn new() -> Self {
 		Self {
 			lines: BTreeMap::new(),
@@ -46,25 +50,6 @@ impl Program {
 			data: BTreeMap::new(),
 		}
 	}
-
-	//pub fn get_options(&self, machine: &mut Machine, line_number: Rc<BigInt>, sub_line: usize) {
-	//	machine.angle_option = match self.angle_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	};
-	//	machine.math_option = match self.math_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	};
-	//	machine.machine_option = match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	};
-	//	machine.base_option = match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
-	//		Some(option) => *option.1,
-	//		None => None,
-	//	};
-	//}
 
 	/// Get which OPTIONs are set at a given line and sub-line
 	#[must_use]
@@ -89,14 +74,17 @@ impl Program {
 		}
 	}
 
+	/// Returns if the program contains a line with the given line number
 	pub fn contains_line(&self, line_number: &BigInt) -> bool {
 		return self.lines.contains_key(line_number);
 	}
 
+	/// Returns if the program contains a line with the given line number that has at least one DATA statement on it.
 	pub fn contains_data_line(&self, line_number: &BigInt) -> bool {
 		return self.data.contains_key(line_number);
 	}
 
+	/// Inserts a line into the program, removes any line that already has the given number.
 	pub fn insert_line(&mut self, line_number: Rc<BigInt>, line: Line) {
 		self.remove_line(&line_number);
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
@@ -216,6 +204,7 @@ impl Program {
 		self.lines.insert(line_number, line);
 	}
 
+	/// Removes a line from the program.
 	pub fn remove_line(&mut self, line_number: &Rc<BigInt>) {
 		let line = self.lines.remove(line_number);
 		self.data.remove(line_number);
@@ -296,14 +285,17 @@ impl Program {
 		}
 	}
 
+	/// Gets the line at the given line number or `None` if there is no line with said line number.
 	pub fn get_line(&self, line_number: &BigInt) -> Option<&Line> {
 		self.lines.get(line_number)
 	}
 
+	/// Gets a list of data values at the given line number or `None` if there is no line with said line number with DATA statements.
 	pub fn get_data_line(&self, line_number: &BigInt) -> Option<&Box<[(Datum, NonZeroUsize)]>> {
 		self.data.get(line_number)
 	}
 
+	/// Gets the line number of the next line after a line that is in the program or returns `None` if the entered line is the last line.
 	pub fn get_first_line_after(&self, line_number: &BigInt) -> Option<&Rc<BigInt>> {
 		match self.lines.range::<BigInt, RangeFrom<&BigInt>>(line_number..).nth(1) {
 			Some(value) => Some(value.0),
@@ -311,6 +303,7 @@ impl Program {
 		}
 	}
 
+	/// Gets the line number of the next line after a line that is in the program that contains at least one DATA statement or returns `None` if the entered line is the last DATA line.
 	pub fn get_first_data_line_after(&self, line_number: &BigInt) -> Option<&Rc<BigInt>> {
 		match self.data.range::<BigInt, RangeFrom<&BigInt>>(line_number..).nth(1) {
 			Some(value) => Some(value.0),
@@ -318,6 +311,7 @@ impl Program {
 		}
 	}
 
+	/// Get the line number of the lowest numbered line in the program or returns `None` if there are no lines in the program.
 	pub fn get_first_line(&self) -> Option<&Rc<BigInt>> {
 		match self.lines.first_key_value() {
 			Some(value) => Some(value.0),
@@ -325,6 +319,7 @@ impl Program {
 		}
 	}
 
+	/// Get the line number of the lowest numbered line in the program that contains at least one DATA statement or returns `None` if there are no lines in the program.
 	pub fn get_first_data_line(&self) -> Option<&Rc<BigInt>> {
 		match self.data.first_key_value() {
 			Some(value) => Some(value.0),
@@ -332,25 +327,27 @@ impl Program {
 		}
 	}
 
+	/// Gets a line number to line mapping.
 	pub fn get_lines(&self) -> &BTreeMap<Rc<BigInt>, Line> {
 		&self.lines
 	}
 
+	/// Deletes all lines in the program.
 	pub fn clear_program(&mut self) {
 		*self = Self::new();
 	}
-
-	pub fn base_option_at(&self, line: (Rc<BigInt>, usize)) -> Option<BaseOption> {
-		match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..line).last() {
-			Some(option) => *option.1,
-			None => None,
-		}
-	}
 }
 
+/// A parsed and optimized line in the program.
 pub struct Line {
+	///The parsed line before it has been optimized. Contains a list of statement sub-lines that where colon separated in the source code.
 	pub unoptimized_statements: Box<[Statement]>,
+	///The parsed line after it has been optimized. Contains a list of statement sub-lines that where colon separated in the source code.
 	pub optimized_statements: Box<[Statement]>,
+	/// Contains a parse error for if an error was encountered while parsing the line.
+	/// Colon separated sub-lines before the sub-line with the error will still be contained in `unoptimized_statements` and `optimized_statements`
+	/// but sub-lines for and after said error will not be.
 	pub error: Option<Error>,
+	/// The raw text that was entered into the terminal.
 	pub source_code: Box<str>,
 }
