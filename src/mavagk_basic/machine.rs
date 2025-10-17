@@ -23,14 +23,6 @@ pub struct Machine {
 	int_stored_values: StoredValues<IntValue>,
 	complex_stored_values: StoredValues<ComplexValue>,
 	string_stored_values: StoredValues<StringValue>,
-	float_arrays: HashMap<Box<str>, Array<FloatValue>>,
-	int_arrays: HashMap<Box<str>, Array<IntValue>>,
-	complex_arrays: HashMap<Box<str>, Array<ComplexValue>>,
-	string_arrays: HashMap<Box<str>, Array<StringValue>>,
-	float_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, FloatExpression, Option<(Rc<BigInt>, usize)>)>,
-	int_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, IntExpression, Option<(Rc<BigInt>, usize)>)>,
-	complex_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, ComplexExpression, Option<(Rc<BigInt>, usize)>)>,
-	string_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, StringExpression, Option<(Rc<BigInt>, usize)>)>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
 	gosub_stack: Vec<GosubLevel>,
 	/// The state of all the currently set OPTIONs.
@@ -51,14 +43,6 @@ impl Machine {
 			int_stored_values: StoredValues::new(),
 			complex_stored_values: StoredValues::new(),
 			string_stored_values: StoredValues::new(),
-			int_arrays: HashMap::new(),
-			float_arrays: HashMap::new(),
-			complex_arrays: HashMap::new(),
-			string_arrays: HashMap::new(),
-			complex_functions: HashMap::new(),
-			float_functions: HashMap::new(),
-			int_functions: HashMap::new(),
-			string_functions: HashMap::new(),
 			gosub_stack: vec![GosubLevel::new()],
 			options: Options::new(),
 			basic_home_path: None,
@@ -133,15 +117,15 @@ impl Machine {
 			complex_stored_values: StoredValues::new(),
 			string_stored_values: StoredValues::new(),
 
-			int_arrays: HashMap::new(),
-			float_arrays: HashMap::new(),
-			complex_arrays: HashMap::new(),
-			string_arrays: HashMap::new(),
+			//int_arrays: HashMap::new(),
+			//float_arrays: HashMap::new(),
+			//complex_arrays: HashMap::new(),
+			//string_arrays: HashMap::new(),
 
-			complex_functions: HashMap::new(),
-			float_functions: HashMap::new(),
-			int_functions: HashMap::new(),
-			string_functions: HashMap::new(),
+			//complex_functions: HashMap::new(),
+			//float_functions: HashMap::new(),
+			//int_functions: HashMap::new(),
+			//string_functions: HashMap::new(),
 
 			rng: SmallRng::seed_from_u64(0),
 
@@ -882,7 +866,7 @@ impl Machine {
 									dimensions.push((dimension_length, lower_bound));
 								}
 								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
-								self.float_arrays.insert(name.into(), array);
+								self.float_stored_values.arrays.insert(name.into(), array);
 							}
 							IdentifierType::Integer => {
 								let mut dimensions = Vec::new();
@@ -900,7 +884,7 @@ impl Machine {
 									dimensions.push((dimension_length, lower_bound));
 								}
 								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
-								self.int_arrays.insert(name.into(), array);
+								self.int_stored_values.arrays.insert(name.into(), array);
 							}
 							IdentifierType::ComplexNumber => {
 								let mut dimensions = Vec::new();
@@ -918,7 +902,7 @@ impl Machine {
 									dimensions.push((dimension_length, lower_bound));
 								}
 								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
-								self.complex_arrays.insert(name.into(), array);
+								self.complex_stored_values.arrays.insert(name.into(), array);
 							}
 							IdentifierType::String => {
 								let mut dimensions = Vec::new();
@@ -936,7 +920,7 @@ impl Machine {
 									dimensions.push((dimension_length, lower_bound));
 								}
 								let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(array.start_column))?;
-								self.string_arrays.insert(name.into(), array);
+								self.string_stored_values.arrays.insert(name.into(), array);
 							}
 						}
 					}
@@ -968,10 +952,10 @@ impl Machine {
 						_ => unreachable!(),
 					}
 				}
-				self.float_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.float_stored_values.functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
 				match l_value.has_parentheses {
 					true => {
-						self.float_arrays.remove(&l_value.name);
+						self.float_stored_values.arrays.remove(&l_value.name);
 					}
 					false => {
 						self.float_stored_values.simple_variables.remove(&l_value.name);
@@ -997,10 +981,10 @@ impl Machine {
 						_ => unreachable!(),
 					}
 				}
-				self.int_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.int_stored_values.functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
 				match l_value.has_parentheses {
 					true => {
-						self.int_arrays.remove(&l_value.name);
+						self.int_stored_values.arrays.remove(&l_value.name);
 					}
 					false => {
 						self.int_stored_values.simple_variables.remove(&l_value.name);
@@ -1026,10 +1010,10 @@ impl Machine {
 						_ => unreachable!(),
 					}
 				}
-				self.complex_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.complex_stored_values.functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
 				match l_value.has_parentheses {
 					true => {
-						self.complex_arrays.remove(&l_value.name);
+						self.complex_stored_values.arrays.remove(&l_value.name);
 					}
 					false => {
 						self.complex_stored_values.simple_variables.remove(&l_value.name);
@@ -1055,10 +1039,10 @@ impl Machine {
 						_ => unreachable!(),
 					}
 				}
-				self.string_functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
+				self.string_stored_values.functions.insert((l_value.name.clone(), l_value.arguments.len()), (parameters.into_boxed_slice(), expression.clone(), def_location));
 				match l_value.has_parentheses {
 					true => {
-						self.string_arrays.remove(&l_value.name);
+						self.string_stored_values.arrays.remove(&l_value.name);
 					}
 					false => {
 						self.string_stored_values.simple_variables.remove(&l_value.name);
@@ -1252,7 +1236,7 @@ impl Machine {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.int_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
 		{
 			if int_array_declarations.len() > 1 {
@@ -1266,13 +1250,13 @@ impl Machine {
 			self.options = options_before_array_creation;
 		}
 		// Define function if it is not yet defined
-		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
+		if !self.float_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
 		{
 			if float_functions.len() > 1 {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
 			}
-			if !arguments.is_empty() && self.float_arrays.contains_key(name) {
+			if !arguments.is_empty() && self.float_stored_values.arrays.contains_key(name) {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
 			}
 			let float_function = float_functions.iter().next().unwrap();
@@ -1289,18 +1273,18 @@ impl Machine {
 			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
-		if *has_parentheses && self.int_arrays.contains_key(name) {
+		if *has_parentheses && self.int_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			let element = self.int_arrays.get(name).unwrap()
+			let element = self.int_stored_values.arrays.get(name).unwrap()
 				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
 		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.int_functions.get(&(name.clone(), arguments.len())).cloned() {
+		if let Some((function_parameters, function_expression, function_location)) = self.int_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
 			// Push GOSUB level for function execution
 			let mut gosub_level_to_push = GosubLevel::new();
 			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
@@ -1432,7 +1416,7 @@ impl Machine {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.float_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
 		{
 			if float_array_declarations.len() > 1 {
@@ -1446,13 +1430,13 @@ impl Machine {
 			self.options = options_before_function_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
+		if !self.float_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
 		{
 			if float_functions.len() > 1 {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
 			}
-			if !arguments.is_empty() && self.float_arrays.contains_key(name) {
+			if !arguments.is_empty() && self.float_stored_values.arrays.contains_key(name) {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
 			}
 			let float_function = float_functions.iter().next().unwrap();
@@ -1469,18 +1453,18 @@ impl Machine {
 			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
-		if *has_parentheses && self.float_arrays.contains_key(name) {
+		if *has_parentheses && self.float_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			let element = self.float_arrays.get(name).unwrap()
+			let element = self.float_stored_values.arrays.get(name).unwrap()
 				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
 		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.float_functions.get(&(name.clone(), arguments.len())).cloned() {
+		if let Some((function_parameters, function_expression, function_location)) = self.float_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
 			// Push GOSUB level for function execution
 			let mut gosub_level_to_push = GosubLevel::new();
 			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
@@ -1658,7 +1642,7 @@ impl Machine {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.complex_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
 		{
 			if complex_array_declarations.len() > 1 {
@@ -1672,13 +1656,13 @@ impl Machine {
 			self.options = options_before_array_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.complex_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
+		if !self.complex_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(complex_functions) = program.unwrap().complex_functions.get(&(name.clone(), arguments.len()))
 		{
 			if complex_functions.len() > 1 {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
 			}
-			if !arguments.is_empty() && self.complex_arrays.contains_key(name) {
+			if !arguments.is_empty() && self.complex_stored_values.arrays.contains_key(name) {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
 			}
 			let complex_function = complex_functions.iter().next().unwrap();
@@ -1695,18 +1679,18 @@ impl Machine {
 			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
-		if *has_parentheses && self.complex_arrays.contains_key(name) {
+		if *has_parentheses && self.complex_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			let element = self.complex_arrays.get(name).unwrap()
+			let element = self.complex_stored_values.arrays.get(name).unwrap()
 				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
 		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.complex_functions.get(&(name.clone(), arguments.len())).cloned() {
+		if let Some((function_parameters, function_expression, function_location)) = self.complex_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
 			// Push GOSUB level for function execution
 			let mut gosub_level_to_push = GosubLevel::new();
 			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
@@ -1791,7 +1775,7 @@ impl Machine {
 		// Unpack
 		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.string_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
 		{
 			if string_array_declarations.len() > 1 {
@@ -1805,13 +1789,13 @@ impl Machine {
 			self.options = options_before_array_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.string_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
+		if !self.string_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(string_functions) = program.unwrap().string_functions.get(&(name.clone(), arguments.len()))
 		{
 			if string_functions.len() > 1 {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
 			}
-			if !arguments.is_empty() && self.string_arrays.contains_key(name) {
+			if !arguments.is_empty() && self.string_stored_values.arrays.contains_key(name) {
 				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
 			}
 			let string_function = string_functions.iter().next().unwrap();
@@ -1828,18 +1812,18 @@ impl Machine {
 			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
-		if *has_parentheses && self.string_arrays.contains_key(name) {
+		if *has_parentheses && self.string_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			let element = self.string_arrays.get(name).unwrap()
+			let element = self.string_stored_values.arrays.get(name).unwrap()
 				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
 		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.string_functions.get(&(name.clone(), arguments.len())).cloned() {
+		if let Some((function_parameters, function_expression, function_location)) = self.string_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
 			// Push GOSUB level for function execution
 			let mut gosub_level_to_push = GosubLevel::new();
 			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
@@ -1913,7 +1897,7 @@ impl Machine {
 		// Unpack
 		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.int_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
 		{
 			if int_array_declarations.len() > 1 {
@@ -1927,12 +1911,12 @@ impl Machine {
 			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
-		if *has_parentheses && self.int_arrays.contains_key(name) {
+		if *has_parentheses && self.int_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			self.int_arrays.get_mut(name).unwrap()
+			self.int_stored_values.arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(());
@@ -1952,7 +1936,7 @@ impl Machine {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.float_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
 		{
 			if float_array_declarations.len() > 1 {
@@ -1966,12 +1950,12 @@ impl Machine {
 			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
-		if *has_parentheses && self.float_arrays.contains_key(name) {
+		if *has_parentheses && self.float_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			self.float_arrays.get_mut(name).unwrap()
+			self.float_stored_values.arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(());
@@ -1991,7 +1975,7 @@ impl Machine {
 		// Unpack
 		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.complex_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
 		{
 			if complex_array_declarations.len() > 1 {
@@ -2005,12 +1989,12 @@ impl Machine {
 			self.options = options_before_function_execution;
 		}
 		// If the user has defined an array, write to it.
-		if *has_parentheses && self.complex_arrays.contains_key(name) {
+		if *has_parentheses && self.complex_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			self.complex_arrays.get_mut(name).unwrap()
+			self.complex_stored_values.arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(());
@@ -2030,7 +2014,7 @@ impl Machine {
 		// Unpack
 		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.string_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
 		{
 			if string_array_declarations.len() > 1 {
@@ -2044,12 +2028,12 @@ impl Machine {
 			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
-		if *has_parentheses && self.string_arrays.contains_key(name) {
+		if *has_parentheses && self.string_stored_values.arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			self.string_arrays.get_mut(name).unwrap()
+			self.string_stored_values.arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(());
@@ -2216,12 +2200,16 @@ impl<T: Value> Array<T> {
 
 struct StoredValues<T: Value> {
 	simple_variables: HashMap<Box<str>, T>,
+	arrays: HashMap<Box<str>, Array<T>>,
+	functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, T::ExpressionType, Option<(Rc<BigInt>, usize)>)>,
 }
 
 impl<T: Value> StoredValues<T> {
 	pub fn new() -> Self {
 		Self {
 			simple_variables: HashMap::new(),
+			arrays: HashMap::new(),
+			functions: HashMap::new(),
 		}
 	}
 }

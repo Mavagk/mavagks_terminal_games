@@ -2,7 +2,7 @@ use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{error::ErrorVariant, options::AngleOption};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, FloatExpression, IntExpression, StringExpression}, error::ErrorVariant, options::AngleOption};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -19,7 +19,7 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 }
 
 pub trait Value: Default + Clone {
-
+	type ExpressionType;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -171,7 +171,7 @@ impl IntValue {
 }
 
 impl Value for IntValue {
-
+	type ExpressionType = IntExpression;
 }
 
 impl Default for IntValue {
@@ -471,7 +471,7 @@ impl FloatValue {
 }
 
 impl Value for FloatValue {
-	
+	type ExpressionType = FloatExpression;
 }
 
 impl Default for FloatValue {
@@ -640,7 +640,7 @@ impl ComplexValue {
 }
 
 impl Value for ComplexValue {
-	
+	type ExpressionType = ComplexExpression;
 }
 
 impl Default for ComplexValue {
@@ -703,7 +703,7 @@ impl StringValue {
 }
 
 impl Value for StringValue {
-	
+	type ExpressionType = StringExpression;
 }
 
 impl Default for StringValue {
@@ -809,7 +809,7 @@ impl BoolValue {
 }
 
 impl Value for BoolValue {
-	
+	type ExpressionType = BoolExpression;
 }
 
 impl Default for BoolValue {
@@ -896,7 +896,7 @@ impl AnyTypeValue {
 }
 
 impl Value for AnyTypeValue {
-	
+	type ExpressionType = AnyTypeExpression;
 }
 
 impl Default for AnyTypeValue {
