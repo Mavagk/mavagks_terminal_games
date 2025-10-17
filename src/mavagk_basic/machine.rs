@@ -18,17 +18,15 @@ pub struct Machine {
 	/// The current colon separated sub-line being executed. `None` to execute the first line.
 	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
-	// Variables
-	float_variables: HashMap<Box<str>, FloatValue>,
-	complex_variables: HashMap<Box<str>, ComplexValue>,
-	int_variables: HashMap<Box<str>, IntValue>,
-	string_variables: HashMap<Box<str>, StringValue>,
-	// Arrays
+	// Functions and values stored in variables and arrays
+	float_stored_values: StoredValues<FloatValue>,
+	int_stored_values: StoredValues<IntValue>,
+	complex_stored_values: StoredValues<ComplexValue>,
+	string_stored_values: StoredValues<StringValue>,
 	float_arrays: HashMap<Box<str>, Array<FloatValue>>,
 	int_arrays: HashMap<Box<str>, Array<IntValue>>,
 	complex_arrays: HashMap<Box<str>, Array<ComplexValue>>,
 	string_arrays: HashMap<Box<str>, Array<StringValue>>,
-	// Functions
 	float_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, FloatExpression, Option<(Rc<BigInt>, usize)>)>,
 	int_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, IntExpression, Option<(Rc<BigInt>, usize)>)>,
 	complex_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, ComplexExpression, Option<(Rc<BigInt>, usize)>)>,
@@ -49,10 +47,10 @@ impl Machine {
 			line_executing: None,
 			sub_line_executing: None,
 			execution_source: ExecutionSource::ProgramEnded,
-			int_variables: HashMap::new(),
-			float_variables: HashMap::new(),
-			complex_variables: HashMap::new(),
-			string_variables: HashMap::new(),
+			float_stored_values: StoredValues::new(),
+			int_stored_values: StoredValues::new(),
+			complex_stored_values: StoredValues::new(),
+			string_stored_values: StoredValues::new(),
 			int_arrays: HashMap::new(),
 			float_arrays: HashMap::new(),
 			complex_arrays: HashMap::new(),
@@ -61,13 +59,7 @@ impl Machine {
 			float_functions: HashMap::new(),
 			int_functions: HashMap::new(),
 			string_functions: HashMap::new(),
-			//block_stack: Vec::new(),
-			//for_loop_variable_to_block_stack_index: HashMap::new(),
 			gosub_stack: vec![GosubLevel::new()],
-			// angle_option: None,
-			// math_option: None,
-			// machine_option: None,
-			// base_option: None,
 			options: Options::new(),
 			basic_home_path: None,
 			rng: SmallRng::seed_from_u64(0),
@@ -136,10 +128,10 @@ impl Machine {
 			options: self.options.clone(),
 			// Stuff to discard
 			gosub_stack: vec![GosubLevel::new()],
-			int_variables: HashMap::new(),
-			float_variables: HashMap::new(),
-			complex_variables: HashMap::new(),
-			string_variables: HashMap::new(),
+			float_stored_values: StoredValues::new(),
+			int_stored_values: StoredValues::new(),
+			complex_stored_values: StoredValues::new(),
+			string_stored_values: StoredValues::new(),
 
 			int_arrays: HashMap::new(),
 			float_arrays: HashMap::new(),
@@ -150,11 +142,6 @@ impl Machine {
 			float_functions: HashMap::new(),
 			int_functions: HashMap::new(),
 			string_functions: HashMap::new(),
-
-			//angle_option: None,
-			//math_option: None,
-			//machine_option: None,
-			//base_option: None,
 
 			rng: SmallRng::seed_from_u64(0),
 
@@ -586,7 +573,7 @@ impl Machine {
 						match loop_block {
 							BlockOnStack::IntForLoop { name, final_value, step_value, for_line, for_sub_line } => {
 								// Get current value
-								let loop_variable_value = self.int_variables.get_mut(name).unwrap();
+								let loop_variable_value = self.int_stored_values.simple_variables.get_mut(name).unwrap();
 								// Increment
 								*loop_variable_value = loop_variable_value.clone().add(step_value);
 								// Remove the loop and blocks inside if it has finished
@@ -600,7 +587,7 @@ impl Machine {
 							}
 							BlockOnStack::FloatForLoop { name, final_value, step_value, for_line, for_sub_line } => {
 								// Get current value
-								let loop_variable_value = self.float_variables.get_mut(name).unwrap();
+								let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 								// Increment
 								*loop_variable_value = loop_variable_value.add(*step_value, allow_overflow).map_err(|error| error.at_column(*column))?;
 								// Remove the loop and blocks inside if it has finished
@@ -629,7 +616,7 @@ impl Machine {
 								_ => unreachable!(),
 							};
 							// Get current value
-							let loop_variable_value = self.int_variables.get_mut(name).unwrap();
+							let loop_variable_value = self.int_stored_values.simple_variables.get_mut(name).unwrap();
 							// Increment
 							*loop_variable_value = loop_variable_value.clone().add(&step_value);
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
@@ -652,7 +639,7 @@ impl Machine {
 								_ => unreachable!(),
 							};
 							// Get current value
-							let loop_variable_value = self.float_variables.get_mut(name).unwrap();
+							let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 							// Increment
 							*loop_variable_value = loop_variable_value.clone().add(*step_value, allow_overflow).map_err(|error| error.at_column(*start_column))?;
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
@@ -987,7 +974,7 @@ impl Machine {
 						self.float_arrays.remove(&l_value.name);
 					}
 					false => {
-						self.float_variables.remove(&l_value.name);
+						self.float_stored_values.simple_variables.remove(&l_value.name);
 					}
 				}
 				Ok(())
@@ -1016,7 +1003,7 @@ impl Machine {
 						self.int_arrays.remove(&l_value.name);
 					}
 					false => {
-						self.int_variables.remove(&l_value.name);
+						self.int_stored_values.simple_variables.remove(&l_value.name);
 					}
 				}
 				Ok(())
@@ -1045,7 +1032,7 @@ impl Machine {
 						self.complex_arrays.remove(&l_value.name);
 					}
 					false => {
-						self.complex_variables.remove(&l_value.name);
+						self.complex_stored_values.simple_variables.remove(&l_value.name);
 					}
 				}
 				Ok(())
@@ -1074,7 +1061,7 @@ impl Machine {
 						self.string_arrays.remove(&l_value.name);
 					}
 					false => {
-						self.string_variables.remove(&l_value.name);
+						self.string_stored_values.simple_variables.remove(&l_value.name);
 					}
 				}
 				Ok(())
@@ -1362,7 +1349,7 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.int_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.int_stored_values.simple_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1542,7 +1529,7 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.float_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.float_stored_values.simple_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1768,7 +1755,7 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.complex_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.complex_stored_values.simple_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1901,7 +1888,7 @@ impl Machine {
 			return Ok(variable.clone());
 		}
 		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.string_variables.get(name) {
+		if !*has_parentheses && let Some(variable) = self.string_stored_values.simple_variables.get(name) {
 			return Ok(variable.clone());
 		}
 		// Else try to execute a supplied (built-in) function
@@ -1955,7 +1942,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
-		self.int_variables.insert(name.clone(), value);
+		self.int_stored_values.simple_variables.insert(name.clone(), value);
 		// Return
 		Ok(())
 	}
@@ -1994,7 +1981,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
-		self.float_variables.insert(name.clone(), value);
+		self.float_stored_values.simple_variables.insert(name.clone(), value);
 		// Return
 		Ok(())
 	}
@@ -2033,7 +2020,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
-		self.complex_variables.insert(name.clone(), value);
+		self.complex_stored_values.simple_variables.insert(name.clone(), value);
 		// Return
 		Ok(())
 	}
@@ -2072,7 +2059,7 @@ impl Machine {
 			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
 		}
 		// Assign to global variable
-		self.string_variables.insert(name.clone(), value);
+		self.string_stored_values.simple_variables.insert(name.clone(), value);
 		// Return
 		Ok(())
 	}
@@ -2224,5 +2211,17 @@ impl<T: Value> Array<T> {
 		let index = self.indices_to_elements_index(indices)?;
 		self.elements[index] = Some(element);
 		Ok(())
+	}
+}
+
+struct StoredValues<T: Value> {
+	simple_variables: HashMap<Box<str>, T>,
+}
+
+impl<T: Value> StoredValues<T> {
+	pub fn new() -> Self {
+		Self {
+			simple_variables: HashMap::new(),
+		}
 	}
 }
