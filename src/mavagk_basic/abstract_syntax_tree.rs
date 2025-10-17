@@ -1,6 +1,6 @@
 use std::num::NonZeroUsize;
 
-use crate::mavagk_basic::{token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -330,32 +330,6 @@ pub enum OptionVariableAndValue {
 	ArithmeticDecimal,
 	ArithmeticNative,
 	ArithmeticDefault,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum AngleOption {
-	Radians,
-	Degrees,
-	Gradians,
-	Revolutions,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MathOption {
-	Ansi,
-	Ieee,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum MachineOption {
-	Ansi,
-	C64,
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum BaseOption {
-	Zero,
-	One,
 }
 
 #[derive(Debug, Clone)]

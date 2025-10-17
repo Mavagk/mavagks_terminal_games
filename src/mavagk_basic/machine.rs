@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, BaseOption, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::{BaseOption, MachineOption, Options}, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -35,11 +35,8 @@ pub struct Machine {
 	string_functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, StringExpression, Option<(Rc<BigInt>, usize)>)>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
 	gosub_stack: Vec<GosubLevel>,
-	// Options set via an OPTION statement
-	pub angle_option: Option<AngleOption>,
-	pub math_option: Option<MathOption>,
-	pub machine_option: Option<MachineOption>,
-	pub base_option: Option<BaseOption>,
+	/// The state of all the currently set OPTIONs.
+	options: Options,
 
 	basic_home_path: Option<Box<Path>>,
 
@@ -67,10 +64,11 @@ impl Machine {
 			//block_stack: Vec::new(),
 			//for_loop_variable_to_block_stack_index: HashMap::new(),
 			gosub_stack: vec![GosubLevel::new()],
-			angle_option: None,
-			math_option: None,
-			machine_option: None,
-			base_option: None,
+			// angle_option: None,
+			// math_option: None,
+			// machine_option: None,
+			// base_option: None,
+			options: Options::new(),
 			basic_home_path: None,
 			rng: SmallRng::seed_from_u64(0),
 			data_line_number_to_read: None,
@@ -135,8 +133,9 @@ impl Machine {
 			sub_line_executing: self.sub_line_executing,
 			execution_source: self.execution_source,
 			basic_home_path: take(&mut self.basic_home_path),
-			gosub_stack: vec![GosubLevel::new()],
+			options: self.options.clone(),
 			// Stuff to discard
+			gosub_stack: vec![GosubLevel::new()],
 			int_variables: HashMap::new(),
 			float_variables: HashMap::new(),
 			complex_variables: HashMap::new(),
@@ -152,10 +151,10 @@ impl Machine {
 			int_functions: HashMap::new(),
 			string_functions: HashMap::new(),
 
-			angle_option: None,
-			math_option: None,
-			machine_option: None,
-			base_option: None,
+			//angle_option: None,
+			//math_option: None,
+			//machine_option: None,
+			//base_option: None,
 
 			rng: SmallRng::seed_from_u64(0),
 
@@ -213,98 +212,6 @@ impl Machine {
 		Ok(())
 	}
 
-	const fn get_math_option(&self) -> MathOption {
-		match self.math_option {
-			None => MathOption::Ansi,
-			Some(math_option) => math_option,
-		}
-	}
-
-	const fn get_angle_option(&self) -> AngleOption {
-		match self.angle_option {
-			None => AngleOption::Radians,
-			Some(math_option) => math_option,
-		}
-	}
-
-	const fn get_machine_option(&self) -> MachineOption {
-		match self.machine_option {
-			None => MachineOption::Ansi,
-			Some(math_option) => math_option,
-		}
-	}
-
-	const fn get_base_option(&self) -> BaseOption {
-		match self.base_option {
-			None => BaseOption::Zero,
-			Some(base_option) => base_option,
-		}
-	}
-
-	/// Returns false if taking the real square root of a negative number should throw an error, returns true if it should return NaN.
-	const fn allow_real_square_root_of_negative(&self) -> bool {
-		match self.get_math_option() {
-			MathOption::Ieee => true,
-			MathOption::Ansi => false,
-		}
-	}
-
-	/// Returns false if numeric overflow should throw an error, returns true if it should return a non finite value.
-	const fn allow_overflow(&self) -> bool {
-		match self.get_math_option() {
-			MathOption::Ieee => true,
-			MathOption::Ansi => false,
-		}
-	}
-
-	/// Returns false if division by zero should throw an error, returns true if it should return a non finite value.
-	const fn allow_divide_by_zero(&self) -> bool {
-		match self.get_math_option() {
-			MathOption::Ieee => true,
-			MathOption::Ansi => false,
-		}
-	}
-
-	/// Returns if arc real trigonometric functions given values outside their input range should trow an error.
-	const fn allow_real_trig_out_of_range(&self) -> bool {
-		match self.get_math_option() {
-			MathOption::Ieee => true,
-			MathOption::Ansi => false,
-		}
-	}
-
-	/// Returns if real log functions given non-negative arguments should trow an error.
-	const fn allow_real_log_of_non_positive(&self) -> bool {
-		match self.get_math_option() {
-			MathOption::Ieee => true,
-			MathOption::Ansi => false,
-		}
-	}
-
-	/// Returns if reading an uninitialized value should trow an error.
-	const fn allow_uninitialized_read(&self) -> bool {
-		match self.get_machine_option() {
-			MachineOption::Ansi => false,
-			MachineOption::C64 => true,
-		}
-	}
-
-	/// Returns if a DIM statement will create an array or if it will be created when first accessed.
-	const fn arrays_created_on_dim_execution(&self) -> bool {
-		match self.get_machine_option() {
-			MachineOption::Ansi => false,
-			MachineOption::C64 => true,
-		}
-	}
-
-	/// Returns if a FN statement will define a function or if it will be created when first accessed.
-	const fn functions_defined_on_fn_execution(&self) -> bool {
-		match self.get_machine_option() {
-			MachineOption::Ansi => false,
-			MachineOption::C64 => true,
-		}
-	}
-
 	/// Start executing until the program terminates
 	fn execute(&mut self, program: &mut Program, direct_mode_statements: &Box<[Statement]>, direct_mode_line_text: &str) -> Result<(), FullError> {
 		// For each line
@@ -323,7 +230,8 @@ impl Machine {
 						};
 					}
 					let line_number = self.line_executing.as_ref().unwrap().clone();
-					program.get_options(self, line_number.clone(), 0);
+					self.options = program.get_options(&line_number, 0);
+					//program.get_options(self, line_number.clone(), 0);
 					// Get which sub-line to start executing from
 					let start_sub_line = match self.sub_line_executing {
 						Some(start_sub_line) => start_sub_line,
@@ -550,7 +458,7 @@ impl Machine {
 					// TODO: OPTION for setting if "? " should be auto printed
 					if let Some(prompt_expression) = prompt {
 						self.execute_any_type_expression(prompt_expression, Some(program))?.print(&mut stdout(), true, true).unwrap();
-						if self.get_machine_option() == MachineOption::C64 {
+						if self.options.get_machine_option() == MachineOption::C64 {
 							print!("? ");
 						}
 					}
@@ -671,7 +579,7 @@ impl Machine {
 				self.gosub_stack.last_mut().unwrap().for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), true), index);
 			}
 			StatementVariant::Next(loop_variables) => {
-				let allow_overflow = self.allow_overflow();
+				let allow_overflow = self.options.allow_overflow();
 				// If a NEXT without arguments is executed
 				if loop_variables.is_empty() {
 					for (index, loop_block) in self.gosub_stack.last().unwrap().block_stack.iter().enumerate().rev() {
@@ -840,10 +748,10 @@ impl Machine {
 			StatementVariant::Option(option_variable_and_value) => {
 				match option_variable_and_value {
 					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
-					OptionVariableAndValue::Angle(angle_option) => self.angle_option = *angle_option,
-					OptionVariableAndValue::Math(math_option) => self.math_option = *math_option,
-					OptionVariableAndValue::Machine(machine_option) => self.machine_option = *machine_option,
-					OptionVariableAndValue::Base(base_option) => self.base_option = *base_option,
+					OptionVariableAndValue::Angle(angle_option) => self.options.angle = *angle_option,
+					OptionVariableAndValue::Math(math_option) => self.options.math = *math_option,
+					OptionVariableAndValue::Machine(machine_option) => self.options.machine = *machine_option,
+					OptionVariableAndValue::Base(base_option) => self.options.base = *base_option,
 				}
 			}
 			StatementVariant::Load(_filename_expression) | StatementVariant::Save(_filename_expression) => {
@@ -934,29 +842,29 @@ impl Machine {
 				return Ok(true);
 			}
 			StatementVariant::Dimension(arrays) => {
-				if self.arrays_created_on_dim_execution() {
+				if self.options.arrays_created_on_dim_execution() {
 					for array in arrays {
 						self.execute_array_declaration(statement, program, &array.name, array.array_type)?;
 					}
 				}
 			}
 			StatementVariant::DefFloat(_l_value, _expression) => {
-				if self.functions_defined_on_fn_execution() {
+				if self.options.functions_defined_on_fn_execution() {
 					self.execute_function_declaration(statement)?;
 				}
 			}
 			StatementVariant::DefInt(_l_value, _expression) => {
-				if self.functions_defined_on_fn_execution() {
+				if self.options.functions_defined_on_fn_execution() {
 					self.execute_function_declaration(statement)?;
 				}
 			}
 			StatementVariant::DefComplex(_l_value, _expression) => {
-				if self.functions_defined_on_fn_execution() {
+				if self.options.functions_defined_on_fn_execution() {
 					self.execute_function_declaration(statement)?;
 				}
 			}
 			StatementVariant::DefString(_l_value, _expression) => {
-				if self.functions_defined_on_fn_execution() {
+				if self.options.functions_defined_on_fn_execution() {
 					self.execute_function_declaration(statement)?;
 				}
 			}
@@ -976,7 +884,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.get_base_option() {
+										None => match self.options.get_base_option() {
 											BaseOption::Zero => IntValue::zero(),
 											BaseOption::One => IntValue::one(),
 										}
@@ -997,7 +905,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.get_base_option() {
+										None => match self.options.get_base_option() {
 											BaseOption::Zero => IntValue::zero(),
 											BaseOption::One => IntValue::one(),
 										}
@@ -1018,7 +926,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.get_base_option() {
+										None => match self.options.get_base_option() {
 											BaseOption::Zero => IntValue::zero(),
 											BaseOption::One => IntValue::one(),
 										}
@@ -1039,7 +947,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.get_base_option() {
+										None => match self.options.get_base_option() {
 											BaseOption::Zero => IntValue::zero(),
 											BaseOption::One => IntValue::one(),
 										}
@@ -1222,21 +1130,21 @@ impl Machine {
 			FloatExpression::CastFromComplex(sub_expression) =>
 				self.execute_complex_expression(sub_expression, program)?.to_float().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
 			FloatExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.add(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.add(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.sub(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.sub(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.mul(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.mul(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Division { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression, program)?
-					.div(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
+					.div(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression, program)?
-					.pow(self.execute_float_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
+					.pow(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression, program)?.neg(),
 			FloatExpression::LValue(l_value) => self.execute_float_l_value_read(l_value, program)?,
@@ -1249,20 +1157,20 @@ impl Machine {
 			ComplexExpression::ConstantValue { value, .. } => *value,
 			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression, program)?.to_complex(),
 			ComplexExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression, program)?.add(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.add(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression, program)?.sub(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.sub(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression, program)?.mul(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.mul(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Division { lhs_expression, rhs_expression, start_column } =>
 				self.execute_complex_expression(lhs_expression, program)?
-					.div(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow(), self.allow_divide_by_zero())
+					.div(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
-				self.execute_complex_expression(lhs_expression, program)?.pow(self.execute_complex_expression(rhs_expression, program)?, self.allow_overflow())
+				self.execute_complex_expression(lhs_expression, program)?.pow(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression, program)?.neg(),
 			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value, program)?,
@@ -1369,7 +1277,7 @@ impl Machine {
 		// Unpack
 		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
 		{
 			if int_array_declarations.len() > 1 {
@@ -1377,19 +1285,13 @@ impl Machine {
 			}
 			let array_declarations_location = int_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_creation = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_creation;
 		}
 		// Define function if it is not yet defined
-		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
 		{
 			if float_functions.len() > 1 {
@@ -1418,7 +1320,7 @@ impl Machine {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
 			let element = self.int_arrays.get(name).unwrap()
-				.read_element(&indices, self.allow_uninitialized_read())
+				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
@@ -1450,16 +1352,13 @@ impl Machine {
 			self.gosub_stack.push(gosub_level_to_push);
 			let line_executing = self.line_executing.clone();
 			let sub_line_executing = self.sub_line_executing;
-			let base_option = self.base_option;
-			let math_option = self.math_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
+			let options_before_function_execution = self.options.clone();
 			if let Some(function_location) = function_location {
 				self.line_executing = Some(function_location.0);
 				self.sub_line_executing = Some(function_location.1);
 			}
 			if let Some(program) = program {
-				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
 			}
 			// Execute
 			let result = self.execute_int_expression(&function_expression, program)?;
@@ -1467,10 +1366,7 @@ impl Machine {
 			self.gosub_stack.pop();
 			self.line_executing = line_executing;
 			self.sub_line_executing = sub_line_executing;
-			self.base_option = base_option;
-			self.math_option = math_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 			return Ok(result);
 		}
 		// If it is a local user defined variable that has been defined, get it
@@ -1550,7 +1446,7 @@ impl Machine {
 			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
 		// Else
-		match self.allow_uninitialized_read() {
+		match self.options.allow_uninitialized_read() {
 			true => Ok(IntValue::zero()),
 			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
 		}
@@ -1561,7 +1457,7 @@ impl Machine {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
 		{
 			if float_array_declarations.len() > 1 {
@@ -1569,19 +1465,13 @@ impl Machine {
 			}
 			let array_declarations_location = float_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_function_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+		if !self.float_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
 		{
 			if float_functions.len() > 1 {
@@ -1610,7 +1500,7 @@ impl Machine {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
 			let element = self.float_arrays.get(name).unwrap()
-				.read_element(&indices, self.allow_uninitialized_read())
+				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
@@ -1642,16 +1532,13 @@ impl Machine {
 			self.gosub_stack.push(gosub_level_to_push);
 			let line_executing = self.line_executing.clone();
 			let sub_line_executing = self.sub_line_executing;
-			let base_option = self.base_option;
-			let math_option = self.math_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
+			let options_before_function_execution = self.options.clone();
 			if let Some(function_location) = function_location {
 				self.line_executing = Some(function_location.0);
 				self.sub_line_executing = Some(function_location.1);
 			}
 			if let Some(program) = program {
-				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
 			}
 			// Execute
 			let result = self.execute_float_expression(&function_expression, program)?;
@@ -1659,10 +1546,7 @@ impl Machine {
 			self.gosub_stack.pop();
 			self.line_executing = line_executing;
 			self.sub_line_executing = sub_line_executing;
-			self.base_option = base_option;
-			self.math_option = math_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 			return Ok(result);
 		}
 		// If it is a local user defined variable that has been defined, get it
@@ -1695,7 +1579,7 @@ impl Machine {
 				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
 					return self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.abs(self.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
+						.abs(self.options.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
 				}
 				// Functions that have one float argument
 				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
@@ -1706,37 +1590,37 @@ impl Machine {
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
 						SuppliedFunction::Sqr =>
-							argument_value.sqrt(self.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sqrt(self.options.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Abs => argument_value.abs(),
 						SuppliedFunction::Int => argument_value.floor(),
 						SuppliedFunction::Sgn => argument_value.signum(),
 						SuppliedFunction::Sin =>
-							argument_value.sin(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sin(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cos =>
-							argument_value.cos(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.cos(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Tan =>
-							argument_value.tan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.tan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cot =>
-							argument_value.cot(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.cot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Sec =>
-							argument_value.sec(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sec(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Csc =>
-							argument_value.csc(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asin => argument_value.asin(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							argument_value.csc(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asin => argument_value.asin(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acos => argument_value.acos(self.get_angle_option(), self.allow_real_trig_out_of_range())
+						SuppliedFunction::Acos => argument_value.acos(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Atan =>
-							argument_value.atan(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.atan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Acot =>
-							argument_value.acot(self.get_angle_option(), self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asec => argument_value.asec(self.get_angle_option(), self.allow_real_trig_out_of_range())
+							argument_value.acot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asec => argument_value.asec(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsc => argument_value.acsc(self.get_angle_option(), self.allow_real_trig_out_of_range())
+						SuppliedFunction::Acsc => argument_value.acsc(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log =>
-							argument_value.ln(self.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Exp => argument_value.exp(self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.ln(self.options.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Exp => argument_value.exp(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					})
 				}
@@ -1788,7 +1672,7 @@ impl Machine {
 			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
 		// Else
-		match self.allow_uninitialized_read() {
+		match self.options.allow_uninitialized_read() {
 			true => Ok(FloatValue::ZERO),
 			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
 		}
@@ -1799,7 +1683,7 @@ impl Machine {
 		// Unpack
 		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
 		{
 			if complex_array_declarations.len() > 1 {
@@ -1807,19 +1691,13 @@ impl Machine {
 			}
 			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.complex_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+		if !self.complex_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(complex_functions) = program.unwrap().complex_functions.get(&(name.clone(), arguments.len()))
 		{
 			if complex_functions.len() > 1 {
@@ -1848,7 +1726,7 @@ impl Machine {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
 			let element = self.complex_arrays.get(name).unwrap()
-				.read_element(&indices, self.allow_uninitialized_read())
+				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
@@ -1880,16 +1758,13 @@ impl Machine {
 			self.gosub_stack.push(gosub_level_to_push);
 			let line_executing = self.line_executing.clone();
 			let sub_line_executing = self.sub_line_executing;
-			let base_option = self.base_option;
-			let math_option = self.math_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
+			let options_before_function_execution = self.options.clone();
 			if let Some(function_location) = function_location {
 				self.line_executing = Some(function_location.0);
 				self.sub_line_executing = Some(function_location.1);
 			}
 			if let Some(program) = program {
-				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
 			}
 			// Execute
 			let result = self.execute_complex_expression(&function_expression, program)?;
@@ -1897,10 +1772,7 @@ impl Machine {
 			self.gosub_stack.pop();
 			self.line_executing = line_executing;
 			self.sub_line_executing = sub_line_executing;
-			self.base_option = base_option;
-			self.math_option = math_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 			return Ok(result);
 		}
 		// If it is a local user defined variable that has been defined, get it
@@ -1921,7 +1793,7 @@ impl Machine {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(match supplied_function {
-						SuppliedFunction::Sqr => argument_value.sqrt(self.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sqr => argument_value.sqrt(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					})
 				}
@@ -1933,7 +1805,7 @@ impl Machine {
 			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
 		// Else
-		match self.allow_uninitialized_read() {
+		match self.options.allow_uninitialized_read() {
 			true => Ok(ComplexValue::ZERO),
 			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
 		}
@@ -1944,7 +1816,7 @@ impl Machine {
 		// Unpack
 		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
 		{
 			if string_array_declarations.len() > 1 {
@@ -1952,19 +1824,13 @@ impl Machine {
 			}
 			let array_declarations_location = string_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0, array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_execution;
 		}
 		// Define function if it is not yet defined
-		if !self.string_functions.contains_key(&(name.clone(), arguments.len())) && !self.functions_defined_on_fn_execution() &&
+		if !self.string_functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
 			program.is_some() && let Some(string_functions) = program.unwrap().string_functions.get(&(name.clone(), arguments.len()))
 		{
 			if string_functions.len() > 1 {
@@ -1993,7 +1859,7 @@ impl Machine {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
 			let element = self.string_arrays.get(name).unwrap()
-				.read_element(&indices, self.allow_uninitialized_read())
+				.read_element(&indices, self.options.allow_uninitialized_read())
 				.map_err(|err| err.at_column(*start_column))?;
 			return Ok(element);
 		}
@@ -2025,16 +1891,13 @@ impl Machine {
 			self.gosub_stack.push(gosub_level_to_push);
 			let line_executing = self.line_executing.clone();
 			let sub_line_executing = self.sub_line_executing;
-			let base_option = self.base_option;
-			let math_option = self.math_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
+			let options_before_function_execution = self.options.clone();
 			if let Some(function_location) = function_location {
 				self.line_executing = Some(function_location.0);
 				self.sub_line_executing = Some(function_location.1);
 			}
 			if let Some(program) = program {
-				program.get_options(self, self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
 			}
 			// Execute
 			let result = self.execute_string_expression(&function_expression, program)?;
@@ -2042,10 +1905,7 @@ impl Machine {
 			self.gosub_stack.pop();
 			self.line_executing = line_executing;
 			self.sub_line_executing = sub_line_executing;
-			self.base_option = base_option;
-			self.math_option = math_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 			return Ok(result);
 		}
 		// If it is a local user defined variable that has been defined, get it
@@ -2067,7 +1927,7 @@ impl Machine {
 			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		}
 		// Else
-		match self.allow_uninitialized_read() {
+		match self.options.allow_uninitialized_read() {
 			true => Ok(StringValue::empty()),
 			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
 		}
@@ -2078,7 +1938,7 @@ impl Machine {
 		// Unpack
 		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.int_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
 		{
 			if int_array_declarations.len() > 1 {
@@ -2086,16 +1946,10 @@ impl Machine {
 			}
 			let array_declarations_location = int_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
 		if *has_parentheses && self.int_arrays.contains_key(name) {
@@ -2123,7 +1977,7 @@ impl Machine {
 		// Unpack
 		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.float_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
 		{
 			if float_array_declarations.len() > 1 {
@@ -2131,16 +1985,10 @@ impl Machine {
 			}
 			let array_declarations_location = float_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
 		if *has_parentheses && self.float_arrays.contains_key(name) {
@@ -2168,7 +2016,7 @@ impl Machine {
 		// Unpack
 		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.complex_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
 		{
 			if complex_array_declarations.len() > 1 {
@@ -2176,16 +2024,10 @@ impl Machine {
 			}
 			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_function_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_function_execution;
 		}
 		// If the user has defined an array, write to it.
 		if *has_parentheses && self.complex_arrays.contains_key(name) {
@@ -2213,7 +2055,7 @@ impl Machine {
 		// Unpack
 		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
 		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.arrays_created_on_dim_execution() &&
+		if *has_parentheses && !self.string_arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
 		{
 			if string_array_declarations.len() > 1 {
@@ -2221,16 +2063,10 @@ impl Machine {
 			}
 			let array_declarations_location = string_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let math_option = self.math_option;
-			let base_option = self.base_option;
-			let angle_option = self.angle_option;
-			let machine_option = self.machine_option;
-			program.unwrap().get_options(self, array_declarations_location.0.clone(), array_declarations_location.1);
+			let options_before_array_execution = self.options.clone();
+			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
 			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
-			self.math_option = math_option;
-			self.base_option = base_option;
-			self.angle_option = angle_option;
-			self.machine_option = machine_option;
+			self.options = options_before_array_execution;
 		}
 		// If the user has defined an array, write to it.
 		if *has_parentheses && self.string_arrays.contains_key(name) {

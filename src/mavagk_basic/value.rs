@@ -2,7 +2,7 @@ use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::AngleOption, error::ErrorVariant};
+use crate::mavagk_basic::{error::ErrorVariant, options::AngleOption};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())

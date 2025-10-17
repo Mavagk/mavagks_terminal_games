@@ -2,7 +2,7 @@ use std::{collections::{BTreeMap, HashSet}, num::NonZeroUsize, ops::{RangeFrom, 
 
 use num::BigInt;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, BaseOption, Datum, MachineOption, MathOption, OptionVariableAndValue, Statement, StatementVariant}, error::Error, machine::Machine, token::IdentifierType};
+use crate::mavagk_basic::{abstract_syntax_tree::{Datum, OptionVariableAndValue, Statement, StatementVariant}, error::Error, options::{AngleOption, BaseOption, MachineOption, MathOption, Options}, token::IdentifierType};
 
 /// A MavagkBasic program containing all its lines, does not include a direct mode line.
 pub struct Program {
@@ -47,23 +47,46 @@ impl Program {
 		}
 	}
 
-	pub fn get_options(&self, machine: &mut Machine, line_number: Rc<BigInt>, sub_line: usize) {
-		machine.angle_option = match self.angle_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-			Some(option) => *option.1,
-			None => None,
-		};
-		machine.math_option = match self.math_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-			Some(option) => *option.1,
-			None => None,
-		};
-		machine.machine_option = match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
-			Some(option) => *option.1,
-			None => None,
-		};
-		machine.base_option = match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
-			Some(option) => *option.1,
-			None => None,
-		};
+	//pub fn get_options(&self, machine: &mut Machine, line_number: Rc<BigInt>, sub_line: usize) {
+	//	machine.angle_option = match self.angle_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+	//		Some(option) => *option.1,
+	//		None => None,
+	//	};
+	//	machine.math_option = match self.math_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+	//		Some(option) => *option.1,
+	//		None => None,
+	//	};
+	//	machine.machine_option = match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+	//		Some(option) => *option.1,
+	//		None => None,
+	//	};
+	//	machine.base_option = match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number, sub_line)).last() {
+	//		Some(option) => *option.1,
+	//		None => None,
+	//	};
+	//}
+
+	/// Get which OPTIONs are set at a given line and sub-line
+	#[must_use]
+	pub fn get_options(&self, line_number: &Rc<BigInt>, sub_line: usize) -> Options {
+		Options {
+			angle: match self.angle_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+				Some(option) => *option.1,
+				None => None,
+			},
+			math: match self.math_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+				Some(option) => *option.1,
+				None => None,
+			},
+			machine: match self.machine_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+				Some(option) => *option.1,
+				None => None,
+			},
+			base: match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+				Some(option) => *option.1,
+				None => None,
+			},
+		}
 	}
 
 	pub fn contains_line(&self, line_number: &BigInt) -> bool {

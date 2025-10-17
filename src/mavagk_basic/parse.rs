@@ -2,7 +2,7 @@ use std::{mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AngleOption, AnyTypeExpression, AnyTypeLValue, ArrayDimension, BaseOption, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, MachineOption, MathOption, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
