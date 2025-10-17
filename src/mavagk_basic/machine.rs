@@ -4,7 +4,7 @@ use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintSty
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::{BaseOption, MachineOption, Options}, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::Options, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -458,7 +458,7 @@ impl Machine {
 					// TODO: OPTION for setting if "? " should be auto printed
 					if let Some(prompt_expression) = prompt {
 						self.execute_any_type_expression(prompt_expression, Some(program))?.print(&mut stdout(), true, true).unwrap();
-						if self.options.get_machine_option() == MachineOption::C64 {
+						if self.options.always_print_question_mark_after_input_prompt() {
 							print!("? ");
 						}
 					}
@@ -884,10 +884,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.options.get_base_option() {
-											BaseOption::Zero => IntValue::zero(),
-											BaseOption::One => IntValue::one(),
-										}
+										None => self.options.get_minimum_array_value(),
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
 									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
@@ -905,10 +902,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.options.get_base_option() {
-											BaseOption::Zero => IntValue::zero(),
-											BaseOption::One => IntValue::one(),
-										}
+										None => self.options.get_minimum_array_value(),
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
 									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
@@ -926,10 +920,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.options.get_base_option() {
-											BaseOption::Zero => IntValue::zero(),
-											BaseOption::One => IntValue::one(),
-										}
+										None => self.options.get_minimum_array_value(),
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
 									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());
@@ -947,10 +938,7 @@ impl Machine {
 								for dimension_expression in &array.dimensions {
 									let lower_bound = match &dimension_expression.0 {
 										Some(lower_bound) => self.execute_int_expression(lower_bound, Some(program))?,
-										None => match self.options.get_base_option() {
-											BaseOption::Zero => IntValue::zero(),
-											BaseOption::One => IntValue::one(),
-										}
+										None => self.options.get_minimum_array_value(),
 									};
 									let upper_bound = self.execute_int_expression(&dimension_expression.1, Some(program))?;
 									let dimension_length = upper_bound.sub(lower_bound.clone()).add(&IntValue::one());

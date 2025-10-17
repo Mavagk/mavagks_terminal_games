@@ -1,3 +1,5 @@
+use crate::mavagk_basic::value::IntValue;
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AngleOption {
 	Radians,
@@ -34,6 +36,7 @@ pub struct Options {
 }
 
 impl Options {
+	/// Get a default set of options for when a at the start of a program before all OPTION statements.
 	pub fn new() -> Self {
 		Self {
 			angle: None,
@@ -132,6 +135,23 @@ impl Options {
 		match self.get_machine_option() {
 			MachineOption::Ansi => false,
 			MachineOption::C64 => true,
+		}
+	}
+
+	/// Returns `true` if a INPUT statement should always print a question mark and then a space after printing the prompt.
+	/// Returns `false` if a question mark and then a space should only be printed if there is no prompt.
+	pub const fn always_print_question_mark_after_input_prompt(&self) -> bool {
+		match self.get_machine_option() {
+			MachineOption::Ansi => false,
+			MachineOption::C64 => true,
+		}
+	}
+
+	/// Returns the minimum value for an array dimension if not explicitly specified using the `x TO y` syntax.
+	pub fn get_minimum_array_value(&self) -> IntValue {
+		match self.get_base_option() {
+			BaseOption::Zero => IntValue::zero(),
+			BaseOption::One => IntValue::one(),
 		}
 	}
 }
