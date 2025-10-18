@@ -1231,6 +1231,7 @@ impl Machine {
 		})
 	}
 
+	/// Creates any array or function that has been defined but not yet created.
 	fn make_sure_defined_array_or_function_is_created<T: Value>(&mut self, l_value: &T::LValueType, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
 		let name = T::get_l_value_name(l_value);
