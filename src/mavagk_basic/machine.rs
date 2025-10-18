@@ -460,6 +460,7 @@ impl Machine {
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
 								self.execute_int_l_value_write(l_value, parsed_value, Some(program))?;
+								//self.int_stored_values.execute_l_value_write(l_value, parsed_value, Some(program), self);
 							}
 							AnyTypeLValue::Float(l_value) => {
 								let parsed_value;
@@ -1261,16 +1262,7 @@ impl Machine {
 			}
 			let float_function = float_functions.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&float_function.0).unwrap().optimized_statements[float_function.1];
-			//let math_option = self.math_option;
-			//let base_option = self.base_option;
-			//let angle_option = self.angle_option;
-			//let machine_option = self.machine_option;
-			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
 			self.execute_function_declaration(statement)?;
-			//self.math_option = math_option;
-			//self.base_option = base_option;
-			//self.angle_option = angle_option;
-			//self.machine_option = machine_option;
 		}
 		// If the user has defined an array, read from it.
 		if *has_parentheses && self.int_stored_values.arrays.contains_key(name) {
@@ -2198,18 +2190,71 @@ impl<T: Value> Array<T> {
 	}
 }
 
+/// A list of variables and arrays of type `T` stored in the MavagkBasic virtual machine as well as functions that return values of type `T`.
 struct StoredValues<T: Value> {
+	/// Variables of type `T`.
 	simple_variables: HashMap<Box<str>, T>,
+	/// Arrays of values of type `T`.
 	arrays: HashMap<Box<str>, Array<T>>,
+	/// Functions that return values of type `T`.
 	functions: HashMap<(Box<str>, usize), (Box<[AnyTypeLValue]>, T::ExpressionType, Option<(Rc<BigInt>, usize)>)>,
 }
 
 impl<T: Value> StoredValues<T> {
+	/// Create a new stored value container containing no stored values.
 	pub fn new() -> Self {
 		Self {
 			simple_variables: HashMap::new(),
 			arrays: HashMap::new(),
 			functions: HashMap::new(),
 		}
+	}
+
+	/// Writes to a value to a variable to array.
+	fn execute_l_value_write(&mut self, l_value: &T::LValueType, value: T, program: Option<&Program>, machine: &mut Machine) -> Result<(), Error> {
+		// Unpack
+		let name = T::get_l_value_name(l_value);
+		let arguments = T::get_l_value_arguments(l_value);
+		let has_parentheses = T::get_l_value_has_parentheses(l_value);
+		let l_value_start_column = T::get_l_value_start_column(l_value);
+		// Create the array if it is defined and we are writing to it and it is not yet created and it is not created on executing a DIM
+		if has_parentheses && !self.arrays.contains_key(name) && !machine.options.arrays_created_on_dim_execution() &&
+			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
+		{
+			// Throw an error is there are conflicting array DIM statements
+			if float_array_declarations.len() > 1 {
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value_start_column));
+			}
+			// Get the array DIM statement and its location in the program
+			let array_declarations_location = float_array_declarations.iter().next().unwrap();
+			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
+			// Save the current OPTIONs set
+			let options_before_array_creation = machine.options.clone();
+			// Set the OPTIONs set to the OPTIONs set at the location of the array DIM statement
+			machine.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
+			// Create the array
+			machine.execute_array_declaration(statement, program.unwrap(), &name, T::IDENTIFIER_TYPE)?;
+			// Restore the OPTIONs we had before we created the array
+			machine.options = options_before_array_creation;
+		}
+		// If we are writing to an array and it has been created, write to it.
+		if has_parentheses && self.arrays.contains_key(name) {
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(machine.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			self.arrays.get_mut(name).unwrap()
+				.write_element(&indices, value)
+				.map_err(|err| err.at_column(l_value_start_column))?;
+			return Ok(());
+		}
+		// TODO
+		if has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Implicitly created arrays".into()).at_column(l_value_start_column));
+		}
+		// Else assign to global variable
+		self.simple_variables.insert(name.into(), value);
+		// Return
+		Ok(())
 	}
 }

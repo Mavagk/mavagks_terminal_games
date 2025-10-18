@@ -1,8 +1,8 @@
-use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, rc::Rc};
+use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, BoolExpression, ComplexExpression, FloatExpression, IntExpression, StringExpression}, error::ErrorVariant, options::AngleOption};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression}, error::ErrorVariant, options::AngleOption, token::IdentifierType};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -20,6 +20,14 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 
 pub trait Value: Default + Clone {
 	type ExpressionType;
+	type LValueType;
+
+	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str;
+	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression];
+	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool;
+	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize;
+
+	const IDENTIFIER_TYPE: IdentifierType;
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -172,6 +180,25 @@ impl IntValue {
 
 impl Value for IntValue {
 	type ExpressionType = IntExpression;
+	type LValueType = IntLValue;
+
+	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str {
+		&l_value.name
+	}
+
+	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		&l_value.arguments
+	}
+
+	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool {
+		l_value.has_parentheses
+	}
+
+	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
+		l_value.start_column
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::Integer;
 }
 
 impl Default for IntValue {
@@ -472,6 +499,25 @@ impl FloatValue {
 
 impl Value for FloatValue {
 	type ExpressionType = FloatExpression;
+	type LValueType = FloatLValue;
+	
+	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str {
+		&l_value.name
+	}
+
+	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		&l_value.arguments
+	}
+
+	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool {
+		l_value.has_parentheses
+	}
+
+	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
+		l_value.start_column
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
 impl Default for FloatValue {
@@ -641,6 +687,25 @@ impl ComplexValue {
 
 impl Value for ComplexValue {
 	type ExpressionType = ComplexExpression;
+	type LValueType = ComplexLValue;
+	
+	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str {
+		&l_value.name
+	}
+
+	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		&l_value.arguments
+	}
+
+	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool {
+		l_value.has_parentheses
+	}
+
+	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
+		l_value.start_column
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
 }
 
 impl Default for ComplexValue {
@@ -704,6 +769,25 @@ impl StringValue {
 
 impl Value for StringValue {
 	type ExpressionType = StringExpression;
+	type LValueType = ComplexLValue;
+	
+	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str {
+		&l_value.name
+	}
+
+	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		&l_value.arguments
+	}
+
+	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool {
+		l_value.has_parentheses
+	}
+
+	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
+		l_value.start_column
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
 }
 
 impl Default for StringValue {
@@ -810,6 +894,25 @@ impl BoolValue {
 
 impl Value for BoolValue {
 	type ExpressionType = BoolExpression;
+	type LValueType = ();
+
+	fn get_l_value_name<'a>(_l_value: &'a Self::LValueType) -> &'a str {
+		unimplemented!()
+	}
+
+	fn get_l_value_arguments<'a>(_l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		unimplemented!()
+	}
+
+	fn get_l_value_has_parentheses(_l_value: &Self::LValueType) -> bool {
+		unimplemented!()
+	}
+
+	fn get_l_value_start_column(_l_value: &Self::LValueType) -> NonZeroUsize {
+		unimplemented!()
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
 impl Default for BoolValue {
@@ -897,6 +1000,25 @@ impl AnyTypeValue {
 
 impl Value for AnyTypeValue {
 	type ExpressionType = AnyTypeExpression;
+	type LValueType = AnyTypeLValue;
+	
+	fn get_l_value_name<'a>(_l_value: &'a Self::LValueType) -> &'a str {
+		unimplemented!()
+	}
+
+	fn get_l_value_arguments<'a>(_l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression] {
+		unimplemented!()
+	}
+
+	fn get_l_value_has_parentheses(_l_value: &Self::LValueType) -> bool {
+		unimplemented!()
+	}
+
+	fn get_l_value_start_column(_l_value: &Self::LValueType) -> NonZeroUsize {
+		unimplemented!()
+	}
+
+	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
 impl Default for AnyTypeValue {

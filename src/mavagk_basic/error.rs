@@ -129,6 +129,7 @@ pub enum ErrorVariant {
 	InvalidArrayDimensionLength,
 	InvalidFunctionParameter,
 	ArrayOrFunctionNotDefined,
+	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
 	ArrayIndexOutOfBounds = 2001,
