@@ -24,7 +24,7 @@ pub struct Machine {
 	pub complex_stored_values: StoredValues<ComplexValue>,
 	pub string_stored_values: StoredValues<StringValue>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
-	gosub_stack: Vec<GosubLevel>,
+	pub gosub_stack: Vec<GosubLevel>,
 	/// The state of all the currently set OPTIONs.
 	options: Options,
 
@@ -1055,7 +1055,7 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an integer value.
-	fn execute_int_expression(&mut self, expression: &IntExpression, program: Option<&Program>) -> Result<IntValue, Error> {
+	pub fn execute_int_expression(&mut self, expression: &IntExpression, program: Option<&Program>) -> Result<IntValue, Error> {
 		Ok(match expression {
 			IntExpression::ConstantValue { value, .. } => value.clone(),
 			IntExpression::CastFromBool(sub_expression) => self.execute_bool_expression(sub_expression, program)?.to_int(),
@@ -1077,12 +1077,12 @@ impl Machine {
 					.map_err(|error| error.at_column(*start_column))?,
 			IntExpression::BitwiseNot { sub_expression, .. } => self.execute_int_expression(sub_expression, program)?.not(),
 			IntExpression::Negation { sub_expression, .. } => self.execute_int_expression(sub_expression, program)?.neg(),
-			IntExpression::LValue(l_value) => self.execute_int_l_value_read(l_value, program)?,
+			IntExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an float value.
-	fn execute_float_expression(&mut self, expression: &FloatExpression, program: Option<&Program>) -> Result<FloatValue, Error> {
+	pub fn execute_float_expression(&mut self, expression: &FloatExpression, program: Option<&Program>) -> Result<FloatValue, Error> {
 		Ok(match expression {
 			FloatExpression::ConstantValue { value, .. } => value.clone(),
 			FloatExpression::CastFromInt(sub_expression) => self.execute_int_expression(sub_expression, program)?.to_float(),
@@ -1106,12 +1106,12 @@ impl Machine {
 					.pow(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression, program)?.neg(),
-			FloatExpression::LValue(l_value) => self.execute_float_l_value_read(l_value, program)?,
+			FloatExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an complex value.
-	fn execute_complex_expression(&mut self, expression: &ComplexExpression, program: Option<&Program>) -> Result<ComplexValue, Error> {
+	pub fn execute_complex_expression(&mut self, expression: &ComplexExpression, program: Option<&Program>) -> Result<ComplexValue, Error> {
 		Ok(match expression {
 			ComplexExpression::ConstantValue { value, .. } => *value,
 			ComplexExpression::CastFromFloat(sub_expression) => self.execute_float_expression(sub_expression, program)?.to_complex(),
@@ -1132,12 +1132,12 @@ impl Machine {
 				self.execute_complex_expression(lhs_expression, program)?.pow(self.execute_complex_expression(rhs_expression, program)?, self.options.allow_overflow())
 					.map_err(|error| error.at_column(*start_column))?,
 			ComplexExpression::Negation { sub_expression, .. } => self.execute_complex_expression(sub_expression, program)?.neg(),
-			ComplexExpression::LValue(l_value) => self.execute_complex_l_value_read(l_value, program)?,
+			ComplexExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that returns an boolean value.
-	fn execute_bool_expression(&mut self, expression: &BoolExpression, program: Option<&Program>) -> Result<BoolValue, Error> {
+	pub fn execute_bool_expression(&mut self, expression: &BoolExpression, program: Option<&Program>) -> Result<BoolValue, Error> {
 		Ok(match expression {
 			BoolExpression::ConstantValue { value, .. } => *value,
 			BoolExpression::IntIsNonZero(int_expression) => BoolValue::new(!self.execute_int_expression(&int_expression, program)?.value.is_zero()),
@@ -1211,17 +1211,17 @@ impl Machine {
 	}
 
 	/// Execute an expression that returns an string value.
-	fn execute_string_expression(&mut self, expression: &StringExpression, program: Option<&Program>) -> Result<StringValue, Error> {
+	pub fn execute_string_expression(&mut self, expression: &StringExpression, program: Option<&Program>) -> Result<StringValue, Error> {
 		Ok(match expression {
 			StringExpression::ConstantValue { value, .. } => value.clone(),
 			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } =>
 				self.execute_string_expression(lhs_expression, program)?.concat(self.execute_string_expression(rhs_expression, program)?),
-			StringExpression::LValue(l_value) => self.execute_string_l_value_read(l_value, program)?,
+			StringExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
 		})
 	}
 
 	/// Execute an expression that could return a value of any type.
-	fn execute_any_type_expression(&mut self, expression: &AnyTypeExpression, program: Option<&Program>) -> Result<AnyTypeValue, Error> {
+	pub fn execute_any_type_expression(&mut self, expression: &AnyTypeExpression, program: Option<&Program>) -> Result<AnyTypeValue, Error> {
 		Ok(match expression {
 			AnyTypeExpression::Bool(expression) => AnyTypeValue::Bool(self.execute_bool_expression(expression, program)?),
 			AnyTypeExpression::Int(expression) => AnyTypeValue::Int(self.execute_int_expression(expression, program)?),
@@ -1229,640 +1229,6 @@ impl Machine {
 			AnyTypeExpression::Complex(expression) => AnyTypeValue::Complex(self.execute_complex_expression(expression, program)?),
 			AnyTypeExpression::String(expression) => AnyTypeValue::String(self.execute_string_expression(expression, program)?),
 		})
-	}
-
-	/// Reads a integer variable or from an integer array or executes a function that returns an integer.
-	fn execute_int_l_value_read(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<IntValue, Error> {
-		// Unpack
-		let IntLValue { name, arguments, /*uses_fn_keyword,*/ has_parentheses, start_column, supplied_function } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
-		{
-			if int_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = int_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_creation = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
-			self.options = options_before_array_creation;
-		}
-		// Define function if it is not yet defined
-		if !self.float_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
-			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
-		{
-			if float_functions.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
-			}
-			if !arguments.is_empty() && self.float_stored_values.arrays.contains_key(name) {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
-			}
-			let float_function = float_functions.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&float_function.0).unwrap().optimized_statements[float_function.1];
-			self.execute_function_declaration(statement)?;
-		}
-		// If the user has defined an array, read from it.
-		if *has_parentheses && self.int_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			let element = self.int_stored_values.arrays.get(name).unwrap()
-				.read_element(&indices, self.options.allow_uninitialized_read())
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(element);
-		}
-		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.int_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
-			// Push GOSUB level for function execution
-			let mut gosub_level_to_push = GosubLevel::new();
-			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-				let argument = &arguments[argument_index];
-				match function_parameter {
-					AnyTypeLValue::Float(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Int(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Complex(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::String(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
-					}
-				}
-			}
-			self.gosub_stack.push(gosub_level_to_push);
-			let line_executing = self.line_executing.clone();
-			let sub_line_executing = self.sub_line_executing;
-			let options_before_function_execution = self.options.clone();
-			if let Some(function_location) = function_location {
-				self.line_executing = Some(function_location.0);
-				self.sub_line_executing = Some(function_location.1);
-			}
-			if let Some(program) = program {
-				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
-			}
-			// Execute
-			let result = self.execute_int_expression(&function_expression, program)?;
-			// Pop
-			self.gosub_stack.pop();
-			self.line_executing = line_executing;
-			self.sub_line_executing = sub_line_executing;
-			self.options = options_before_function_execution;
-			return Ok(result);
-		}
-		// If it is a local user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_int_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.int_stored_values.simple_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// Else try to execute a supplied (built-in) function
-		if let Some(supplied_function) = supplied_function {
-			match (supplied_function, arguments) {
-				// SQR%(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return match self.execute_any_type_expression(&arguments[0], program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
-						result if result.is_negative() => Err(ErrorVariant::IntSquareRootOfNegativeNumber.at_column(*start_column)),
-						result => Ok(IntValue::new(Rc::new(result.value.sqrt())))
-					};
-				}
-				// ABS%(X)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(IntValue::new(Rc::new(
-						self.execute_any_type_expression(argument, program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
-					)))
-				}
-				// TRUE%
-				(SuppliedFunction::Abs, _) if !has_parentheses => return Ok(IntValue::new(Rc::new((-1i8).into()))),
-				// FALSE%
-				(SuppliedFunction::False, _) if !has_parentheses => return Ok(IntValue::zero()),
-				// INT%(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 =>
-					return Ok({
-						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument, program)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?,
-							_ => {
-								let float_value = value.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.value.floor();
-								match BigInt::from_f64(float_value) {
-									Some(result) => IntValue::new(Rc::new(result)),
-									None => return Err(ErrorVariant::NonNumberValueCastToInt(float_value).at_column(*start_column)),
-								}
-							}
-						}
-					}),
-				// LEN%(X$)
-				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(IntValue::from_usize(self.execute_any_type_expression(argument, program)?
-						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
-				}
-				// SGN%(X)
-				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
-					return Ok(IntValue::new(Rc::new({
-						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument, program)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => return Ok(value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.signum()),
-							_ => {
-								match value.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
-									value if value.is_zero() => 0.into(),
-									value if value.is_negative() => (-1).into(),
-									value if value.is_positive() => 1.into(),
-									value => return Err(ErrorVariant::NonNumberValueCastToInt(value.value).at_column(*start_column)),
-								}
-							}
-						}
-					}))),
-				_ => {}
-			}
-		}
-		//
-		if *has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
-		}
-		// Else
-		match self.options.allow_uninitialized_read() {
-			true => Ok(IntValue::zero()),
-			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
-		}
-	}
-
-	/// Reads a float variable or from a float array or executes a function that returns a float.
-	fn execute_float_l_value_read(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<FloatValue, Error> {
-		// Unpack
-		let FloatLValue { name, arguments, has_parentheses, start_column, supplied_function } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
-		{
-			if float_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = float_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_function_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
-			self.options = options_before_function_execution;
-		}
-		// Define function if it is not yet defined
-		if !self.float_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
-			program.is_some() && let Some(float_functions) = program.unwrap().float_functions.get(&(name.clone(), arguments.len()))
-		{
-			if float_functions.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
-			}
-			if !arguments.is_empty() && self.float_stored_values.arrays.contains_key(name) {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
-			}
-			let float_function = float_functions.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&float_function.0).unwrap().optimized_statements[float_function.1];
-			self.execute_function_declaration(statement)?;
-		}
-		// If the user has defined an array, read from it.
-		if *has_parentheses && self.float_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			let element = self.float_stored_values.arrays.get(name).unwrap()
-				.read_element(&indices, self.options.allow_uninitialized_read())
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(element);
-		}
-		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.float_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
-			// Push GOSUB level for function execution
-			let mut gosub_level_to_push = GosubLevel::new();
-			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-				let argument = &arguments[argument_index];
-				match function_parameter {
-					AnyTypeLValue::Float(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Int(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Complex(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::String(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
-					}
-				}
-			}
-			self.gosub_stack.push(gosub_level_to_push);
-			let line_executing = self.line_executing.clone();
-			let sub_line_executing = self.sub_line_executing;
-			let options_before_function_execution = self.options.clone();
-			if let Some(function_location) = function_location {
-				self.line_executing = Some(function_location.0);
-				self.sub_line_executing = Some(function_location.1);
-			}
-			if let Some(program) = program {
-				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
-			}
-			// Execute
-			let result = self.execute_float_expression(&function_expression, program)?;
-			// Pop
-			self.gosub_stack.pop();
-			self.line_executing = line_executing;
-			self.sub_line_executing = sub_line_executing;
-			self.options = options_before_function_execution;
-			return Ok(result);
-		}
-		// If it is a local user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_float_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.float_stored_values.simple_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// Else try to execute a supplied (built-in) function
-		if let Some(supplied_function) = supplied_function {
-			match supplied_function {
-				// Constants
-				_ if !*has_parentheses => match supplied_function {
-					SuppliedFunction::Pi => return Ok(FloatValue::PI),
-					SuppliedFunction::E => return Ok(FloatValue::E),
-					SuppliedFunction::Tau => return Ok(FloatValue::TAU),
-					SuppliedFunction::Phi => return Ok(FloatValue::PHI),
-					SuppliedFunction::EGamma => return Ok(FloatValue::EGAMMA),
-					SuppliedFunction::MaxNum => return Ok(FloatValue::MAX),
-					SuppliedFunction::NaN => return Ok(FloatValue::NAN),
-					SuppliedFunction::Inf => return Ok(FloatValue::INFINITY),
-					SuppliedFunction::NInf => return Ok(FloatValue::NEG_INFINITY),
-					SuppliedFunction::True => return Ok(FloatValue::TRUE),
-					SuppliedFunction::False => return Ok(FloatValue::FALSE),
-					_ => {}
-				}
-				// ABS(X#)
-				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
-					let argument = &arguments[0];
-					return self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.abs(self.options.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
-				}
-				// Functions that have one float argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
-				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
-					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression, program)?
-						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
-					return Ok(match supplied_function {
-						SuppliedFunction::Sqr =>
-							argument_value.sqrt(self.options.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Abs => argument_value.abs(),
-						SuppliedFunction::Int => argument_value.floor(),
-						SuppliedFunction::Sgn => argument_value.signum(),
-						SuppliedFunction::Sin =>
-							argument_value.sin(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cos =>
-							argument_value.cos(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tan =>
-							argument_value.tan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cot =>
-							argument_value.cot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sec =>
-							argument_value.sec(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Csc =>
-							argument_value.csc(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asin => argument_value.asin(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acos => argument_value.acos(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Atan =>
-							argument_value.atan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acot =>
-							argument_value.acot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asec => argument_value.asec(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsc => argument_value.acsc(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log =>
-							argument_value.ln(self.options.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Exp => argument_value.exp(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						_ => unreachable!()
-					})
-				}
-				// Functions that have one complex argument
-				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
-					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression, program)?
-						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
-					return Ok(match supplied_function {
-						SuppliedFunction::Real => argument_value.re(),
-						SuppliedFunction::Imag => argument_value.im(),
-						_ => unreachable!()
-					})
-				}
-				// LEN(X$)
-				SuppliedFunction::Len if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
-						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
-				}
-				// RND(X)
-				SuppliedFunction::Rnd if arguments.len() < 2 => {
-					// If the function has an argument
-					if arguments.len() == 1 {
-						// Execute the argument and cast to a float
-						let argument_expression = &arguments[0];
-						let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_float()
-							.map_err(|err| err.at_column(argument_expression.get_start_column()))?;
-						// A value of zero means to generate a value that is not from the machine RNG
-						if argument_value.is_zero() {
-							return Ok(FloatValue::new(random_range(0.0..1.)));
-						}
-						// If positive, generate one form the machine RNG
-						if argument_value.is_positive() {
-							return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-						}
-						// If negative, seed first using the value, then generate from the machine RNG
-						self.rng = SmallRng::seed_from_u64(argument_value.value.to_bits());
-						return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-					}
-					// If it does not then generate one form the machine RNG
-					return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-				}
-				_ => {}
-			}
-		}
-		//
-		if *has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
-		}
-		// Else
-		match self.options.allow_uninitialized_read() {
-			true => Ok(FloatValue::ZERO),
-			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
-		}
-	}
-
-	/// Reads a complex variable or from a complex array or executes a function that returns a complex.
-	fn execute_complex_l_value_read(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<ComplexValue, Error> {
-		// Unpack
-		let ComplexLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
-		{
-			if complex_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
-			self.options = options_before_array_execution;
-		}
-		// Define function if it is not yet defined
-		if !self.complex_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
-			program.is_some() && let Some(complex_functions) = program.unwrap().complex_functions.get(&(name.clone(), arguments.len()))
-		{
-			if complex_functions.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
-			}
-			if !arguments.is_empty() && self.complex_stored_values.arrays.contains_key(name) {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
-			}
-			let complex_function = complex_functions.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&complex_function.0).unwrap().optimized_statements[complex_function.1];
-			//let math_option = self.math_option;
-			//let base_option = self.base_option;
-			//let angle_option = self.angle_option;
-			//let machine_option = self.machine_option;
-			//program.unwrap().get_options(self, float_function.0.clone(), float_function.1);
-			self.execute_function_declaration(statement)?;
-			//self.math_option = math_option;
-			//self.base_option = base_option;
-			//self.angle_option = angle_option;
-			//self.machine_option = machine_option;
-		}
-		// If the user has defined an array, read from it.
-		if *has_parentheses && self.complex_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			let element = self.complex_stored_values.arrays.get(name).unwrap()
-				.read_element(&indices, self.options.allow_uninitialized_read())
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(element);
-		}
-		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.complex_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
-			// Push GOSUB level for function execution
-			let mut gosub_level_to_push = GosubLevel::new();
-			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-				let argument = &arguments[argument_index];
-				match function_parameter {
-					AnyTypeLValue::Float(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Int(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Complex(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::String(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
-					}
-				}
-			}
-			self.gosub_stack.push(gosub_level_to_push);
-			let line_executing = self.line_executing.clone();
-			let sub_line_executing = self.sub_line_executing;
-			let options_before_function_execution = self.options.clone();
-			if let Some(function_location) = function_location {
-				self.line_executing = Some(function_location.0);
-				self.sub_line_executing = Some(function_location.1);
-			}
-			if let Some(program) = program {
-				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
-			}
-			// Execute
-			let result = self.execute_complex_expression(&function_expression, program)?;
-			// Pop
-			self.gosub_stack.pop();
-			self.line_executing = line_executing;
-			self.sub_line_executing = sub_line_executing;
-			self.options = options_before_function_execution;
-			return Ok(result);
-		}
-		// If it is a local user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_complex_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.complex_stored_values.simple_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// Else try to execute a supplied (built-in) function
-		if let Some(supplied_function) = supplied_function {
-			match supplied_function {
-				// Constants
-				SuppliedFunction::I if !*has_parentheses => return Ok(ComplexValue::I),
-				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr if arguments.len() == 1 => {
-					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
-					return Ok(match supplied_function {
-						SuppliedFunction::Sqr => argument_value.sqrt(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						_ => unreachable!(),
-					})
-				}
-				_ => {}
-			}
-		}
-		//
-		if *has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
-		}
-		// Else
-		match self.options.allow_uninitialized_read() {
-			true => Ok(ComplexValue::ZERO),
-			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
-		}
-	}
-
-	/// Reads a string variable or from a string array or executes a function that returns a string.
-	fn execute_string_l_value_read(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<StringValue, Error> {
-		// Unpack
-		let StringLValue { name, arguments/*, uses_fn_keyword*/, has_parentheses, start_column, supplied_function } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
-		{
-			if string_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = string_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0, array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
-			self.options = options_before_array_execution;
-		}
-		// Define function if it is not yet defined
-		if !self.string_stored_values.functions.contains_key(&(name.clone(), arguments.len())) && !self.options.functions_defined_on_fn_execution() &&
-			program.is_some() && let Some(string_functions) = program.unwrap().string_functions.get(&(name.clone(), arguments.len()))
-		{
-			if string_functions.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunction.at_column(l_value.start_column));
-			}
-			if !arguments.is_empty() && self.string_stored_values.arrays.contains_key(name) {
-				return Err(ErrorVariant::MultipleDeclarationsOfFunctionAndArray.at_column(l_value.start_column));
-			}
-			let string_function = string_functions.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&string_function.0).unwrap().optimized_statements[string_function.1];
-			self.execute_function_declaration(statement)?;
-		}
-		// If the user has defined an array, read from it.
-		if *has_parentheses && self.string_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			let element = self.string_stored_values.arrays.get(name).unwrap()
-				.read_element(&indices, self.options.allow_uninitialized_read())
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(element);
-		}
-		// If a function with the argument count is defined, get it
-		if let Some((function_parameters, function_expression, function_location)) = self.string_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
-			// Push GOSUB level for function execution
-			let mut gosub_level_to_push = GosubLevel::new();
-			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-				let argument = &arguments[argument_index];
-				match function_parameter {
-					AnyTypeLValue::Float(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Int(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Complex(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::String(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
-					}
-				}
-			}
-			self.gosub_stack.push(gosub_level_to_push);
-			let line_executing = self.line_executing.clone();
-			let sub_line_executing = self.sub_line_executing;
-			let options_before_function_execution = self.options.clone();
-			if let Some(function_location) = function_location {
-				self.line_executing = Some(function_location.0);
-				self.sub_line_executing = Some(function_location.1);
-			}
-			if let Some(program) = program {
-				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
-			}
-			// Execute
-			let result = self.execute_string_expression(&function_expression, program)?;
-			// Pop
-			self.gosub_stack.pop();
-			self.line_executing = line_executing;
-			self.sub_line_executing = sub_line_executing;
-			self.options = options_before_function_execution;
-			return Ok(result);
-		}
-		// If it is a local user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_string_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// If it is a user defined variable that has been defined, get it
-		if !*has_parentheses && let Some(variable) = self.string_stored_values.simple_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// Else try to execute a supplied (built-in) function
-		if let Some(supplied_function) = supplied_function {
-			match (supplied_function, arguments) {
-				_ => {}
-			}
-		}
-		//
-		if *has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
-		}
-		// Else
-		match self.options.allow_uninitialized_read() {
-			true => Ok(StringValue::empty()),
-			false => Err(ErrorVariant::VariableReadUninitialized.at_column(*start_column)),
-		}
 	}
 
 	fn make_sure_defined_array_or_function_is_created<T: Value>(&mut self, l_value: &T::LValueType, program: Option<&Program>) -> Result<(), Error> {
@@ -1912,7 +1278,7 @@ impl Machine {
 	}
 
 	/// Reads a value from a value, array or executes a function.
-	fn execute_l_value_read<T: Value>(&mut self, l_value: &T::LValueType, program: Option<&Program>) -> Result<FloatValue, Error> {
+	fn execute_l_value_read<T: Value>(&mut self, l_value: &T::LValueType, program: Option<&Program>) -> Result<T, Error> {
 		// Unpack
 		let name = T::get_l_value_name(l_value);
 		let arguments = T::get_l_value_arguments(l_value);
@@ -1920,181 +1286,81 @@ impl Machine {
 		let l_value_start_column = T::get_l_value_start_column(l_value);
 		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
 		self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
-		//// If the user has defined an array, read from it.
-		//if *has_parentheses && self.float_stored_values.arrays.contains_key(name) {
-		//	let mut indices = Vec::new();
-		//	for argument in arguments {
-		//		indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-		//	}
-		//	let element = self.float_stored_values.arrays.get(name).unwrap()
-		//		.read_element(&indices, self.options.allow_uninitialized_read())
-		//		.map_err(|err| err.at_column(*start_column))?;
-		//	return Ok(element);
-		//}
-		//// If a function with the argument count is defined, get it
-		//if let Some((function_parameters, function_expression, function_location)) = self.float_stored_values.functions.get(&(name.clone(), arguments.len())).cloned() {
-		//	// Push GOSUB level for function execution
-		//	let mut gosub_level_to_push = GosubLevel::new();
-		//	for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-		//		let argument = &arguments[argument_index];
-		//		match function_parameter {
-		//			AnyTypeLValue::Float(l_value) => {
-		//				let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-		//				gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-		//			}
-		//			AnyTypeLValue::Int(l_value) => {
-		//				let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-		//				gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-		//			}
-		//			AnyTypeLValue::Complex(l_value) => {
-		//				let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-		//				gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-		//			}
-		//			AnyTypeLValue::String(l_value) => {
-		//				let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-		//				gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
-		//			}
-		//		}
-		//	}
-		//	self.gosub_stack.push(gosub_level_to_push);
-		//	let line_executing = self.line_executing.clone();
-		//	let sub_line_executing = self.sub_line_executing;
-		//	let options_before_function_execution = self.options.clone();
-		//	if let Some(function_location) = function_location {
-		//		self.line_executing = Some(function_location.0);
-		//		self.sub_line_executing = Some(function_location.1);
-		//	}
-		//	if let Some(program) = program {
-		//		self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
-		//	}
-		//	// Execute
-		//	let result = self.execute_float_expression(&function_expression, program)?;
-		//	// Pop
-		//	self.gosub_stack.pop();
-		//	self.line_executing = line_executing;
-		//	self.sub_line_executing = sub_line_executing;
-		//	self.options = options_before_function_execution;
-		//	return Ok(result);
-		//}
-		//// If it is a local user defined variable that has been defined, get it
-		//if !*has_parentheses && let Some(variable) = self.gosub_stack.last().unwrap().local_float_variables.get(name) {
-		//	return Ok(variable.clone());
-		//}
-		//// If it is a user defined variable that has been defined, get it
-		//if !*has_parentheses && let Some(variable) = self.float_stored_values.simple_variables.get(name) {
-		//	return Ok(variable.clone());
-		//}
-		//// Else try to execute a supplied (built-in) function
-		//if let Some(supplied_function) = supplied_function {
-		//	match supplied_function {
-		//		// Constants
-		//		_ if !*has_parentheses => match supplied_function {
-		//			SuppliedFunction::Pi => return Ok(FloatValue::PI),
-		//			SuppliedFunction::E => return Ok(FloatValue::E),
-		//			SuppliedFunction::Tau => return Ok(FloatValue::TAU),
-		//			SuppliedFunction::Phi => return Ok(FloatValue::PHI),
-		//			SuppliedFunction::EGamma => return Ok(FloatValue::EGAMMA),
-		//			SuppliedFunction::MaxNum => return Ok(FloatValue::MAX),
-		//			SuppliedFunction::NaN => return Ok(FloatValue::NAN),
-		//			SuppliedFunction::Inf => return Ok(FloatValue::INFINITY),
-		//			SuppliedFunction::NInf => return Ok(FloatValue::NEG_INFINITY),
-		//			SuppliedFunction::True => return Ok(FloatValue::TRUE),
-		//			SuppliedFunction::False => return Ok(FloatValue::FALSE),
-		//			_ => {}
-		//		}
-		//		// ABS(X#)
-		//		SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
-		//			let argument = &arguments[0];
-		//			return self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-		//				.abs(self.options.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()));
-		//		}
-		//		// Functions that have one float argument
-		//		SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
-		//		SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-		//		SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
-		//			let argument_expression = &arguments[0];
-		//			let argument_value = self.execute_any_type_expression(argument_expression, program)?
-		//				.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
-		//			return Ok(match supplied_function {
-		//				SuppliedFunction::Sqr =>
-		//					argument_value.sqrt(self.options.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Abs => argument_value.abs(),
-		//				SuppliedFunction::Int => argument_value.floor(),
-		//				SuppliedFunction::Sgn => argument_value.signum(),
-		//				SuppliedFunction::Sin =>
-		//					argument_value.sin(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Cos =>
-		//					argument_value.cos(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Tan =>
-		//					argument_value.tan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Cot =>
-		//					argument_value.cot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Sec =>
-		//					argument_value.sec(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Csc =>
-		//					argument_value.csc(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Asin => argument_value.asin(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-		//					.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Acos => argument_value.acos(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-		//					.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Atan =>
-		//					argument_value.atan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Acot =>
-		//					argument_value.acot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Asec => argument_value.asec(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-		//					.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Acsc => argument_value.acsc(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
-		//					.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Log =>
-		//					argument_value.ln(self.options.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				SuppliedFunction::Exp => argument_value.exp(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-		//				_ => unreachable!()
-		//			})
-		//		}
-		//		// Functions that have one complex argument
-		//		SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
-		//			let argument_expression = &arguments[0];
-		//			let argument_value = self.execute_any_type_expression(argument_expression, program)?
-		//				.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
-		//			return Ok(match supplied_function {
-		//				SuppliedFunction::Real => argument_value.re(),
-		//				SuppliedFunction::Imag => argument_value.im(),
-		//				_ => unreachable!()
-		//			})
-		//		}
-		//		// LEN(X$)
-		//		SuppliedFunction::Len if arguments.len() == 1 => {
-		//			let argument = &arguments[0];
-		//			return Ok(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
-		//				.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars()))
-		//		}
-		//		// RND(X)
-		//		SuppliedFunction::Rnd if arguments.len() < 2 => {
-		//			// If the function has an argument
-		//			if arguments.len() == 1 {
-		//				// Execute the argument and cast to a float
-		//				let argument_expression = &arguments[0];
-		//				let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_float()
-		//					.map_err(|err| err.at_column(argument_expression.get_start_column()))?;
-		//				// A value of zero means to generate a value that is not from the machine RNG
-		//				if argument_value.is_zero() {
-		//					return Ok(FloatValue::new(random_range(0.0..1.)));
-		//				}
-		//				// If positive, generate one form the machine RNG
-		//				if argument_value.is_positive() {
-		//					return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-		//				}
-		//				// If negative, seed first using the value, then generate from the machine RNG
-		//				self.rng = SmallRng::seed_from_u64(argument_value.value.to_bits());
-		//				return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-		//			}
-		//			// If it does not then generate one form the machine RNG
-		//			return Ok(FloatValue::new(self.rng.random_range(0.0..1.)));
-		//		}
-		//		_ => {}
-		//	}
-		//}
-		////
+		// If the user has defined an array with the name read from it.
+		if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
+			// Execute array indices
+			let mut indices = Vec::new();
+			for argument in arguments {
+				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			}
+			// Read array element
+			let element = T::get_stored_values(self).arrays.get(name).unwrap()
+				.read_element(&indices, self.options.allow_uninitialized_read())
+				.map_err(|err| err.at_column(l_value_start_column))?;
+			return Ok(element);
+		}
+		// Else if a function with the argument count and name has been defined, execute it
+		if let Some((function_parameters, function_expression, function_location)) = T::get_stored_values(self).functions.get(&(name.into(), arguments.len())).cloned() {
+			// Execute function arguments
+			let mut gosub_level_to_push = GosubLevel::new();
+			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+				let argument = &arguments[argument_index];
+				match function_parameter {
+					AnyTypeLValue::Float(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Int(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::Complex(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+					}
+					AnyTypeLValue::String(l_value) => {
+						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+					}
+				}
+			}
+			// Push GOSUB level for function execution
+			self.gosub_stack.push(gosub_level_to_push);
+			// Save program execution location and OPTIONs set
+			let line_executing_before_function_execution = self.line_executing.clone();
+			let sub_line_executing_before_function_execution = self.sub_line_executing;
+			let options_before_function_execution = self.options.clone();
+			// Get the OPTIONs set and program location executing
+			if let Some(function_location) = function_location {
+				self.line_executing = Some(function_location.0);
+				self.sub_line_executing = Some(function_location.1);
+			}
+			if let Some(program) = program {
+				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			}
+			// Execute function
+			let result = T::execute_expression(self, &function_expression, program)?;
+			// Pop the pushed GOSUB stack
+			self.gosub_stack.pop();
+			// Restore OPTIONs set and the location in program that is being executed
+			self.line_executing = line_executing_before_function_execution;
+			self.sub_line_executing = sub_line_executing_before_function_execution;
+			self.options = options_before_function_execution;
+			return Ok(result);
+		}
+		// Else if a local variable with the name is defined, read it
+		if !has_parentheses && let Some(variable) = T::get_local_variables_mut(self).get(name) {
+			return Ok(variable.clone());
+		}
+		// Else if a global variable with the name is defined, read it
+		if !has_parentheses && let Some(variable) = T::get_stored_values(self).simple_variables.get(name) {
+			return Ok(variable.clone());
+		}
+		// Else try to execute a supplied (built-in) function
+		match T::execute_supplied_function(self, l_value, program)? {
+			Some(value) => return Ok(value),
+			None => {},
+		}
 		//if *has_parentheses {
 		//	return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
 		//}
@@ -2138,6 +1404,227 @@ impl Machine {
 		// Return
 		Ok(())
 	}
+
+	pub fn execute_float_supplied_function(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<Option<FloatValue>, Error> {
+		// Unpack
+		let FloatLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		// Else try to execute a supplied (built-in) function
+		if let Some(supplied_function) = supplied_function {
+			match supplied_function {
+				// Constants
+				_ if !has_parentheses => match supplied_function {
+					SuppliedFunction::Pi => return Ok(Some(FloatValue::PI)),
+					SuppliedFunction::E => return Ok(Some(FloatValue::E)),
+					SuppliedFunction::Tau => return Ok(Some(FloatValue::TAU)),
+					SuppliedFunction::Phi => return Ok(Some(FloatValue::PHI)),
+					SuppliedFunction::EGamma => return Ok(Some(FloatValue::EGAMMA)),
+					SuppliedFunction::MaxNum => return Ok(Some(FloatValue::MAX)),
+					SuppliedFunction::NaN => return Ok(Some(FloatValue::NAN)),
+					SuppliedFunction::Inf => return Ok(Some(FloatValue::INFINITY)),
+					SuppliedFunction::NInf => return Ok(Some(FloatValue::NEG_INFINITY)),
+					SuppliedFunction::True => return Ok(Some(FloatValue::TRUE)),
+					SuppliedFunction::False => return Ok(Some(FloatValue::FALSE)),
+					_ => return Ok(None),
+				}
+				// ABS(X#)
+				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
+					let argument = &arguments[0];
+					return Ok(Some(self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
+						.abs(self.options.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?));
+				}
+				// Functions that have one float argument
+				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
+				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
+				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Sqr =>
+							argument_value.sqrt(self.options.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Abs => argument_value.abs(),
+						SuppliedFunction::Int => argument_value.floor(),
+						SuppliedFunction::Sgn => argument_value.signum(),
+						SuppliedFunction::Sin =>
+							argument_value.sin(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cos =>
+							argument_value.cos(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tan =>
+							argument_value.tan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cot =>
+							argument_value.cot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sec =>
+							argument_value.sec(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Csc =>
+							argument_value.csc(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asin => argument_value.asin(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acos => argument_value.acos(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Atan =>
+							argument_value.atan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acot =>
+							argument_value.acot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asec => argument_value.asec(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acsc => argument_value.acsc(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log =>
+							argument_value.ln(self.options.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Exp => argument_value.exp(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!()
+					}))
+				}
+				// Functions that have one complex argument
+				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Real => argument_value.re(),
+						SuppliedFunction::Imag => argument_value.im(),
+						_ => unreachable!()
+					}))
+				}
+				// LEN(X$)
+				SuppliedFunction::Len if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(Some(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
+						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars())))
+				}
+				// RND(X)
+				SuppliedFunction::Rnd if arguments.len() < 2 => {
+					// If the function has an argument
+					if arguments.len() == 1 {
+						// Execute the argument and cast to a float
+						let argument_expression = &arguments[0];
+						let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_float()
+							.map_err(|err| err.at_column(argument_expression.get_start_column()))?;
+						// A value of zero means to generate a value that is not from the machine RNG
+						if argument_value.is_zero() {
+							return Ok(Some(FloatValue::new(random_range(0.0..1.))));
+						}
+						// If positive, generate one form the machine RNG
+						if argument_value.is_positive() {
+							return Ok(Some(FloatValue::new(self.rng.random_range(0.0..1.))));
+						}
+						// If negative, seed first using the value, then generate from the machine RNG
+						self.rng = SmallRng::seed_from_u64(argument_value.value.to_bits());
+						return Ok(Some(FloatValue::new(self.rng.random_range(0.0..1.))));
+					}
+					// If it does not then generate one form the machine RNG
+					return Ok(Some(FloatValue::new(self.rng.random_range(0.0..1.))));
+				}
+				_ => {},
+			}
+		}
+		Ok(None)
+	}
+
+	pub fn execute_int_supplied_function(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<Option<IntValue>, Error> {
+		// Unpack
+		let IntLValue { arguments, has_parentheses, start_column, supplied_function, .. } = l_value;
+		// Else try to execute a supplied (built-in) function
+		if let Some(supplied_function) = supplied_function {
+			match (supplied_function, arguments) {
+				// SQR%(X)
+				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return match self.execute_any_type_expression(&arguments[0], program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
+						result if result.is_negative() => Err(ErrorVariant::IntSquareRootOfNegativeNumber.at_column(*start_column)),
+						result => Ok(Some(IntValue::new(Rc::new(result.value.sqrt()))))
+					};
+				}
+				// ABS%(X)
+				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(Some(IntValue::new(Rc::new(
+						self.execute_any_type_expression(argument, program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
+					))))
+				}
+				// TRUE%
+				(SuppliedFunction::Abs, _) if !has_parentheses => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
+				// FALSE%
+				(SuppliedFunction::False, _) if !has_parentheses => return Ok(Some(IntValue::zero())),
+				// INT%(X)
+				(SuppliedFunction::Int, arguments) if arguments.len() == 1 =>
+					return Ok(Some({
+						let argument = &arguments[0];
+						let value = self.execute_any_type_expression(argument, program)?;
+						match value {
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?,
+							_ => {
+								let float_value = value.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.value.floor();
+								match BigInt::from_f64(float_value) {
+									Some(result) => IntValue::new(Rc::new(result)),
+									None => return Err(ErrorVariant::NonNumberValueCastToInt(float_value).at_column(*start_column)),
+								}
+							}
+						}
+					})),
+				// LEN%(X$)
+				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => {
+					let argument = &arguments[0];
+					return Ok(Some(IntValue::from_usize(self.execute_any_type_expression(argument, program)?
+						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars())))
+				}
+				// SGN%(X)
+				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
+					return Ok(Some(IntValue::new(Rc::new({
+						let argument = &arguments[0];
+						let value = self.execute_any_type_expression(argument, program)?;
+						match value {
+							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => return Ok(Some(value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.signum())),
+							_ => {
+								match value.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
+									value if value.is_zero() => 0.into(),
+									value if value.is_negative() => (-1).into(),
+									value if value.is_positive() => 1.into(),
+									value => return Err(ErrorVariant::NonNumberValueCastToInt(value.value).at_column(*start_column)),
+								}
+							}
+						}
+					})))),
+				_ => {}
+			}
+		}
+		Ok(None)
+	}
+
+	pub fn execute_complex_supplied_function(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<Option<ComplexValue>, Error> {
+		// Unpack
+		let ComplexLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		// Else try to execute a supplied (built-in) function
+		if let Some(supplied_function) = supplied_function {
+			match supplied_function {
+				// Constants
+				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
+				// Functions that have one complex number as an argument
+				SuppliedFunction::Sqr if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Sqr => argument_value.sqrt(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!(),
+					}))
+				}
+				_ => {}
+			}
+		}
+		Ok(None)
+	}
+
+	pub fn execute_string_supplied_function(&mut self, l_value: &StringLValue, _program: Option<&Program>) -> Result<Option<StringValue>, Error> {
+		// Unpack
+		let StringLValue { arguments: _, has_parentheses: _, start_column: _, supplied_function, .. } = l_value;
+		// Else try to execute a supplied (built-in) function
+		if let Some(supplied_function) = supplied_function {
+			match supplied_function {
+				_ => {}
+			}
+		}
+		Ok(None)
+	}
 }
 
 #[derive(PartialEq, Eq, Clone, Copy)]
@@ -2152,12 +1639,12 @@ enum ExecutionSource {
 }
 
 /// A for loop or other block that is on the stack.
-enum BlockOnStack {
+pub enum BlockOnStack {
 	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
 }
 
-struct GosubLevel {
+pub struct GosubLevel {
 	/// A list of active loops and multi-line program structures such as the not yet implemented if blocks.
 	pub block_stack: Vec<BlockOnStack>,
 	/// Maps a for loop variable name and if it is a float variable to an index into the block stack.

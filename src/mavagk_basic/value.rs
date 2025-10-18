@@ -1,8 +1,8 @@
-use std::{collections::{BTreeMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
+use std::{collections::{BTreeMap, HashMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::ErrorVariant, machine::{Machine, StoredValues}, options::AngleOption, program::Program, token::IdentifierType};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::AngleOption, program::Program, token::{IdentifierType, SuppliedFunction}};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -19,13 +19,14 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 }
 
 pub trait Value: Default + Clone {
-	type ExpressionType;
+	type ExpressionType: Clone;
 	type LValueType;
 
 	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str;
 	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression];
 	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool;
 	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize;
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction>;
 
 	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self>;
 	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self>;
@@ -34,6 +35,12 @@ pub trait Value: Default + Clone {
 	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>;
 	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
 	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
+
+	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self>;
+	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self>;
+
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error>;
+	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error>;
 
 	const IDENTIFIER_TYPE: IdentifierType;
 }
@@ -228,6 +235,26 @@ impl Value for IntValue {
 
 	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.int_functions
+	}
+
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_int_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		&machine.gosub_stack.last().unwrap().local_int_variables
+	}
+
+	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		&mut machine.gosub_stack.last_mut().unwrap().local_int_variables
+	}
+
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		l_value.supplied_function
+	}
+
+	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
+		machine.execute_int_supplied_function(l_value, program)
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::Integer;
@@ -573,6 +600,26 @@ impl Value for FloatValue {
 		&mut program.float_functions
 	}
 
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_float_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		&machine.gosub_stack.last().unwrap().local_float_variables
+	}
+
+	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		&mut machine.gosub_stack.last_mut().unwrap().local_float_variables
+	}
+
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		l_value.supplied_function
+	}
+
+	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
+		machine.execute_float_supplied_function(l_value, program)
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -785,6 +832,26 @@ impl Value for ComplexValue {
 		&mut program.complex_functions
 	}
 
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_complex_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		&machine.gosub_stack.last().unwrap().local_complex_variables
+	}
+
+	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		&mut machine.gosub_stack.last_mut().unwrap().local_complex_variables
+	}
+
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		l_value.supplied_function
+	}
+
+	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
+		machine.execute_complex_supplied_function(l_value, program)
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
 }
 
@@ -889,6 +956,26 @@ impl Value for StringValue {
 
 	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.string_functions
+	}
+
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_string_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		&machine.gosub_stack.last().unwrap().local_string_variables
+	}
+
+	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		&mut machine.gosub_stack.last_mut().unwrap().local_string_variables
+	}
+
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		l_value.supplied_function
+	}
+
+	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
+		machine.execute_string_supplied_function(l_value, program)
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
@@ -1040,6 +1127,26 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_bool_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(_machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		unimplemented!()
+	}
+
+	fn get_local_variables_mut<'a>(_machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		unimplemented!()
+	}
+
+	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		unimplemented!()
+	}
+
+	fn execute_supplied_function(_machine: &mut Machine, _l_value: &Self::LValueType, _program: Option<&Program>) -> Result<Option<Self>, Error> {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1167,6 +1274,26 @@ impl Value for AnyTypeValue {
 	}
 
 	fn get_function_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+		unimplemented!()
+	}
+
+	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error> {
+		machine.execute_any_type_expression(expression, program)
+	}
+
+	fn get_local_variables<'a>(_machine: &'a Machine) -> &'a HashMap<Box<str>, Self> {
+		unimplemented!()
+	}
+
+	fn get_local_variables_mut<'a>(_machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self> {
+		unimplemented!()
+	}
+
+	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+		unimplemented!()
+	}
+
+	fn execute_supplied_function(_machine: &mut Machine, _l_value: &Self::LValueType, _program: Option<&Program>) -> Result<Option<Self>, Error> {
 		unimplemented!()
 	}
 
