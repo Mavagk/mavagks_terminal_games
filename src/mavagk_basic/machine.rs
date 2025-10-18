@@ -19,10 +19,10 @@ pub struct Machine {
 	sub_line_executing: Option<usize>,
 	execution_source: ExecutionSource,
 	// Functions and values stored in variables and arrays
-	float_stored_values: StoredValues<FloatValue>,
-	int_stored_values: StoredValues<IntValue>,
-	complex_stored_values: StoredValues<ComplexValue>,
-	string_stored_values: StoredValues<StringValue>,
+	pub float_stored_values: StoredValues<FloatValue>,
+	pub int_stored_values: StoredValues<IntValue>,
+	pub complex_stored_values: StoredValues<ComplexValue>,
+	pub string_stored_values: StoredValues<StringValue>,
 	/// A stack of GOSUB levels containing return addresses and program structure blocks such as active FOR loops. Must always contain at least one level.
 	gosub_stack: Vec<GosubLevel>,
 	/// The state of all the currently set OPTIONs.
@@ -459,8 +459,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_int_l_value_write(l_value, parsed_value, Some(program))?;
-								//self.int_stored_values.execute_l_value_write(l_value, parsed_value, Some(program), self);
+								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Float(l_value) => {
 								let parsed_value;
@@ -468,7 +467,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_float_l_value_write(l_value, parsed_value, Some(program))?;
+								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Complex(l_value) => {
 								let parsed_value;
@@ -476,7 +475,7 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_complex_l_value_write(l_value, parsed_value, Some(program))?;
+								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::String(l_value) => {
 								let parsed_value;
@@ -484,7 +483,7 @@ impl Machine {
 									Ok((parsed_value, input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) => continue 'a,
 								};
-								self.execute_string_l_value_write(l_value, parsed_value, Some(program))?;
+								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
 							}
 						}
 						input_buffer_left = input_buffer_left.trim_ascii_start();
@@ -512,7 +511,7 @@ impl Machine {
 				if (step_value.is_negative() && (&*initial_value.value < &*final_value.value)) || (!step_value.is_negative() && (&*initial_value.value > &*final_value.value)) {
 					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
 				}
-				self.execute_int_l_value_write(loop_variable, initial_value, Some(program))?;
+				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
 				// Construct loop
 				let stack_loop = BlockOnStack::IntForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
@@ -537,7 +536,7 @@ impl Machine {
 				if (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) {
 					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
 				}
-				self.execute_float_l_value_write(loop_variable, initial_value, Some(program))?;
+				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
 				// Construct loop
 				let stack_loop = BlockOnStack::FloatForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
@@ -666,19 +665,19 @@ impl Machine {
 			}
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
 				let value = self.execute_int_expression(r_value_expression, Some(program))?;
-				self.execute_int_l_value_write(l_value, value, Some(program))?
+				self.execute_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::AssignFloat(l_value, r_value_expression) => {
 				let value = self.execute_float_expression(r_value_expression, Some(program))?;
-				self.execute_float_l_value_write(l_value, value, Some(program))?
+				self.execute_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::AssignComplex(l_value, r_value_expression) => {
 				let value = self.execute_complex_expression(r_value_expression, Some(program))?;
-				self.execute_complex_l_value_write(l_value, value, Some(program))?
+				self.execute_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::AssignString(l_value, r_value_expression) => {
 				let value = self.execute_string_expression(r_value_expression, Some(program))?;
-				self.execute_string_l_value_write(l_value, value, Some(program))?
+				self.execute_l_value_write(l_value, value, Some(program))?
 			}
 			StatementVariant::List(range_start, range_end) => {
 				let range_start_value = match range_start {
@@ -760,23 +759,23 @@ impl Machine {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_int_l_value_write(l_value, datum.clone(), Some(program))?;
+							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Float(l_value) => {
 							let datum = match &datum.as_float {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_float_l_value_write(l_value, datum.clone(), Some(program))?;
+							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Complex(l_value) => {
 							let datum = match &datum.as_complex {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_complex_l_value_write(l_value, datum.clone(), Some(program))?;
+							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
 						}
-						AnyTypeLValue::String(l_value) => self.execute_string_l_value_write(l_value, datum.as_string.clone(), Some(program))?,
+						AnyTypeLValue::String(l_value) => self.execute_l_value_write(l_value, datum.as_string.clone(), Some(program))?,
 					}
 					// Calculate new line number
 					self.datum_index_in_data_line_to_read += 1;
@@ -1884,158 +1883,50 @@ impl Machine {
 		}
 	}
 
-	/// Writes to a integer variable or to an integer array.
-	fn execute_int_l_value_write(&mut self, l_value: &IntLValue, value: IntValue, program: Option<&Program>) -> Result<(), Error> {
+	/// Writes to a value to a variable or array.
+	fn execute_l_value_write<T: Value>(&mut self, l_value: &T::LValueType, value: T, program: Option<&Program>) -> Result<(), Error> {
 		// Unpack
-		let IntLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.int_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(int_array_declarations) = program.unwrap().int_array_declarations.get(name)
-		{
-			if int_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = int_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::Integer)?;
-			self.options = options_before_array_execution;
-		}
-		// If the user has defined an array, write to it.
-		if *has_parentheses && self.int_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			self.int_stored_values.arrays.get_mut(name).unwrap()
-				.write_element(&indices, value)
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(());
-		}
-		// TODO
-		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
-		}
-		// Assign to global variable
-		self.int_stored_values.simple_variables.insert(name.clone(), value);
-		// Return
-		Ok(())
-	}
-
-	/// Writes to a float variable or to an float array.
-	fn execute_float_l_value_write(&mut self, l_value: &FloatLValue, value: FloatValue, program: Option<&Program>) -> Result<(), Error> {
-		// Unpack
-		let FloatLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.float_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
+		let name = T::get_l_value_name(l_value);
+		let arguments = T::get_l_value_arguments(l_value);
+		let has_parentheses = T::get_l_value_has_parentheses(l_value);
+		let l_value_start_column = T::get_l_value_start_column(l_value);
+		// Create the array if it is defined and we are writing to it and it is not yet created and it is not created on executing a DIM
+		if has_parentheses && !T::get_stored_values(self).arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
 			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
 		{
+			// Throw an error is there are conflicting array DIM statements
 			if float_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
+				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value_start_column));
 			}
+			// Get the array DIM statement and its location in the program
 			let array_declarations_location = float_array_declarations.iter().next().unwrap();
 			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_execution = self.options.clone();
+			// Save the current OPTIONs set
+			let options_before_array_creation = self.options.clone();
+			// Set the OPTIONs set to the OPTIONs set at the location of the array DIM statement
 			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::UnmarkedOrFloat)?;
-			self.options = options_before_array_execution;
+			// Create the array
+			self.execute_array_declaration(statement, program.unwrap(), &name, T::IDENTIFIER_TYPE)?;
+			// Restore the OPTIONs we had before we created the array
+			self.options = options_before_array_creation;
 		}
-		// If the user has defined an array, write to it.
-		if *has_parentheses && self.float_stored_values.arrays.contains_key(name) {
+		// If we are writing to an array and it has been created, write to it.
+		if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
 			let mut indices = Vec::new();
 			for argument in arguments {
 				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
 			}
-			self.float_stored_values.arrays.get_mut(name).unwrap()
+			T::get_stored_values_mut(self).arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
-				.map_err(|err| err.at_column(*start_column))?;
+				.map_err(|err| err.at_column(l_value_start_column))?;
 			return Ok(());
 		}
 		// TODO
-		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
+		if has_parentheses {
+			return Err(ErrorVariant::NotYetImplemented("Implicitly created arrays".into()).at_column(l_value_start_column));
 		}
-		// Assign to global variable
-		self.float_stored_values.simple_variables.insert(name.clone(), value);
-		// Return
-		Ok(())
-	}
-
-	/// Writes to a complex variable or to an complex array.
-	fn execute_complex_l_value_write(&mut self, l_value: &ComplexLValue, value: ComplexValue, program: Option<&Program>) -> Result<(), Error> {
-		// Unpack
-		let ComplexLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.complex_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(complex_array_declarations) = program.unwrap().complex_array_declarations.get(name)
-		{
-			if complex_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = complex_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_function_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::ComplexNumber)?;
-			self.options = options_before_function_execution;
-		}
-		// If the user has defined an array, write to it.
-		if *has_parentheses && self.complex_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			self.complex_stored_values.arrays.get_mut(name).unwrap()
-				.write_element(&indices, value)
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(());
-		}
-		// TODO
-		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
-		}
-		// Assign to global variable
-		self.complex_stored_values.simple_variables.insert(name.clone(), value);
-		// Return
-		Ok(())
-	}
-
-	/// Writes to a string variable or to an string array.
-	fn execute_string_l_value_write(&mut self, l_value: &StringLValue, value: StringValue, program: Option<&Program>) -> Result<(), Error> {
-		// Unpack
-		let StringLValue { name, arguments, has_parentheses, start_column, .. } = l_value;
-		// Create the array if it is not yet created
-		if *has_parentheses && !self.string_stored_values.arrays.contains_key(name) && !self.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(string_array_declarations) = program.unwrap().string_array_declarations.get(name)
-		{
-			if string_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value.start_column));
-			}
-			let array_declarations_location = string_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			let options_before_array_execution = self.options.clone();
-			self.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			self.execute_array_declaration(statement, program.unwrap(), &name, IdentifierType::String)?;
-			self.options = options_before_array_execution;
-		}
-		// If the user has defined an array, write to it.
-		if *has_parentheses && self.string_stored_values.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			self.string_stored_values.arrays.get_mut(name).unwrap()
-				.write_element(&indices, value)
-				.map_err(|err| err.at_column(*start_column))?;
-			return Ok(());
-		}
-		// TODO
-		if !arguments.is_empty() || *has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("User defined functions".into()).at_column(*start_column));
-		}
-		// Assign to global variable
-		self.string_stored_values.simple_variables.insert(name.clone(), value);
+		// Else assign to global variable
+		T::get_stored_values_mut(self).simple_variables.insert(name.into(), value);
 		// Return
 		Ok(())
 	}
@@ -2191,7 +2082,7 @@ impl<T: Value> Array<T> {
 }
 
 /// A list of variables and arrays of type `T` stored in the MavagkBasic virtual machine as well as functions that return values of type `T`.
-struct StoredValues<T: Value> {
+pub struct StoredValues<T: Value> {
 	/// Variables of type `T`.
 	simple_variables: HashMap<Box<str>, T>,
 	/// Arrays of values of type `T`.
@@ -2208,53 +2099,5 @@ impl<T: Value> StoredValues<T> {
 			arrays: HashMap::new(),
 			functions: HashMap::new(),
 		}
-	}
-
-	/// Writes to a value to a variable to array.
-	fn execute_l_value_write(&mut self, l_value: &T::LValueType, value: T, program: Option<&Program>, machine: &mut Machine) -> Result<(), Error> {
-		// Unpack
-		let name = T::get_l_value_name(l_value);
-		let arguments = T::get_l_value_arguments(l_value);
-		let has_parentheses = T::get_l_value_has_parentheses(l_value);
-		let l_value_start_column = T::get_l_value_start_column(l_value);
-		// Create the array if it is defined and we are writing to it and it is not yet created and it is not created on executing a DIM
-		if has_parentheses && !self.arrays.contains_key(name) && !machine.options.arrays_created_on_dim_execution() &&
-			program.is_some() && let Some(float_array_declarations) = program.unwrap().float_array_declarations.get(name)
-		{
-			// Throw an error is there are conflicting array DIM statements
-			if float_array_declarations.len() > 1 {
-				return Err(ErrorVariant::MultipleDeclarationsOfArray.at_column(l_value_start_column));
-			}
-			// Get the array DIM statement and its location in the program
-			let array_declarations_location = float_array_declarations.iter().next().unwrap();
-			let statement = &program.unwrap().get_line(&array_declarations_location.0).unwrap().optimized_statements[array_declarations_location.1];
-			// Save the current OPTIONs set
-			let options_before_array_creation = machine.options.clone();
-			// Set the OPTIONs set to the OPTIONs set at the location of the array DIM statement
-			machine.options = program.unwrap().get_options(&array_declarations_location.0.clone(), array_declarations_location.1);
-			// Create the array
-			machine.execute_array_declaration(statement, program.unwrap(), &name, T::IDENTIFIER_TYPE)?;
-			// Restore the OPTIONs we had before we created the array
-			machine.options = options_before_array_creation;
-		}
-		// If we are writing to an array and it has been created, write to it.
-		if has_parentheses && self.arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(machine.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			self.arrays.get_mut(name).unwrap()
-				.write_element(&indices, value)
-				.map_err(|err| err.at_column(l_value_start_column))?;
-			return Ok(());
-		}
-		// TODO
-		if has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Implicitly created arrays".into()).at_column(l_value_start_column));
-		}
-		// Else assign to global variable
-		self.simple_variables.insert(name.into(), value);
-		// Return
-		Ok(())
 	}
 }

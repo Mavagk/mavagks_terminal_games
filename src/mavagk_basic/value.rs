@@ -2,7 +2,7 @@ use std::{f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, 
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression}, error::ErrorVariant, options::AngleOption, token::IdentifierType};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::ErrorVariant, machine::{Machine, StoredValues}, options::AngleOption, token::IdentifierType};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -26,6 +26,9 @@ pub trait Value: Default + Clone {
 	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression];
 	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool;
 	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize;
+
+	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self>;
+	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self>;
 
 	const IDENTIFIER_TYPE: IdentifierType;
 }
@@ -196,6 +199,14 @@ impl Value for IntValue {
 
 	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
 		l_value.start_column
+	}
+
+	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self> {
+		&machine.int_stored_values
+	}
+
+	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
+		&mut machine.int_stored_values
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::Integer;
@@ -517,6 +528,14 @@ impl Value for FloatValue {
 		l_value.start_column
 	}
 
+	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self> {
+		&machine.float_stored_values
+	}
+
+	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
+		&mut machine.float_stored_values
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -705,6 +724,14 @@ impl Value for ComplexValue {
 		l_value.start_column
 	}
 
+	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self> {
+		&machine.complex_stored_values
+	}
+
+	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
+		&mut machine.complex_stored_values
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
 }
 
@@ -769,7 +796,7 @@ impl StringValue {
 
 impl Value for StringValue {
 	type ExpressionType = StringExpression;
-	type LValueType = ComplexLValue;
+	type LValueType = StringLValue;
 	
 	fn get_l_value_name<'a>(l_value: &'a Self::LValueType) -> &'a str {
 		&l_value.name
@@ -785,6 +812,14 @@ impl Value for StringValue {
 
 	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize {
 		l_value.start_column
+	}
+
+	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self> {
+		&machine.string_stored_values
+	}
+
+	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
+		&mut machine.string_stored_values
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
@@ -912,6 +947,14 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
+	fn get_stored_values<'a>(_machine: &'a Machine) -> &'a StoredValues<Self> {
+		unimplemented!()
+	}
+
+	fn get_stored_values_mut<'a>(_machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1015,6 +1058,14 @@ impl Value for AnyTypeValue {
 	}
 
 	fn get_l_value_start_column(_l_value: &Self::LValueType) -> NonZeroUsize {
+		unimplemented!()
+	}
+
+	fn get_stored_values<'a>(_machine: &'a Machine) -> &'a StoredValues<Self> {
+		unimplemented!()
+	}
+
+	fn get_stored_values_mut<'a>(_machine: &'a mut Machine) -> &'a mut StoredValues<Self> {
 		unimplemented!()
 	}
 
