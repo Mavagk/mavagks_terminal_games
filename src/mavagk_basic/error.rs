@@ -130,6 +130,8 @@ pub enum ErrorVariant {
 	InvalidFunctionParameter,
 	ArrayOrFunctionNotDefined,
 	UnableToRandomize,
+	ExpectedGotoOrGosub,
+	OnGotoGosubIndexOutOfRange,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -265,6 +267,8 @@ impl Display for ErrorVariant {
 			Self::InvalidFunctionParameter => write!(f, "Invalid function parameter."),
 			Self::ArrayOrFunctionNotDefined => write!(f, "Array or function not defined."),
 			Self::UnableToRandomize => write!(f, "Unable to RANDOMIZE."),
+			Self::ExpectedGotoOrGosub => write!(f, "Expected GOTO or GOSUB."),
+			Self::OnGotoGosubIndexOutOfRange => write!(f, "ON GOTO or ON GOSUB index out of range and an ELSE clause is not specified."),
 		}
 	}
 }

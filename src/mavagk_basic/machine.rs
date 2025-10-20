@@ -660,7 +660,7 @@ impl Machine {
 				if matches!(variant, StatementVariant::Run(..)) {
 					self.clear_machine_state(program);
 				}
-				// Next statement
+				// Flow control used
 				return Ok(true);
 			}
 			StatementVariant::AssignInt(l_value, r_value_expression) => {
@@ -845,8 +845,36 @@ impl Machine {
 					Err(_) => return Err(ErrorVariant::UnableToRandomize.at_column(*column)),
 				}
 			}
-			StatementVariant::OnGoto { index, line_numbers, else_statement } | StatementVariant::OnGosub { index, line_numbers, else_statement } => {
-				todo!()
+			StatementVariant::OnGoto { index: index_expression, line_numbers: line_number_expressions, else_statement } |
+			StatementVariant::OnGosub { index: index_expression, line_numbers: line_number_expressions, else_statement } => {
+				// Execute the index expression
+				let index_value = match self.execute_int_expression(index_expression, Some(program))?.from_ones_index_to_usize() {
+					Some(index_value) => index_value,
+					None => match else_statement {
+						Some(else_statement) => return self.execute_statement(&else_statement, program),
+						None => return Err(ErrorVariant::OnGotoGosubIndexOutOfRange.at_column(index_expression.get_start_column())),
+					}
+				};
+				// Get the line number expression to execute
+				let line_number_expression = match line_number_expressions.get(index_value) {
+					Some(index_value) => index_value,
+					None => match else_statement {
+						Some(else_statement) => return self.execute_statement(&else_statement, program),
+						None => return Err(ErrorVariant::OnGotoGosubIndexOutOfRange.at_column(index_expression.get_start_column())),
+					}
+				};
+				// Push the return address and create a new GOSUB level if this is a ON GOSUB statement
+				if matches!(variant, StatementVariant::OnGosub { .. }) {
+					if self.execution_source == ExecutionSource::DirectModeLine {
+						return Err(ErrorVariant::GosubInDirectMode.at_column(*column));
+					}
+					self.gosub_stack.push(GosubLevel::from_return_location(self.line_executing.clone(), self.sub_line_executing.unwrap()));
+				}
+				// Set the line to be executed next
+				let line_number_to_jump_to = self.execute_int_expression(line_number_expression, Some(program))?.value;
+				self.set_line_executing_by_jumping(program, Some(line_number_to_jump_to), line_number_expression.get_start_column())?;
+				// Flow control used
+				return Ok(true);
 			}
 		}
 		Ok(false)

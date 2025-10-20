@@ -191,6 +191,10 @@ impl IntValue {
 	pub fn to_usize(&self) -> Option<usize> {
 		self.value.to_usize()
 	}
+
+	pub fn from_ones_index_to_usize(&self) -> Option<usize> {
+		self.value.to_usize().and_then(|index| index.checked_sub(1))
+	}
 }
 
 impl Value for IntValue {

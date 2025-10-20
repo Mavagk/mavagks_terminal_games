@@ -600,6 +600,10 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			column: statement_keyword_start_column,
 			variant: StatementVariant::Return,
 		},
+		Keyword::Randomize => Statement {
+			column: statement_keyword_start_column,
+			variant: StatementVariant::Randomize,
+		},
 		Keyword::Data => 'a: {
 			if !is_root_statement {
 				return Err(ErrorVariant::StatementCannotBeNested.at_column(statement_keyword_start_column));
@@ -846,7 +850,64 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				},
 			}
 		}
-		//Keyword::Fn => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(statement_keyword_start_column)),
+		// ON GOTO/GOSUB
+		Keyword::On => {
+			// Get the index expression
+			let index_expression = match parse_expression(tokens)? {
+				Some(index_expression) => cast_to_int_expression(index_expression)?,
+				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+			};
+			// Get if this is a ON GOTO or a ON GOSUB statement
+			let is_gosub = match tokens.take_keyword() {
+				None => return Err(ErrorVariant::ExpectedGotoOrGosub.at_column(tokens.last_removed_token_end_column)),
+				Some((Keyword::Goto, _)) => false,
+				Some((Keyword::Gosub, _)) => true,
+				Some((_, start_column)) => return Err(ErrorVariant::ExpectedGotoOrGosub.at_column(start_column)),
+			};
+			// Get the line numbers
+			let mut line_numbers = Vec::new();
+			loop {
+				// Get line number
+				let line_number_expression = match parse_expression(tokens)? {
+					Some(line_number_expression) => cast_to_int_expression(line_number_expression)?,
+					None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+				};
+				line_numbers.push(line_number_expression);
+				// If the next token is not a comma, this is the end of the line number list
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				// If there is a comma take it and go on to parse the next line number
+				tokens.take_next_token();
+			}
+			// Get the else statement if it exists
+			let else_statement = match matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Else), .. }, .. })) {
+				true => {
+					tokens.take_next_token();
+					match parse_statement(tokens, false)? {
+						Some(else_statement) => Some(Box::new(else_statement)),
+						None => return Err(ErrorVariant::ExpectedStatementKeyword.at_column(tokens.last_removed_token_end_column)),
+					}
+				}
+				false => None,
+			};
+			// Assemble into statement
+			Statement {
+				column: statement_keyword_start_column,
+				variant: match is_gosub {
+					false => StatementVariant::OnGoto {
+						index: index_expression,
+						line_numbers: line_numbers.into_boxed_slice(),
+						else_statement,
+					},
+					true => StatementVariant::OnGosub {
+						index: index_expression,
+						line_numbers: line_numbers.into_boxed_slice(),
+						else_statement,
+					},
+				}
+			}
+		}
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
 		other_keyword => return Err(ErrorVariant::NotYetImplemented(format!("{} Statement", other_keyword.get_names()[0].0)).at_column(statement_keyword_start_column)),
 	}))
