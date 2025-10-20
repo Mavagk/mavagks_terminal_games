@@ -1,8 +1,8 @@
-use std::{collections::{BTreeMap, HashSet}, num::NonZeroUsize, ops::{RangeFrom, RangeTo}, rc::Rc};
+use std::{collections::{BTreeMap, BTreeSet, HashMap, HashSet}, num::NonZeroUsize, ops::{RangeFrom, RangeTo}, rc::Rc};
 
 use num::BigInt;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{Datum, OptionVariableAndValue, Statement, StatementVariant}, error::Error, options::{AngleOption, BaseOption, MachineOption, MathOption, Options}, token::IdentifierType};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeLValue, Datum, OptionVariableAndValue, Statement, StatementVariant}, error::Error, options::{AngleOption, BaseOption, MachineOption, MathOption, Options}, token::IdentifierType};
 
 /// A MavagkBasic program containing all its lines, does not include a direct mode line.
 pub struct Program {
@@ -15,17 +15,21 @@ pub struct Program {
 	machine_options: BTreeMap<(Rc<BigInt>, usize), Option<MachineOption>>,
 	base_options: BTreeMap<(Rc<BigInt>, usize), Option<BaseOption>>,
 
-	// Maps line and sub-line numbers to array declarations
-	pub float_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
-	pub int_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
-	pub complex_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
-	pub string_array_declarations: BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	// Maps identifier names to array declarations lines and sub-lines
+	pub float_array_declarations: HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub int_array_declarations: HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub complex_array_declarations: HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
+	pub string_array_declarations: HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
 
-	// Maps line and sub-line numbers to function declarations
-	pub float_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
-	pub int_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
-	pub complex_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
-	pub string_functions: BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	// Maps identifier names to locations of NEXT statements that are not nested.
+	pub next_float_statements: HashMap<Box<str>, BTreeSet<(Rc<BigInt>, usize)>>,
+	pub next_int_statements: HashMap<Box<str>, BTreeSet<(Rc<BigInt>, usize)>>,
+
+	// Maps identifier names and argument counts to function declaration lines and sub-lines
+	pub float_functions: HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub int_functions: HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub complex_functions: HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
+	pub string_functions: HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>,
 	/// Maps line numbers to all DATA values on said line if it has data statements.
 	data: BTreeMap<Rc<BigInt>, Box<[(Datum, NonZeroUsize)]>>,
 }
@@ -39,15 +43,17 @@ impl Program {
 			math_options: BTreeMap::new(),
 			machine_options: BTreeMap::new(),
 			base_options: BTreeMap::new(),
-			float_array_declarations: BTreeMap::new(),
-			int_array_declarations: BTreeMap::new(),
-			complex_array_declarations: BTreeMap::new(),
-			string_array_declarations: BTreeMap::new(),
-			complex_functions: BTreeMap::new(),
-			float_functions: BTreeMap::new(),
-			int_functions: BTreeMap::new(),
-			string_functions: BTreeMap::new(),
+			float_array_declarations: HashMap::new(),
+			int_array_declarations: HashMap::new(),
+			complex_array_declarations: HashMap::new(),
+			string_array_declarations: HashMap::new(),
+			complex_functions: HashMap::new(),
+			float_functions: HashMap::new(),
+			int_functions: HashMap::new(),
+			string_functions: HashMap::new(),
 			data: BTreeMap::new(),
+			next_float_statements: HashMap::new(),
+			next_int_statements: HashMap::new(),
 		}
 	}
 
@@ -184,6 +190,33 @@ impl Program {
 					};
 					declarations_of_function.insert((line_number.clone(), sub_line_number));
 				}
+				StatementVariant::Next(l_values) => {
+					for l_value in l_values {
+						match l_value {
+							AnyTypeLValue::Float(l_value) => {
+								let next_statement_with_name = match self.next_float_statements.get_mut(&l_value.name) {
+									Some(next_statement_with_name) => next_statement_with_name,
+									None => {
+										self.next_float_statements.insert(l_value.name.clone(), BTreeSet::new());
+										self.next_float_statements.get_mut(&l_value.name).unwrap()
+									}
+								};
+								next_statement_with_name.insert((line_number.clone(), sub_line_number));
+							}
+							AnyTypeLValue::Int(l_value) => {
+								let next_statement_with_name = match self.next_int_statements.get_mut(&l_value.name) {
+									Some(next_statement_with_name) => next_statement_with_name,
+									None => {
+										self.next_int_statements.insert(l_value.name.clone(), BTreeSet::new());
+										self.next_int_statements.get_mut(&l_value.name).unwrap()
+									}
+								};
+								next_statement_with_name.insert((line_number.clone(), sub_line_number));
+							}
+							_ => {}
+						}
+					}
+				}
 				_ => {},
 			}
 		}
@@ -254,6 +287,25 @@ impl Program {
 								}
 							}
 						};
+					}
+				}
+				StatementVariant::Next(l_values) => {
+					for l_value in l_values {
+						match l_value {
+							AnyTypeLValue::Float(l_value) => {
+								self.next_float_statements.get_mut(&l_value.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.next_float_statements.get_mut(&l_value.name).unwrap().is_empty() {
+									self.next_float_statements.remove(&l_value.name);
+								}
+							}
+							AnyTypeLValue::Int(l_value) => {
+								self.next_int_statements.get_mut(&l_value.name).unwrap().remove(&(line_number.clone(), sub_line_number));
+								if self.next_int_statements.get_mut(&l_value.name).unwrap().is_empty() {
+									self.next_int_statements.remove(&l_value.name);
+								}
+							}
+							_ => {}
+						}
 					}
 				}
 				StatementVariant::DefFloat(l_value, _) => {
@@ -335,6 +387,18 @@ impl Program {
 	/// Deletes all lines in the program.
 	pub fn clear_program(&mut self) {
 		*self = Self::new();
+	}
+
+	/// Gets the line and sub-line number of the next unnested NEXT statement that increments the next float variable with the given name.
+	pub fn get_next_float_after(&self, name: &Box<str>, line_number: &Rc<BigInt>, sub_line: usize) -> Option<&(Rc<BigInt>, usize)> {
+		let next_statements = self.next_float_statements.get(name)?;
+		next_statements.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last()
+	}
+
+	/// Gets the line and sub-line number of the next unnested NEXT statement that increments the next int variable with the given name.
+	pub fn get_next_int_after(&self, name: &Box<str>, line_number: &Rc<BigInt>, sub_line: usize) -> Option<&(Rc<BigInt>, usize)> {
+		let next_statements = self.next_int_statements.get(name)?;
+		next_statements.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last()
 	}
 }
 

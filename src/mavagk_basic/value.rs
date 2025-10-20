@@ -1,4 +1,4 @@
-use std::{collections::{BTreeMap, HashMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
+use std::{collections::{HashMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
@@ -31,10 +31,10 @@ pub trait Value: Default + Clone {
 	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self>;
 	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self>;
 
-	fn get_array_declarations<'a>(program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>;
-	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>;
-	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
-	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
+	fn get_array_declarations<'a>(program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>;
+	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>;
+	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
+	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
 
 	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self>;
 	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self>;
@@ -225,19 +225,19 @@ impl Value for IntValue {
 		&mut machine.int_stored_values
 	}
 
-	fn get_array_declarations<'a>(program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&program.int_array_declarations
 	}
 
-	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.int_array_declarations
 	}
 
-	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&program.int_functions
 	}
 
-	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.int_functions
 	}
 
@@ -588,19 +588,19 @@ impl Value for FloatValue {
 		&mut machine.float_stored_values
 	}
 
-	fn get_array_declarations<'a>(program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&program.float_array_declarations
 	}
 
-	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.float_array_declarations
 	}
 
-	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&program.float_functions
 	}
 
-	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.float_functions
 	}
 
@@ -820,19 +820,19 @@ impl Value for ComplexValue {
 		&mut machine.complex_stored_values
 	}
 
-	fn get_array_declarations<'a>(program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&program.complex_array_declarations
 	}
 
-	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.complex_array_declarations
 	}
 
-	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&program.complex_functions
 	}
 
-	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.complex_functions
 	}
 
@@ -946,19 +946,19 @@ impl Value for StringValue {
 		&mut machine.string_stored_values
 	}
 
-	fn get_array_declarations<'a>(program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&program.string_array_declarations
 	}
 
-	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.string_array_declarations
 	}
 
-	fn get_function_declarations<'a>(program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&program.string_functions
 	}
 
-	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		&mut program.string_functions
 	}
 
@@ -1115,19 +1115,19 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
-	fn get_array_declarations<'a>(_program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(_program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_array_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_function_declarations<'a>(_program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(_program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_function_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
@@ -1265,19 +1265,19 @@ impl Value for AnyTypeValue {
 		unimplemented!()
 	}
 
-	fn get_array_declarations<'a>(_program: &'a Program) -> &'a BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations<'a>(_program: &'a Program) -> &'a HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_array_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut BTreeMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
+	fn get_array_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_function_declarations<'a>(_program: &'a Program) -> &'a BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations<'a>(_program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
-	fn get_function_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut BTreeMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
+	fn get_function_declarations_mut<'a>(_program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>> {
 		unimplemented!()
 	}
 
