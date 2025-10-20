@@ -94,7 +94,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_string_expression(filename_expression);
 			}
 		}
-		StatementVariant::Stop | StatementVariant::End | StatementVariant::Data(_) | StatementVariant::Return => {}
+		StatementVariant::Stop | StatementVariant::End | StatementVariant::Data(_) | StatementVariant::Return | StatementVariant::Randomize => {}
 		StatementVariant::Read { to_do_when_data_missing_statement, variables } => {
 			if let Some(to_do_when_data_missing_statement) = to_do_when_data_missing_statement {
 				optimize_statement(to_do_when_data_missing_statement);
@@ -133,6 +133,15 @@ pub fn optimize_statement(statement: &mut Statement) {
 		StatementVariant::DefString(l_value, expression) => {
 			optimize_string_l_value(l_value);
 			optimize_string_expression(expression);
+		}
+		StatementVariant::OnGoto { index, line_numbers, else_statement } | StatementVariant::OnGosub { index, line_numbers, else_statement } => {
+			optimize_int_expression(index);
+			for line_number in line_numbers {
+				optimize_int_expression(line_number);
+			}
+			if let Some(else_statement) = else_statement {
+				optimize_statement(else_statement);
+			}
 		}
 	}
 }

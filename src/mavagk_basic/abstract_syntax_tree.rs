@@ -254,6 +254,37 @@ impl Statement {
 				l_value.print(depth + 1);
 				expression.print(depth + 1);
 			}
+			StatementVariant::Randomize => {
+				println!("RANDOMIZE");
+			}
+			StatementVariant::OnGoto { index, line_numbers, else_statement } => {
+				print!("ON GOTO");
+				if else_statement.is_some() {
+					print!(" ELSE");
+				}
+				println!();
+				index.print(depth + 1);
+				for line_number in line_numbers {
+					line_number.print(depth + 1);
+				}
+				if let Some(else_statement) = else_statement {
+					else_statement.print(depth + 1);
+				}
+			}
+			StatementVariant::OnGosub { index, line_numbers, else_statement } => {
+				print!("ON GOSUB");
+				if else_statement.is_some() {
+					print!(" ELSE");
+				}
+				println!();
+				index.print(depth + 1);
+				for line_number in line_numbers {
+					line_number.print(depth + 1);
+				}
+				if let Some(else_statement) = else_statement {
+					else_statement.print(depth + 1);
+				}
+			}
 		}
 	}
 }
@@ -288,6 +319,9 @@ pub enum StatementVariant {
 	DefFloat(FloatLValue, FloatExpression),
 	DefComplex(ComplexLValue, ComplexExpression),
 	DefString(StringLValue, StringExpression),
+	Randomize,
+	OnGoto { index: IntExpression, line_numbers: Box<[IntExpression]>, else_statement: Option<Box<Statement>> },
+	OnGosub { index: IntExpression, line_numbers: Box<[IntExpression]>, else_statement: Option<Box<Statement>> },
 }
 
 #[derive(Debug, Clone)]

@@ -839,6 +839,15 @@ impl Machine {
 					self.execute_function_declaration(statement)?;
 				}
 			}
+			StatementVariant::Randomize => {
+				match SmallRng::try_from_os_rng() {
+					Ok(rng) => self.rng = rng,
+					Err(_) => return Err(ErrorVariant::UnableToRandomize.at_column(*column)),
+				}
+			}
+			StatementVariant::OnGoto { index, line_numbers, else_statement } | StatementVariant::OnGosub { index, line_numbers, else_statement } => {
+				todo!()
+			}
 		}
 		Ok(false)
 	}

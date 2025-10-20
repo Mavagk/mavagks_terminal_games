@@ -129,6 +129,7 @@ pub enum ErrorVariant {
 	InvalidArrayDimensionLength,
 	InvalidFunctionParameter,
 	ArrayOrFunctionNotDefined,
+	UnableToRandomize,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -263,6 +264,7 @@ impl Display for ErrorVariant {
 			Self::InvalidArrayDimensionLength => write!(f, "Invalid array dimension length."),
 			Self::InvalidFunctionParameter => write!(f, "Invalid function parameter."),
 			Self::ArrayOrFunctionNotDefined => write!(f, "Array or function not defined."),
+			Self::UnableToRandomize => write!(f, "Unable to RANDOMIZE."),
 		}
 	}
 }
