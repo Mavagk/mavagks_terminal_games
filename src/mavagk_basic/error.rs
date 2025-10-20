@@ -132,6 +132,8 @@ pub enum ErrorVariant {
 	UnableToRandomize,
 	ExpectedGotoOrGosub,
 	OnGotoGosubIndexOutOfRange,
+	NoMatchingNext,
+	ZeroForInDirectMode,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -269,6 +271,8 @@ impl Display for ErrorVariant {
 			Self::UnableToRandomize => write!(f, "Unable to RANDOMIZE."),
 			Self::ExpectedGotoOrGosub => write!(f, "Expected GOTO or GOSUB."),
 			Self::OnGotoGosubIndexOutOfRange => write!(f, "ON GOTO or ON GOSUB index out of range and an ELSE clause is not specified."),
+			Self::NoMatchingNext => write!(f, "A FOR loops condition was initially false but there was no unnested NEXT statement with the same control variable to jump to."),
+			Self::ZeroForInDirectMode => write!(f, "A FOR loops condition was initially false in direct mode."),
 		}
 	}
 }

@@ -392,13 +392,13 @@ impl Program {
 	/// Gets the line and sub-line number of the next unnested NEXT statement that increments the next float variable with the given name.
 	pub fn get_next_float_after(&self, name: &Box<str>, line_number: &Rc<BigInt>, sub_line: usize) -> Option<&(Rc<BigInt>, usize)> {
 		let next_statements = self.next_float_statements.get(name)?;
-		next_statements.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last()
+		next_statements.range::<(Rc<BigInt>, usize), RangeFrom<(Rc<BigInt>, usize)>>((line_number.clone(), sub_line)..).nth(0)
 	}
 
 	/// Gets the line and sub-line number of the next unnested NEXT statement that increments the next int variable with the given name.
 	pub fn get_next_int_after(&self, name: &Box<str>, line_number: &Rc<BigInt>, sub_line: usize) -> Option<&(Rc<BigInt>, usize)> {
 		let next_statements = self.next_int_statements.get(name)?;
-		next_statements.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last()
+		next_statements.range::<(Rc<BigInt>, usize), RangeFrom<(Rc<BigInt>, usize)>>((line_number.clone(), sub_line)..).nth(0)
 	}
 }
 

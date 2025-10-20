@@ -507,13 +507,14 @@ impl Machine {
 					Some(step) => self.execute_int_expression(step, Some(program))?,
 					None => IntValue::one(),
 				};
-				// TODO
-				if (step_value.is_negative() && (&*initial_value.value < &*final_value.value)) || (!step_value.is_negative() && (&*initial_value.value > &*final_value.value)) {
-					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
-				}
+				// If the loop condition is initially false
+				let do_skip_to_next = (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) &&
+					self.options.for_initially_false_jumps_to_next();
 				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
 				// Construct loop
-				let stack_loop = BlockOnStack::IntForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
+				let stack_loop = BlockOnStack::IntForLoop {
+					name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap(), is_zero_cycles: do_skip_to_next,
+				};
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
 				match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), false)) {
 					None => {},
@@ -523,6 +524,22 @@ impl Machine {
 				self.gosub_stack.last_mut().unwrap().block_stack.push(stack_loop);
 				let index = (self.gosub_stack.last().unwrap().block_stack.len() - 1).clone();
 				self.gosub_stack.last_mut().unwrap().for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), false), index);
+				// If the loop condition is initially false
+				if do_skip_to_next {
+					match &self.line_executing {
+						Some(line_executing) => {
+							match program.get_next_int_after(&loop_variable.name, &line_executing, self.sub_line_executing.unwrap()) {
+								Some(jump_to) => {
+									self.line_executing = Some(jump_to.0.clone());
+									self.sub_line_executing = Some(jump_to.1);
+									return Ok(true);
+								}
+								None => return Err(ErrorVariant::NoMatchingNext.at_column(*column)),
+							}
+						}
+						None => return Err(ErrorVariant::ZeroForInDirectMode.at_column(*column)),
+					}
+				}
 			}
 			StatementVariant::ForFloat { loop_variable, initial, limit, step } => {
 				// Execute expressions
@@ -532,13 +549,15 @@ impl Machine {
 					Some(step) => self.execute_float_expression(step, Some(program))?,
 					None => FloatValue::ONE,
 				};
-				// TODO
-				if (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) {
-					return Err(ErrorVariant::NotYetImplemented("FOR looping zero times".into()).at_column(*column));
-				}
 				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
+				// If the loop condition is initially false
+				let do_skip_to_next = (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) &&
+					self.options.for_initially_false_jumps_to_next();
 				// Construct loop
-				let stack_loop = BlockOnStack::FloatForLoop { name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap() };
+				let stack_loop = BlockOnStack::FloatForLoop {
+					name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap(),
+					is_zero_cycles: do_skip_to_next,
+				};
 				// If a for loop using the same variable exists, pop the loop and all blocks inside it
 				match self.gosub_stack.last().unwrap().for_loop_variable_to_block_stack_index.get(&(loop_variable.name.clone(), true)) {
 					None => {},
@@ -548,6 +567,22 @@ impl Machine {
 				self.gosub_stack.last_mut().unwrap().block_stack.push(stack_loop);
 				let index = (self.gosub_stack.last().unwrap().block_stack.len() - 1).clone();
 				self.gosub_stack.last_mut().unwrap().for_loop_variable_to_block_stack_index.insert((loop_variable.name.clone(), true), index);
+				// If the loop condition is initially false
+				if do_skip_to_next {
+					match &self.line_executing {
+						Some(line_executing) => {
+							match program.get_next_float_after(&loop_variable.name, &line_executing, self.sub_line_executing.unwrap()) {
+								Some(jump_to) => {
+									self.line_executing = Some(jump_to.0.clone());
+									self.sub_line_executing = Some(jump_to.1);
+									return Ok(true);
+								}
+								None => return Err(ErrorVariant::NoMatchingNext.at_column(*column)),
+							}
+						}
+						None => return Err(ErrorVariant::ZeroForInDirectMode.at_column(*column)),
+					}
+				}
 			}
 			StatementVariant::Next(loop_variables) => {
 				let allow_overflow = self.options.allow_overflow();
@@ -555,11 +590,13 @@ impl Machine {
 				if loop_variables.is_empty() {
 					for (index, loop_block) in self.gosub_stack.last().unwrap().block_stack.iter().enumerate().rev() {
 						match loop_block {
-							BlockOnStack::IntForLoop { name, final_value, step_value, for_line, for_sub_line } => {
+							BlockOnStack::IntForLoop { name, final_value, step_value, for_line, for_sub_line, is_zero_cycles } => {
 								// Get current value
 								let loop_variable_value = self.int_stored_values.simple_variables.get_mut(name).unwrap();
 								// Increment
-								*loop_variable_value = loop_variable_value.clone().add(step_value);
+								if !*is_zero_cycles {
+									*loop_variable_value = loop_variable_value.clone().add(step_value);
+								}
 								// Remove the loop and blocks inside if it has finished
 								if (step_value.is_negative() && (&*loop_variable_value.value) < (&*final_value.value)) || (!step_value.is_negative() && (&*loop_variable_value.value) > (&*final_value.value)) {
 									self.truncate_block_stack(index);
@@ -569,11 +606,13 @@ impl Machine {
 								self.sub_line_executing = Some(for_sub_line + 1);
 								return Ok(true);
 							}
-							BlockOnStack::FloatForLoop { name, final_value, step_value, for_line, for_sub_line } => {
+							BlockOnStack::FloatForLoop { name, final_value, step_value, for_line, for_sub_line, is_zero_cycles } => {
 								// Get current value
 								let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 								// Increment
-								*loop_variable_value = loop_variable_value.add(*step_value, allow_overflow).map_err(|error| error.at_column(*column))?;
+								if !*is_zero_cycles {
+									*loop_variable_value = loop_variable_value.add(*step_value, allow_overflow).map_err(|error| error.at_column(*column))?;
+								}
 								// Remove the loop and blocks inside if it has finished
 								if (step_value.is_negative() && (loop_variable_value.value) < (final_value.value)) || (!step_value.is_negative() && (loop_variable_value.value) > (final_value.value)) {
 									self.truncate_block_stack(index);
@@ -595,14 +634,16 @@ impl Machine {
 								Some(block_stack_index) => block_stack_index,
 								None => return Err(ErrorVariant::ForLoopVariableNotFound.at_column(*start_column)),
 							};
-							let (final_value, step_value, for_line, for_sub_line) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
-								BlockOnStack::IntForLoop { final_value, step_value, for_line, for_sub_line, .. } => (final_value, step_value, for_line, for_sub_line),
+							let (final_value, step_value, for_line, for_sub_line, is_zero_cycles) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
+								BlockOnStack::IntForLoop { final_value, step_value, for_line, for_sub_line, is_zero_cycles, .. } => (final_value, step_value, for_line, for_sub_line, is_zero_cycles),
 								_ => unreachable!(),
 							};
 							// Get current value
 							let loop_variable_value = self.int_stored_values.simple_variables.get_mut(name).unwrap();
 							// Increment
-							*loop_variable_value = loop_variable_value.clone().add(&step_value);
+							if !is_zero_cycles {
+								*loop_variable_value = loop_variable_value.clone().add(step_value);
+							}
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
 							if (step_value.is_negative() && (&*loop_variable_value.value) < (&*final_value.value)) || (!step_value.is_negative() && (&*loop_variable_value.value) > (&*final_value.value)) {
 								self.truncate_block_stack(*block_stack_index);
@@ -618,14 +659,16 @@ impl Machine {
 								Some(block_stack_index) => block_stack_index,
 								None => return Err(ErrorVariant::ForLoopVariableNotFound.at_column(*start_column)),
 							};
-							let (final_value, step_value, for_line, for_sub_line) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
-								BlockOnStack::FloatForLoop { final_value, step_value, for_line, for_sub_line, .. } => (final_value, step_value, for_line, for_sub_line),
+							let (final_value, step_value, for_line, for_sub_line, is_zero_cycles) = match self.gosub_stack.last().unwrap().block_stack.get(*block_stack_index).unwrap() {
+								BlockOnStack::FloatForLoop { final_value, step_value, for_line, for_sub_line, is_zero_cycles, .. } => (final_value, step_value, for_line, for_sub_line, is_zero_cycles),
 								_ => unreachable!(),
 							};
 							// Get current value
 							let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 							// Increment
-							*loop_variable_value = loop_variable_value.clone().add(*step_value, allow_overflow).map_err(|error| error.at_column(*start_column))?;
+							if !is_zero_cycles {
+								*loop_variable_value = loop_variable_value.clone().add(*step_value, allow_overflow).map_err(|error| error.at_column(*start_column))?;
+							}
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
 							if (step_value.is_negative() && (loop_variable_value.value) < (final_value.value)) || (!step_value.is_negative() && (loop_variable_value.value) > (final_value.value)) {
 								self.truncate_block_stack(*block_stack_index);
@@ -1678,8 +1721,8 @@ enum ExecutionSource {
 
 /// A for loop or other block that is on the stack.
 pub enum BlockOnStack {
-	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
-	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize },
+	IntForLoop { name: Box<str>, final_value: IntValue, step_value: IntValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize, is_zero_cycles: bool },
+	FloatForLoop { name: Box<str>, final_value: FloatValue, step_value: FloatValue, for_line: Option<Rc<BigInt>>, for_sub_line: usize, is_zero_cycles: bool },
 }
 
 pub struct GosubLevel {

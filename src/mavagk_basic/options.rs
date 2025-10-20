@@ -154,4 +154,12 @@ impl Options {
 			BaseOption::One => IntValue::one(),
 		}
 	}
+
+	/// Returns if a FOR statement that has a condition that is initially false should jump to the next unnested NEXT statement with the same control variable.
+	pub fn for_initially_false_jumps_to_next(&self) -> bool {
+		match self.get_machine_option() {
+			MachineOption::AnsiFull => true,
+			MachineOption::C64 => false,
+		}
+	}
 }
