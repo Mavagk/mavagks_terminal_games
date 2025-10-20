@@ -159,7 +159,7 @@ impl Statement {
 					OptionVariableAndValue::Math(math_option) => {
 						print!("MATH ");
 						match math_option {
-							Some(MathOption::Ansi) => print!("ANSI"),
+							Some(MathOption::AnsiFull) => print!("ANSI FULL"),
 							Some(MathOption::Ieee) => print!("IEEE"),
 							None => print!("DEFAULT"),
 						}
@@ -167,7 +167,7 @@ impl Statement {
 					OptionVariableAndValue::Machine(machine_option) => {
 						print!("MATH ");
 						match machine_option {
-							Some(MachineOption::Ansi) => print!("ANSI"),
+							Some(MachineOption::AnsiFull) => print!("ANSI FULL"),
 							Some(MachineOption::C64) => print!("C64"),
 							None => print!("DEFAULT"),
 						}
