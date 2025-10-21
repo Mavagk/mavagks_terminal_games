@@ -162,4 +162,20 @@ impl Options {
 			MachineOption::C64 => false,
 		}
 	}
+
+	/// Returns false if non-complex negative number raised to a non-complex non-integer power should throw an error, returns true if it should return NaN.
+	pub fn allow_negative_to_non_int_power(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::AnsiFull => false,
+		}
+	}
+
+	/// Returns the tab column width.
+	pub fn get_tab_column_width(&self) -> usize {
+		match self.get_machine_option() {
+			MachineOption::C64 => 10,
+			MachineOption::AnsiFull => 20,
+		}
+	}
 }

@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY,
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::AngleOption, program::Program, token::{IdentifierType, SuppliedFunction}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::{AngleOption, Options}, program::Program, token::{IdentifierType, SuppliedFunction}};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -303,8 +303,8 @@ impl FloatValue {
 	}
 
 	/// Constructs a `FloatValue` from a `f64`. Returns an error if overflow is not allowed and the input value is not a finite number.
-	pub const fn try_new(value: f64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		match value.is_finite() || allow_overflow {
+	pub fn try_new(value: f64, options: Option<&Options>) -> Result<Self, ErrorVariant> {
+		match value.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(value)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
@@ -353,47 +353,47 @@ impl FloatValue {
 		ComplexValue::new(Complex64::new(self.value, 0.))
 	}
 
-	pub const fn add(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub fn add(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
 		let float_result = self.value + rhs.value;
-		match float_result.is_finite() || allow_overflow {
+		match float_result.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub const fn sub(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub fn sub(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
 		let float_result = self.value - rhs.value;
-		match float_result.is_finite() || allow_overflow {
+		match float_result.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub const fn mul(self, rhs: Self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
+	pub fn mul(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
 		let float_result = self.value * rhs.value;
-		match float_result.is_finite() || allow_overflow {
+		match float_result.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub const fn div(self, rhs: Self, allow_overflow: bool, allow_div_by_zero: bool) -> Result<Self, ErrorVariant> {
-		if rhs.is_zero() && !allow_div_by_zero {
+	pub fn div(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
+		if rhs.is_zero() && !options.is_some_and(|options| options.allow_divide_by_zero()) {
 			return Err(ErrorVariant::DivisionByZero);
 		}
 		let float_result = self.value / rhs.value;
-		match float_result.is_finite() || allow_overflow {
+		match float_result.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
 	}
 
-	pub fn pow(self, rhs: Self, allow_overflow: bool, allow_neg_to_non_int_power: bool) -> Result<Self, ErrorVariant> {
-		if self.is_negative() && !rhs.is_int() && !allow_neg_to_non_int_power {
+	pub fn pow(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
+		if self.is_negative() && !rhs.is_int() && !options.is_some_and(|options| options.allow_negative_to_non_int_power()) {
 			return Err(ErrorVariant::NegativeNumberRaisedToNonIntegerPower);
 		}
 		let float_result = self.value.powf(rhs.value);
-		match float_result.is_finite() || allow_overflow {
+		match float_result.is_finite() || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(float_result)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}
@@ -435,98 +435,98 @@ impl FloatValue {
 		Self::new(self.value.floor())
 	}
 
-	pub fn sqrt(self, allow_real_square_root_of_negative: bool) -> Result<Self, ErrorVariant> {
+	pub fn sqrt(self, options: &Options) -> Result<Self, ErrorVariant> {
 		match self {
-			value if value.is_negative() && !allow_real_square_root_of_negative => return Err(ErrorVariant::SquareRootOfNegative),
+			value if value.is_negative() && !options.allow_real_square_root_of_negative() => return Err(ErrorVariant::SquareRootOfNegative),
 			value => Ok(Self::new(value.value.sqrt())),
 		}
 	}
 
-	pub fn sin(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Ok(Self::new(self.to_radians(units, allow_overflow)?.value.sin()))
+	pub fn sin(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(self.to_radians(options)?.value.sin()))
 	}
 
-	pub fn cos(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Ok(Self::new(self.to_radians(units, allow_overflow)?.value.cos()))
+	pub fn cos(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(self.to_radians(options)?.value.cos()))
 	}
 
-	pub fn tan(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::try_new(self.to_radians(units, allow_overflow)?.value.tan(), allow_overflow)
+	pub fn tan(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.to_radians(options)?.value.tan(), Some(options))
 	}
 
-	pub fn cot(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		let input_value_in_radians = self.to_radians(units, allow_overflow)?.value;
-		Self::try_new(input_value_in_radians.cos() / input_value_in_radians.sin(), allow_overflow)
+	pub fn cot(self, options: &Options) -> Result<Self, ErrorVariant> {
+		let input_value_in_radians = self.to_radians(options)?.value;
+		Self::try_new(input_value_in_radians.cos() / input_value_in_radians.sin(), Some(options))
 	}
 
-	pub fn sec(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::try_new(1. / self.to_radians(units, allow_overflow)?.value.cos(), allow_overflow)
+	pub fn sec(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(1. / self.to_radians(options)?.value.cos(), Some(options))
 	}
 
-	pub fn csc(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::try_new(1. / self.to_radians(units, allow_overflow)?.value.sin(), allow_overflow)
+	pub fn csc(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(1. / self.to_radians(options)?.value.sin(), Some(options))
 	}
 
-	pub fn asin(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+	pub fn asin(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let out = self.value.asin();
-		if !out.is_finite() && !allow_real_trig_out_of_range {
+		if !out.is_finite() && !options.allow_real_trig_out_of_range() {
 			return Err(ErrorVariant::ATrigFunctionOutOfRange);
 		}
-		Self::new(out).from_radians(units, true)
+		Self::new(out).from_radians(options)
 	}
 
-	pub fn acos(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+	pub fn acos(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let out = self.value.acos();
-		if !out.is_finite() && !allow_real_trig_out_of_range {
+		if !out.is_finite() && !options.allow_real_trig_out_of_range() {
 			return Err(ErrorVariant::ATrigFunctionOutOfRange);
 		}
-		Self::new(out).from_radians(units, true)
+		Self::new(out).from_radians(options)
 	}
 
-	pub fn atan(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::new(self.value.atan()).from_radians(units, allow_overflow)
+	pub fn atan(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::new(self.value.atan()).from_radians(options)
 	}
 
-	pub fn acot(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::new(1. / (self.value).atan()).from_radians(units, allow_overflow)
+	pub fn acot(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::new(1. / (self.value).atan()).from_radians(options)
 	}
 
-	pub fn asec(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+	pub fn asec(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let out = (1. /self.value).acos();
-		if !out.is_finite() && !allow_real_trig_out_of_range {
+		if !out.is_finite() && !options.allow_real_trig_out_of_range() {
 			return Err(ErrorVariant::ATrigFunctionOutOfRange);
 		}
-		Self::new(out).from_radians(units, true)
+		Self::new(out).from_radians(options)
 	}
 
-	pub fn acsc(self, units: AngleOption, allow_real_trig_out_of_range: bool) -> Result<Self, ErrorVariant> {
+	pub fn acsc(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let out = (1. /self.value).asin();
-		if !out.is_finite() && !allow_real_trig_out_of_range {
+		if !out.is_finite() && !options.allow_real_trig_out_of_range() {
 			return Err(ErrorVariant::ATrigFunctionOutOfRange);
 		}
-		Self::new(out).from_radians(units, true)
+		Self::new(out).from_radians(options)
 	}
 
-	pub fn exp(self, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Self::try_new(self.value.exp(), allow_overflow)
+	pub fn exp(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.value.exp(), Some(options))
 	}
 
-	pub fn ln(self, allow_real_log_of_non_positive: bool) -> Result<Self, ErrorVariant> {
+	pub fn ln(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let result = self.value.ln();
-		match result.is_finite() || allow_real_log_of_non_positive {
+		match result.is_finite() || options.allow_real_log_of_non_positive() {
 			true => Ok(Self::new(result)),
 			false => Err(ErrorVariant::LogOfNonPositive)
 		}
 	}
 
-	pub const fn to_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		Ok(Self::new(match units {
+	pub const fn to_radians(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Ok(Self::new(match options.get_angle_option() {
 			AngleOption::Radians => self.value,
 			AngleOption::Degrees => self.value / 180. * PI,
 			AngleOption::Gradians => self.value / 200. * PI,
 			AngleOption::Revolutions => {
 				let radians = self.value * 2. * PI;
-				if !radians.is_finite() && !allow_overflow {
+				if !radians.is_finite() && !options.allow_overflow() {
 					return Err(ErrorVariant::ValueOverflow);
 				}
 				radians
@@ -534,14 +534,14 @@ impl FloatValue {
 		}))
 	}
 
-	pub const fn from_radians(self, units: AngleOption, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		let out = match units {
+	pub const fn from_radians(self, options: &Options) -> Result<Self, ErrorVariant> {
+		let out = match options.get_angle_option() {
 			AngleOption::Radians => self.value,
 			AngleOption::Degrees => self.value / PI * 180.,
 			AngleOption::Gradians => self.value / PI * 200.,
 			AngleOption::Revolutions => self.value / 2. / PI,
 		};
-		if !out.is_finite() && !allow_overflow {
+		if !out.is_finite() && !options.allow_overflow() {
 			return Err(ErrorVariant::ValueOverflow);
 		}
 		Ok(Self::new(out))

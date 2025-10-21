@@ -585,7 +585,6 @@ impl Machine {
 				}
 			}
 			StatementVariant::Next(loop_variables) => {
-				let allow_overflow = self.options.allow_overflow();
 				// If a NEXT without arguments is executed
 				if loop_variables.is_empty() {
 					for (index, loop_block) in self.gosub_stack.last().unwrap().block_stack.iter().enumerate().rev() {
@@ -611,7 +610,7 @@ impl Machine {
 								let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 								// Increment
 								if !*is_zero_cycles {
-									*loop_variable_value = loop_variable_value.add(*step_value, allow_overflow).map_err(|error| error.at_column(*column))?;
+									*loop_variable_value = loop_variable_value.add(*step_value, Some(&self.options)).map_err(|error| error.at_column(*column))?;
 								}
 								// Remove the loop and blocks inside if it has finished
 								if (step_value.is_negative() && (loop_variable_value.value) < (final_value.value)) || (!step_value.is_negative() && (loop_variable_value.value) > (final_value.value)) {
@@ -667,7 +666,7 @@ impl Machine {
 							let loop_variable_value = self.float_stored_values.simple_variables.get_mut(name).unwrap();
 							// Increment
 							if !is_zero_cycles {
-								*loop_variable_value = loop_variable_value.clone().add(*step_value, allow_overflow).map_err(|error| error.at_column(*start_column))?;
+								*loop_variable_value = loop_variable_value.clone().add(*step_value, Some(&self.options)).map_err(|error| error.at_column(*start_column))?;
 							}
 							// Remove the loop and blocks inside if it has finished and continue to the next for loop variable
 							if (step_value.is_negative() && (loop_variable_value.value) < (final_value.value)) || (!step_value.is_negative() && (loop_variable_value.value) > (final_value.value)) {
@@ -1169,21 +1168,21 @@ impl Machine {
 			FloatExpression::CastFromComplex(sub_expression) =>
 				self.execute_complex_expression(sub_expression, program)?.to_float().map_err(|error| error.at_column(sub_expression.get_start_column()))?,
 			FloatExpression::Addition { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.add(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.add(self.execute_float_expression(rhs_expression, program)?, Some(&self.options))
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Subtraction { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.sub(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.sub(self.execute_float_expression(rhs_expression, program)?, Some(&self.options))
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Multiplication { lhs_expression, rhs_expression, start_column } =>
-				self.execute_float_expression(lhs_expression, program)?.mul(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow())
+				self.execute_float_expression(lhs_expression, program)?.mul(self.execute_float_expression(rhs_expression, program)?, Some(&self.options))
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Division { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression, program)?
-					.div(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
+					.div(self.execute_float_expression(rhs_expression, program)?, Some(&self.options))
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Exponentiation { lhs_expression, rhs_expression, start_column } =>
 				self.execute_float_expression(lhs_expression, program)?
-					.pow(self.execute_float_expression(rhs_expression, program)?, self.options.allow_overflow(), self.options.allow_divide_by_zero())
+					.pow(self.execute_float_expression(rhs_expression, program)?, Some(&self.options))
 					.map_err(|error| error.at_column(*start_column))?,
 			FloatExpression::Negation { sub_expression, .. } => self.execute_float_expression(&sub_expression, program)?.neg(),
 			FloatExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
@@ -1522,37 +1521,37 @@ impl Machine {
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Sqr =>
-							argument_value.sqrt(self.options.allow_real_square_root_of_negative()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Abs => argument_value.abs(),
 						SuppliedFunction::Int => argument_value.floor(),
 						SuppliedFunction::Sgn => argument_value.signum(),
 						SuppliedFunction::Sin =>
-							argument_value.sin(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sin(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cos =>
-							argument_value.cos(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.cos(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Tan =>
-							argument_value.tan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.tan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cot =>
-							argument_value.cot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.cot(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Sec =>
-							argument_value.sec(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.sec(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Csc =>
-							argument_value.csc(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asin => argument_value.asin(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							argument_value.csc(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asin => argument_value.asin(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acos => argument_value.acos(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+						SuppliedFunction::Acos => argument_value.acos(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Atan =>
-							argument_value.atan(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.atan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Acot =>
-							argument_value.acot(self.options.get_angle_option(), self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asec => argument_value.asec(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+							argument_value.acot(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asec => argument_value.asec(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsc => argument_value.acsc(self.options.get_angle_option(), self.options.allow_real_trig_out_of_range())
+						SuppliedFunction::Acsc => argument_value.acsc(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log =>
-							argument_value.ln(self.options.allow_real_log_of_non_positive()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Exp => argument_value.exp(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+							argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}))
 				}
