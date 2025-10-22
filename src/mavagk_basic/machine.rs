@@ -364,7 +364,7 @@ impl Machine {
 						PrintOperand::Expression(expression) => match expression {
 							// TAB calls
 							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. }))
-								if (&**arguments).len() == 1 && !self.float_stored_values.functions.contains_key(&("TAB".into(), 1)) =>
+								if (&**arguments).len() == 1 && !self.float_stored_values.functions.contains_key(&("TAB".into(), 1)) && !self.float_stored_values.arrays.contains_key("TAB") =>
 							{
 								let argument_expression = &arguments[0];
 								let argument_value = self.execute_any_type_expression(argument_expression, Some(program))?
