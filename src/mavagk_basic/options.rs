@@ -172,10 +172,18 @@ impl Options {
 	}
 
 	/// Returns the tab column width.
-	pub fn get_print_zone_width(&self) -> u16 {
+	pub fn get_print_zone_width(&self) -> u8 {
 		match self.get_machine_option() {
 			MachineOption::C64 => 10,
 			MachineOption::AnsiFull => 20,
+		}
+	}
+
+	/// Returns the tab column width.
+	pub fn get_columnar_first_position(&self) -> u8 {
+		match self.get_machine_option() {
+			MachineOption::C64 => 0,
+			MachineOption::AnsiFull => 1,
 		}
 	}
 }

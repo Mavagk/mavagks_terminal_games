@@ -18,7 +18,7 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 	}
 }
 
-pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, print_leading_plus: bool, max_width: u16) -> io::Result<()> {
+pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, print_leading_plus: bool, max_width: u8) -> io::Result<()> {
 	//write!(f, "{0:.1$}", self.value, 5)
 	let value_abs = value.abs();
 	let is_negative = value < 0.;
@@ -29,7 +29,7 @@ pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space
 		(false, _, true) => write!(f, "+")?,
 	}
 	let common_width = (is_negative || print_leading_positive_space) as u8 + print_trailing_space as u8 + 1;
-	let abs_max_length = max_width - common_width as u16;
+	let abs_max_length = max_width as u16 - common_width as u16;
 	let value_abs_integer_part = value_abs.floor();
 	if !value.is_finite() {
 		write!(f, "{value}")?;

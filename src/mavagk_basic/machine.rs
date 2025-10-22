@@ -369,13 +369,14 @@ impl Machine {
 								let argument_value = self.execute_any_type_expression(argument_expression, Some(program))?
 									.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 								stdout().flush().unwrap();
+								let new_columnar_position = argument_value.clone().sub(IntValue::from_usize(self.options.get_columnar_first_position() as usize));
 								let y_position = position().unwrap().0;
-								let spaces_to_insert = &*argument_value.value - y_position;
+								let spaces_to_insert = &*new_columnar_position.value - y_position;
 								let spaces_to_insert: usize = match (&spaces_to_insert).try_into() {
 									Ok(spaces_to_insert) => spaces_to_insert,
 									Err(_) => match spaces_to_insert.is_negative() {
 										true => 0,
-										false => usize::MAX,
+										false => return Err(ErrorVariant::TabArgumentTooLow.at_column(argument_expression.get_start_column())),
 									}
 								};
 								for _ in 0..spaces_to_insert {
@@ -390,7 +391,7 @@ impl Machine {
 						// Commas set the columnar position to the start position of the next print zone.
 						PrintOperand::Comma(_sub_expression_column) => {
 							let print_zone_width = self.options.get_print_zone_width();
-							let new_columnar_print_position = (current_columnar_print_position / print_zone_width + 1) as u32 * print_zone_width as u32;
+							let new_columnar_print_position = (current_columnar_print_position / print_zone_width as u16 + 1) as u32 * print_zone_width as u32;
 							let spaces_to_print = (new_columnar_print_position - current_columnar_print_position as u32) as u16;
 							for _ in 0..spaces_to_print {
 								print!(" ");

@@ -134,6 +134,7 @@ pub enum ErrorVariant {
 	OnGotoGosubIndexOutOfRange,
 	NoMatchingNext,
 	ZeroForInDirectMode,
+	TabArgumentTooLow,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -273,6 +274,7 @@ impl Display for ErrorVariant {
 			Self::OnGotoGosubIndexOutOfRange => write!(f, "ON GOTO or ON GOSUB index out of range and an ELSE clause is not specified."),
 			Self::NoMatchingNext => write!(f, "A FOR loops condition was initially false but there was no unnested NEXT statement with the same control variable to jump to."),
 			Self::ZeroForInDirectMode => write!(f, "A FOR loops condition was initially false in direct mode."),
+			Self::TabArgumentTooLow => write!(f, "TAB argument too low."),
 		}
 	}
 }
