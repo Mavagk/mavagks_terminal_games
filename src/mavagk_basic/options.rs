@@ -11,12 +11,14 @@ pub enum AngleOption {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MathOption {
 	AnsiFull,
+	EcmaMinimal,
 	Ieee,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum MachineOption {
 	AnsiFull,
+	EcmaMinimal,
 	C64,
 }
 
@@ -48,7 +50,7 @@ impl Options {
 
 	pub const fn get_math_option(&self) -> MathOption {
 		match self.math {
-			None => MathOption::AnsiFull,
+			None => MathOption::EcmaMinimal,
 			Some(math_option) => math_option,
 		}
 	}
@@ -62,7 +64,7 @@ impl Options {
 
 	pub const fn get_machine_option(&self) -> MachineOption {
 		match self.machine {
-			None => MachineOption::AnsiFull,
+			None => MachineOption::EcmaMinimal,
 			Some(math_option) => math_option,
 		}
 	}
@@ -78,7 +80,7 @@ impl Options {
 	pub const fn allow_real_square_root_of_negative(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
@@ -86,7 +88,7 @@ impl Options {
 	pub const fn allow_overflow(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
@@ -94,7 +96,7 @@ impl Options {
 	pub const fn allow_divide_by_zero(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
@@ -102,7 +104,7 @@ impl Options {
 	pub const fn allow_real_trig_out_of_range(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
@@ -110,14 +112,14 @@ impl Options {
 	pub const fn allow_real_log_of_non_positive(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
 	/// Returns if reading an uninitialized value should trow an error.
 	pub const fn allow_uninitialized_read(&self) -> bool {
 		match self.get_machine_option() {
-			MachineOption::AnsiFull => false,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => false,
 			MachineOption::C64 => true,
 		}
 	}
@@ -125,7 +127,7 @@ impl Options {
 	/// Returns if a DIM statement will create an array or if it will be created when first accessed.
 	pub const fn arrays_created_on_dim_execution(&self) -> bool {
 		match self.get_machine_option() {
-			MachineOption::AnsiFull => false,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => false,
 			MachineOption::C64 => true,
 		}
 	}
@@ -133,7 +135,7 @@ impl Options {
 	/// Returns if a FN statement will define a function or if it will be created when first accessed.
 	pub const fn functions_defined_on_fn_execution(&self) -> bool {
 		match self.get_machine_option() {
-			MachineOption::AnsiFull => false,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => false,
 			MachineOption::C64 => true,
 		}
 	}
@@ -142,7 +144,7 @@ impl Options {
 	/// Returns `false` if a question mark and then a space should only be printed if there is no prompt.
 	pub const fn always_print_question_mark_after_input_prompt(&self) -> bool {
 		match self.get_machine_option() {
-			MachineOption::AnsiFull => false,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => false,
 			MachineOption::C64 => true,
 		}
 	}
@@ -158,7 +160,7 @@ impl Options {
 	/// Returns if a FOR statement that has a condition that is initially false should jump to the next unnested NEXT statement with the same control variable.
 	pub fn for_initially_false_jumps_to_next(&self) -> bool {
 		match self.get_machine_option() {
-			MachineOption::AnsiFull => true,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => true,
 			MachineOption::C64 => false,
 		}
 	}
@@ -167,7 +169,7 @@ impl Options {
 	pub fn allow_negative_to_non_int_power(&self) -> bool {
 		match self.get_math_option() {
 			MathOption::Ieee => true,
-			MathOption::AnsiFull => false,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
 		}
 	}
 
@@ -175,7 +177,7 @@ impl Options {
 	pub fn get_print_zone_width(&self) -> u8 {
 		match self.get_machine_option() {
 			MachineOption::C64 => 10,
-			MachineOption::AnsiFull => 20,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => 20,
 		}
 	}
 
@@ -183,7 +185,7 @@ impl Options {
 	pub fn get_columnar_first_position(&self) -> u8 {
 		match self.get_machine_option() {
 			MachineOption::C64 => 0,
-			MachineOption::AnsiFull => 1,
+			MachineOption::AnsiFull | MachineOption::EcmaMinimal => 1,
 		}
 	}
 }

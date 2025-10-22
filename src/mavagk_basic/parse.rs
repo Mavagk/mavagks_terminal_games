@@ -543,10 +543,14 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDefault, 1),
 				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
 					=> (OptionVariableAndValue::Math(Some(MathOption::AnsiFull)), 2),
+				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
+					=> (OptionVariableAndValue::Math(Some(MathOption::EcmaMinimal)), 2),
 				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ieee), .. }, .. }, _) => (OptionVariableAndValue::Math(Some(MathOption::Ieee)), 1),
 				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Math(None), 1),
 				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
 					=> (OptionVariableAndValue::Machine(Some(MachineOption::AnsiFull)), 2),
+				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
+					=> (OptionVariableAndValue::Machine(Some(MachineOption::EcmaMinimal)), 2),
 				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::C64), .. }, .. }, _) => (OptionVariableAndValue::Machine(Some(MachineOption::C64)), 1),
 				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Machine(None), 1),
 				(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_zero() => (OptionVariableAndValue::Base(Some(BaseOption::Zero)), 1),

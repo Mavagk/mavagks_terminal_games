@@ -160,6 +160,7 @@ impl Statement {
 						print!("MATH ");
 						match math_option {
 							Some(MathOption::AnsiFull) => print!("ANSI FULL"),
+							Some(MathOption::EcmaMinimal) => print!("ECMA MINIMAL"),
 							Some(MathOption::Ieee) => print!("IEEE"),
 							None => print!("DEFAULT"),
 						}
@@ -168,6 +169,7 @@ impl Statement {
 						print!("MATH ");
 						match machine_option {
 							Some(MachineOption::AnsiFull) => print!("ANSI FULL"),
+							Some(MachineOption::EcmaMinimal) => print!("ECMA MINIMAL"),
 							Some(MachineOption::C64) => print!("C64"),
 							None => print!("DEFAULT"),
 						}

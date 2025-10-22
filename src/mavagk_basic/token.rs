@@ -663,6 +663,8 @@ pub enum Keyword {
 	Width,
 	Base,
 	Full,
+	Ecma,
+	Minimal,
 }
 
 impl Keyword {
@@ -797,6 +799,8 @@ impl Keyword {
 			Self::In =>           &[("IN",           IdentifierType::UnmarkedOrFloat)],
 			Self::Base =>         &[("BASE",         IdentifierType::UnmarkedOrFloat)],
 			Self::Full =>         &[("FULL",         IdentifierType::UnmarkedOrFloat)],
+			Self::Ecma =>         &[("ECMA",         IdentifierType::UnmarkedOrFloat)],
+			Self::Minimal =>      &[("MINIMAL",      IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 
