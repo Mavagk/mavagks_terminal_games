@@ -471,7 +471,7 @@ impl Machine {
 							}
 							AnyTypeLValue::Float(l_value) => {
 								let parsed_value;
-								(parsed_value, input_buffer_left) = match parse_datum_float(input_buffer_left) {
+								(parsed_value, input_buffer_left) = match parse_datum_float(input_buffer_left, Some(&self.options)) {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
@@ -479,7 +479,7 @@ impl Machine {
 							}
 							AnyTypeLValue::Complex(l_value) => {
 								let parsed_value;
-								(parsed_value, input_buffer_left) = match parse_datum_complex(input_buffer_left) {
+								(parsed_value, input_buffer_left) = match parse_datum_complex(input_buffer_left, Some(&self.options)) {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};

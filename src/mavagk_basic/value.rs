@@ -31,6 +31,13 @@ pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space
 	let common_width = (is_negative || print_leading_positive_space) as u8 + print_trailing_space as u8 + 1;
 	let abs_max_length = max_width - common_width as u16;
 	let value_abs_integer_part = value_abs.floor();
+	if !value.is_finite() {
+		write!(f, "{value}")?;
+		return match print_trailing_space {
+			true => write!(f, " "),
+			false => write!(f, ""),
+		};
+	}
 	if value_abs >= 1. {
 		let value_abs_integer_part_digit_count = match value_abs_integer_part {
 			_ if value_abs_integer_part == 0. => 1,
@@ -694,8 +701,8 @@ impl ComplexValue {
 	}
 
 	/// Constructs a `ComplexValue` from a `Complex64`. Returns an error if overflow is not allowed and the input value is not a finite number.
-	pub const fn try_new(value: Complex64, allow_overflow: bool) -> Result<Self, ErrorVariant> {
-		match (value.re.is_finite() && value.im.is_finite()) || allow_overflow {
+	pub fn try_new(value: Complex64, options: Option<&Options>) -> Result<Self, ErrorVariant> {
+		match (value.re.is_finite() && value.im.is_finite()) || options.is_some_and(|options| options.allow_overflow()) {
 			true => Ok(Self::new(value)),
 			false => Err(ErrorVariant::ValueOverflow),
 		}

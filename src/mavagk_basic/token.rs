@@ -4,7 +4,7 @@ use num::{complex::Complex64, BigInt, BigUint, Num};
 use strum_macros::EnumIter;
 use strum::IntoEnumIterator;
 
-use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, options::Options, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, PartialEq)]
 /// A token received from parsing a line of text
@@ -93,11 +93,11 @@ impl Token {
 					Ok((Some(int_value), _)) => Some(int_value),
 					_ => None,
 				};
-				let float_value = match parse_datum_float(line_starting_with_token) {
+				let float_value = match parse_datum_float(line_starting_with_token, None) {
 					Ok((Some(float_value), _)) => Some(float_value),
 					_ => None,
 				};
-				let complex_value = match parse_datum_complex(line_starting_with_token) {
+				let complex_value = match parse_datum_complex(line_starting_with_token, None) {
 					Ok((Some(complex_value), _)) => Some(complex_value),
 					_ => None,
 				};
@@ -494,12 +494,12 @@ pub fn parse_datum_int<'a>(input_string: &'a str) -> Result<(Option<IntValue>, &
 	}
 }
 
-pub fn parse_datum_float<'a>(input_string: &'a str) -> Result<(Option<FloatValue>, &'a str), ErrorVariant> {
+pub fn parse_datum_float<'a>(input_string: &'a str, options: Option<&Options>) -> Result<(Option<FloatValue>, &'a str), ErrorVariant> {
 	let input_string = input_string.trim_ascii_start();
 	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E')).unwrap_or_else(|| input_string.len());
 	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
 	if int_string == "." {
-		return Ok((Some(FloatValue::new(0.)), chars_after_int_string));
+		return Ok((Some(FloatValue::try_new(0., options)?), chars_after_int_string));
 	}
 	if int_string.is_empty() {
 		return Ok((None, chars_after_int_string));
@@ -508,12 +508,12 @@ pub fn parse_datum_float<'a>(input_string: &'a str) -> Result<(Option<FloatValue
 		return Err(ErrorVariant::MalformedInteger);
 	}
 	match int_string.parse::<f64>() {
-		Ok(value) => Ok((Some(FloatValue::new(value)), chars_after_int_string)),
+		Ok(value) => Ok((Some(FloatValue::try_new(value, options)?), chars_after_int_string)),
 		Err(_) => return Err(ErrorVariant::MalformedInteger),
 	}
 }
 
-pub fn parse_datum_complex<'a>(input_string: &'a str) -> Result<(Option<ComplexValue>, &'a str), ErrorVariant> {
+pub fn parse_datum_complex<'a>(input_string: &'a str, options: Option<&Options>) -> Result<(Option<ComplexValue>, &'a str), ErrorVariant> {
 	let input_string = input_string.trim_ascii_start();
 	let int_end_index = input_string.find(|chr| !matches!(chr, '0'..='9' | '-' | '+' | '.' | 'e' | 'E' | 'i' | 'I')).unwrap_or_else(|| input_string.len());
 	let (int_string, chars_after_int_string) = input_string.split_at(int_end_index);
@@ -526,8 +526,8 @@ pub fn parse_datum_complex<'a>(input_string: &'a str) -> Result<(Option<ComplexV
 	if !matches!(chars_after_int_string.trim_ascii_start().chars().next(), None | Some(',' | ':' | '!')) {
 		return Err(ErrorVariant::MalformedInteger);
 	}
-	match int_string.parse::<Complex64>() {
-		Ok(value) => Ok((Some(ComplexValue::new(value)), chars_after_int_string)),
+	match int_string.to_ascii_lowercase().parse::<Complex64>() {
+		Ok(value) => Ok((Some(ComplexValue::try_new(value, options)?), chars_after_int_string)),
 		Err(_) => return Err(ErrorVariant::MalformedInteger),
 	}
 }
