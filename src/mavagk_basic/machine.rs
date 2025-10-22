@@ -117,16 +117,6 @@ impl Machine {
 			complex_stored_values: StoredValues::new(),
 			string_stored_values: StoredValues::new(),
 
-			//int_arrays: HashMap::new(),
-			//float_arrays: HashMap::new(),
-			//complex_arrays: HashMap::new(),
-			//string_arrays: HashMap::new(),
-
-			//complex_functions: HashMap::new(),
-			//float_functions: HashMap::new(),
-			//int_functions: HashMap::new(),
-			//string_functions: HashMap::new(),
-
 			rng: SmallRng::seed_from_u64(0),
 
 			data_line_number_to_read: program.get_first_data_line().cloned(),
@@ -1361,6 +1351,19 @@ impl Machine {
 			let statement = &program.unwrap().get_line(&function.0).unwrap().optimized_statements[function.1];
 			self.execute_function_declaration(statement)?;
 		}
+		// Create an implicit array with a upper bound of 10 if an array or function has still not been created and the array name consists of one char with a possible type char
+		if has_parentheses && name.chars().count() == 1 && !T::get_stored_values(self).arrays.contains_key(name) &&
+			!T::get_stored_values(self).functions.contains_key(&(name.into(), arguments.len()))
+		{
+			let mut dimensions = Vec::new();
+			let lower_bound = self.options.get_minimum_array_value();
+			let dimension_length = 11 - lower_bound.to_usize().unwrap();
+			for _ in 0..arguments.len() {
+				dimensions.push((dimension_length, lower_bound.clone()));
+			}
+			let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(l_value_start_column))?;
+			T::get_stored_values_mut(self).arrays.insert(name.into(), array);
+		}
 		// Return
 		Ok(())
 	}
@@ -1835,7 +1838,7 @@ impl<T: Value> Array<T> {
 				None => return Err(ErrorVariant::ArrayIndexOutOfBounds),
 			};
 			// Make sure the dimension index is not out of bounds
-			if index_zero_indexed > *dimension_length {
+			if index_zero_indexed >= *dimension_length {
 				return Err(ErrorVariant::ArrayIndexOutOfBounds);
 			}
 			// Adjust the index based of the index and dimension stride
