@@ -172,7 +172,7 @@ impl Options {
 	}
 
 	/// Returns the tab column width.
-	pub fn get_tab_column_width(&self) -> usize {
+	pub fn get_print_zone_width(&self) -> u16 {
 		match self.get_machine_option() {
 			MachineOption::C64 => 10,
 			MachineOption::AnsiFull => 20,

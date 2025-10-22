@@ -367,6 +367,8 @@ impl Machine {
 				let mut do_print_trailing_newline = true;
 				// For each sub-expression
 				for (index, sub_expression) in sub_expressions.iter().enumerate() {
+					stdout().flush().unwrap();
+					let current_columnar_print_position = position().unwrap().0;
 					// Print the sub-expression
 					match sub_expression {
 						PrintOperand::Expression(expression) => match expression {
@@ -391,13 +393,19 @@ impl Machine {
 								}
 							}
 							// Expressions
-							_ => self.execute_any_type_expression(expression, Some(program))?.print(&mut stdout(), true, true).unwrap()
+							_ => self.execute_any_type_expression(expression, Some(program))?.print(&mut stdout(), true, true, &self.options).unwrap()
 						}
 						// Semicolons do nothing
-						PrintOperand::Semicolon(_) => {}
-						// TODO
-						PrintOperand::Comma(sub_expression_column) =>
-							return Err(ErrorVariant::NotYetImplemented("comma in PRINT statement".into()).at_column(*sub_expression_column))
+						PrintOperand::Semicolon(_sub_expression_column) => {}
+						// Commas set the columnar position to the start position of the next print zone.
+						PrintOperand::Comma(_sub_expression_column) => {
+							let print_zone_width = self.options.get_print_zone_width();
+							let new_columnar_print_position = (current_columnar_print_position / print_zone_width + 1) as u32 * print_zone_width as u32;
+							let spaces_to_print = (new_columnar_print_position - current_columnar_print_position as u32) as u16;
+							for _ in 0..spaces_to_print {
+								print!(" ");
+							}
+						}
 					}
 					// Decide weather or not to suppress a trailing auto printed newlines
 					if matches!(sub_expression, PrintOperand::Comma(_) | PrintOperand::Semicolon(_)) && index == sub_expressions.len() - 1 {
@@ -428,7 +436,7 @@ impl Machine {
 					// Print the prompt
 					// TODO: OPTION for setting if "? " should be auto printed
 					if let Some(prompt_expression) = prompt {
-						self.execute_any_type_expression(prompt_expression, Some(program))?.print(&mut stdout(), true, true).unwrap();
+						self.execute_any_type_expression(prompt_expression, Some(program))?.print(&mut stdout(), true, true, &self.options).unwrap();
 						if self.options.always_print_question_mark_after_input_prompt() {
 							print!("? ");
 						}

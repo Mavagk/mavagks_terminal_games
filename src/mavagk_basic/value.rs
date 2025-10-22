@@ -18,6 +18,51 @@ pub fn int_to_float(int_value: &BigInt) -> f64 {
 	}
 }
 
+pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, print_leading_plus: bool, max_width: u16) -> io::Result<()> {
+	//write!(f, "{0:.1$}", self.value, 5)
+	let value_abs = value.abs();
+	let is_negative = value < 0.;
+	match (is_negative, print_leading_positive_space, print_leading_plus) {
+		(true, _, _) => write!(f, "-")?,
+		(false, false, false) => {},
+		(false, true, false) => write!(f, " ")?,
+		(false, _, true) => write!(f, "+")?,
+	}
+	let common_width = (is_negative || print_leading_positive_space) as u8 + print_trailing_space as u8 + 1;
+	let abs_max_length = max_width - common_width as u16;
+	let value_abs_integer_part = value_abs.floor();
+	if value_abs >= 1. {
+		let value_abs_integer_part_digit_count = match value_abs_integer_part {
+			_ if value_abs_integer_part == 0. => 1,
+			_ => value_abs_integer_part.log10().floor() as u16 + 1,
+		};
+		if value_abs_integer_part_digit_count <= abs_max_length {
+			write!(f, "{}", format!("{}", value_abs).chars().take(abs_max_length as usize).collect::<String>().trim_end_matches('.'))?;
+		}
+		else {
+			write!(f, "{}", format!("{0:.1$E}", value_abs, (abs_max_length - 6) as usize))?;
+		}
+		return match print_trailing_space {
+			true => write!(f, " "),
+			false => write!(f, ""),
+		};
+	}
+	let number_full: String = match value_abs {
+		_ if value_abs == 0. => "0".into(),
+		_ => format!("{value_abs}").trim_start_matches('0').into(),
+	};
+	if number_full.chars().nth(1) == Some('0') && number_full.chars().count() > abs_max_length as usize {
+		write!(f, "{}", format!("{0:.1$E}", value_abs, (abs_max_length - 7) as usize))?;
+	}
+	else {
+		write!(f, "{number_full}")?;
+	}
+	match print_trailing_space {
+		true => write!(f, " "),
+		false => write!(f, ""),
+	}
+}
+
 pub trait Value: Default + Clone {
 	type ExpressionType: Clone;
 	type LValueType;
@@ -176,16 +221,17 @@ impl IntValue {
 		self
 	}
 
-	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
-		match (self, print_leading_positive_space) {
-			(x, _) if x.is_negative() => write!(f, "{}", x.value),
-			(x, true) => write!(f, " {}", x.value),
-			(x, false) => write!(f, "{}", x.value),
-		}?;
-		match print_trailing_space {
-			true => write!(f, " "),
-			false => write!(f, ""),
-		}
+	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, options: &Options) -> io::Result<()> {
+		print_float(self.clone().to_float().value, f, print_leading_positive_space, print_trailing_space, false, options.get_print_zone_width())
+		//match (self, print_leading_positive_space) {
+		//	(x, _) if x.is_negative() => write!(f, "{}", x.value),
+		//	(x, true) => write!(f, " {}", x.value),
+		//	(x, false) => write!(f, "{}", x.value),
+		//}?;
+		//match print_trailing_space {
+		//	true => write!(f, " "),
+		//	false => write!(f, ""),
+		//}
 	}
 
 	pub fn to_usize(&self) -> Option<usize> {
@@ -547,16 +593,8 @@ impl FloatValue {
 		Ok(Self::new(out))
 	}
 
-	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
-		match (self, print_leading_positive_space) {
-			(x, _) if x.is_negative() => write!(f, "{}", x.value),
-			(x, true) => write!(f, " {}", x.value),
-			(x, false) => write!(f, "{}", x.value),
-		}?;
-		match print_trailing_space {
-			true => write!(f, " "),
-			false => write!(f, ""),
-		}
+	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, options: &Options) -> io::Result<()> {
+		print_float(self.value, f, print_leading_positive_space, print_trailing_space, false, options.get_print_zone_width())
 	}
 }
 
@@ -765,30 +803,49 @@ impl ComplexValue {
 		FloatValue::new(self.value.im)
 	}
 
-	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
-		match (self.value.re, self.value.im, print_leading_positive_space) {
-			(re, im, true) if re > 0. && im > 0. => write!(f, " {re}+{im}i"),
-			(re, im, false) if re > 0. && im > 0. => write!(f, "{re}+{im}i"),
-			(re, im, true) if re > 0. && im == 0. => write!(f, " {re}"),
-			(re, im, false) if re > 0. && im == 0. => write!(f, "{re}"),
-			(re, im, true) if re > 0. && im < 0. => write!(f, " {re}{im}i"),
-			(re, im, false) if re > 0. && im < 0. => write!(f, "{re}{im}i"),
-
-			(re, im, true) if re == 0. && im > 0. => write!(f, " {im}i"),
-			(re, im, false) if re == 0. && im > 0. => write!(f, "{im}i"),
-			(re, im, true) if re == 0. && im == 0. => write!(f, " 0"),
-			(re, im, false) if re == 0. && im == 0. => write!(f, "0"),
-			(re, im, _) if re == 0. && im < 0. => write!(f, "{im}i"),
-
-			(re, im, _) if re < 0. && im > 0. => write!(f, "{re}+{im}i"),
-			(re, im, _) if re < 0. && im == 0. => write!(f, "{re}"),
-			(re, im, _) if re < 0. && im < 0. => write!(f, "{re}{im}i"),
-			_ => unreachable!()
-		}?;
-		match print_trailing_space {
-			true => write!(f, " "),
-			false => write!(f, ""),
+	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, options: &Options) -> io::Result<()> {
+		if self.value.im == 0. {
+			return print_float(self.value.re, f, print_leading_positive_space, print_trailing_space, false, options.get_print_zone_width());
 		}
+		let full_width = options.get_print_zone_width().max(20);
+		if self.value.re == 0. {
+			print_float(self.value.im, f, print_leading_positive_space, false, false, full_width)?;
+			print!("I");
+			if print_trailing_space {
+				print!(" ");
+			}
+			return Ok(());
+		}
+		print_float(self.value.re, f, print_leading_positive_space, false, false, full_width / 2 - 1)?;
+		print_float(self.value.im, f, false, false, true, full_width / 2 - 1)?;
+		print!("I");
+		if print_trailing_space {
+			print!(" ");
+		}
+		Ok(())
+		//match (self.value.re, self.value.im, print_leading_positive_space) {
+		//	(re, im, true) if re > 0. && im > 0. => write!(f, " {re}+{im}i"),
+		//	(re, im, false) if re > 0. && im > 0. => write!(f, "{re}+{im}i"),
+		//	(re, im, true) if re > 0. && im == 0. => write!(f, " {re}"),
+		//	(re, im, false) if re > 0. && im == 0. => write!(f, "{re}"),
+		//	(re, im, true) if re > 0. && im < 0. => write!(f, " {re}{im}i"),
+		//	(re, im, false) if re > 0. && im < 0. => write!(f, "{re}{im}i"),
+//
+		//	(re, im, true) if re == 0. && im > 0. => write!(f, " {im}i"),
+		//	(re, im, false) if re == 0. && im > 0. => write!(f, "{im}i"),
+		//	(re, im, true) if re == 0. && im == 0. => write!(f, " 0"),
+		//	(re, im, false) if re == 0. && im == 0. => write!(f, "0"),
+		//	(re, im, _) if re == 0. && im < 0. => write!(f, "{im}i"),
+//
+		//	(re, im, _) if re < 0. && im > 0. => write!(f, "{re}+{im}i"),
+		//	(re, im, _) if re < 0. && im == 0. => write!(f, "{re}"),
+		//	(re, im, _) if re < 0. && im < 0. => write!(f, "{re}{im}i"),
+		//	_ => unreachable!()
+		//}?;
+		//match print_trailing_space {
+		//	true => write!(f, " "),
+		//	false => write!(f, ""),
+		//}
 	}
 }
 
@@ -1074,7 +1131,7 @@ impl BoolValue {
 		Self::new(self.value >= rhs.value)
 	}
 
-	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool) -> io::Result<()> {
+	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, _options: &Options) -> io::Result<()> {
 		write!(f, "{}", match (self.value, print_leading_positive_space) {
 			(true, _) => "-1",
 			(false, true) => " 0",
@@ -1226,12 +1283,12 @@ impl AnyTypeValue {
 		}
 	}
 
-	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_numeric_space: bool) -> io::Result<()> {
+	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_numeric_space: bool, options: &Options) -> io::Result<()> {
 		match self {
-			AnyTypeValue::Bool(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space),
-			AnyTypeValue::Int(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space),
-			AnyTypeValue::Float(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space),
-			AnyTypeValue::Complex(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space),
+			AnyTypeValue::Bool(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space, options),
+			AnyTypeValue::Int(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space, options),
+			AnyTypeValue::Float(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space, options),
+			AnyTypeValue::Complex(value) => value.print(f, print_leading_positive_space, print_trailing_numeric_space, options),
 			AnyTypeValue::String(value) => value.print(f),
 		}
 	}
