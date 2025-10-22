@@ -1355,13 +1355,7 @@ impl Machine {
 		if has_parentheses && name.chars().count() == 1 && !T::get_stored_values(self).arrays.contains_key(name) &&
 			!T::get_stored_values(self).functions.contains_key(&(name.into(), arguments.len()))
 		{
-			let mut dimensions = Vec::new();
-			let lower_bound = self.options.get_minimum_array_value();
-			let dimension_length = 11 - lower_bound.to_usize().unwrap();
-			for _ in 0..arguments.len() {
-				dimensions.push((dimension_length, lower_bound.clone()));
-			}
-			let array = Array::new(dimensions.into_boxed_slice()).map_err(|err| err.at_column(l_value_start_column))?;
+			let array = Array::new(repeat_n((11, IntValue::zero()), arguments.len()).collect()).map_err(|err| err.at_column(l_value_start_column))?;
 			T::get_stored_values_mut(self).arrays.insert(name.into(), array);
 		}
 		// Return
