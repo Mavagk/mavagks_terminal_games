@@ -362,9 +362,10 @@ impl Machine {
 					// Print the sub-expression
 					match sub_expression {
 						PrintOperand::Expression(expression) => match expression {
-							// TODO: Make sure TAB calls can be overwritten when user defined functions are added.
 							// TAB calls
-							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. })) if (&**arguments).len() == 1 => {
+							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. }))
+								if (&**arguments).len() == 1 && !self.float_stored_values.functions.contains_key(&("TAB".into(), 1)) =>
+							{
 								let argument_expression = &arguments[0];
 								let argument_value = self.execute_any_type_expression(argument_expression, Some(program))?
 									.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
