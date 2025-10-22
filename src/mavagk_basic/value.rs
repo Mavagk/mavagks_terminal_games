@@ -810,17 +810,17 @@ impl ComplexValue {
 		let full_width = options.get_print_zone_width().max(20);
 		if self.value.re == 0. {
 			print_float(self.value.im, f, print_leading_positive_space, false, false, full_width)?;
-			print!("I");
+			write!(f, "I")?;
 			if print_trailing_space {
-				print!(" ");
+				write!(f, " ")?;
 			}
 			return Ok(());
 		}
 		print_float(self.value.re, f, print_leading_positive_space, false, false, full_width / 2 - 1)?;
 		print_float(self.value.im, f, false, false, true, full_width / 2 - 1)?;
-		print!("I");
+		write!(f, "I")?;
 		if print_trailing_space {
-			print!(" ");
+			write!(f, " ")?;
 		}
 		Ok(())
 		//match (self.value.re, self.value.im, print_leading_positive_space) {
