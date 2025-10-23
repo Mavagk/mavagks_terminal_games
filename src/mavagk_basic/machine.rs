@@ -1454,14 +1454,10 @@ impl Machine {
 			Some(value) => return Ok(value),
 			None => {},
 		}
-		//if *has_parentheses {
-		//	return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(*start_column));
-		//}
-		// TODO
-		if has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Implicitly created arrays".into()).at_column(l_value_start_column));
-		}
 		// Else
+		if has_parentheses {
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+		}
 		match self.options.allow_uninitialized_read() {
 			true => Ok(Default::default()),
 			false => Err(ErrorVariant::VariableReadUninitialized.at_column(l_value_start_column)),
@@ -1488,11 +1484,10 @@ impl Machine {
 				.map_err(|err| err.at_column(l_value_start_column))?;
 			return Ok(());
 		}
-		// TODO
-		if has_parentheses {
-			return Err(ErrorVariant::NotYetImplemented("Implicitly created arrays".into()).at_column(l_value_start_column));
-		}
 		// Else assign to global variable
+		if has_parentheses {
+			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+		}
 		T::get_stored_values_mut(self).simple_variables.insert(name.into(), value);
 		// Return
 		Ok(())

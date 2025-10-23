@@ -305,7 +305,6 @@ impl Token {
 					}
 				};
 			}
-			// TODO: Quoteless string literals in DATA statements
 			_ => return Err(ErrorVariant::InvalidToken.at_column(column_number))
 		};
 		// Get the end column of the char
