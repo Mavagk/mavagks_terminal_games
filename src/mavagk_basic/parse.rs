@@ -1139,7 +1139,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 		_ => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*token_after_fn_start_column)),
 	};
 	if *identifier_is_optional {
-		return Err(ErrorVariant::NotYetImplemented("Optional functions".into()).at_column(*token_after_fn_start_column));
+		return Err(ErrorVariant::Unimplemented("Optional functions".into()).at_column(*token_after_fn_start_column));
 	}
 	tokens.take_next_token();
 	// Return if there is not a left parenthesis after the identifier
