@@ -224,7 +224,7 @@ impl IntValue {
 
 	pub fn mul(mut self, rhs: Self) -> Self {
 		let int = Rc::<BigInt>::make_mut(&mut self.value);
-		(*int) -= &*rhs.value;
+		(*int) *= &*rhs.value;
 		self
 	}
 
