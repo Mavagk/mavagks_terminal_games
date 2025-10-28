@@ -181,7 +181,7 @@ impl Options {
 		}
 	}
 
-	/// Returns the tab column width.
+	/// Returns the index of the leftmost columnar position.
 	pub fn get_columnar_first_position(&self) -> u8 {
 		match self.get_machine_option() {
 			MachineOption::C64 => 0,
