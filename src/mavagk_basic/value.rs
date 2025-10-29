@@ -47,7 +47,7 @@ pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space
 			write!(f, "{}", format!("{}", value_abs).chars().take(abs_max_length as usize).collect::<String>().trim_end_matches('.'))?;
 		}
 		else {
-			write!(f, "{}", format!("{0:.1$E}", value_abs, (abs_max_length - 6) as usize))?;
+			write!(f, "{}", format!("{0:.1$E}", value_abs, (abs_max_length - 7) as usize))?;
 		}
 		return match print_trailing_space {
 			true => write!(f, " "),
