@@ -23,8 +23,8 @@ impl Game for MavagkBasicTerminal {
 			// TOKENS prints the tokens received from tokenizing the text entered
 			Some(TerminalCommands::Tokens) => {
 				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
-					(line_number, Ok(tokens)) => (line_number, tokens, None),
-					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+					(line_number, Ok(tokens), _) => (line_number, tokens, None),
+					(line_number, Err(error), _) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
 					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
@@ -35,8 +35,8 @@ impl Game for MavagkBasicTerminal {
 			// AST prints the abstract syntax trees received from tokenizing and then parsing the text entered
 			Some(TerminalCommands::AST) => {
 				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
-					(line_number, Ok(tokens)) => (line_number, tokens, None),
-					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+					(line_number, Ok(tokens), _) => (line_number, tokens, None),
+					(line_number, Err(error), _) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
 					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));
@@ -56,8 +56,8 @@ impl Game for MavagkBasicTerminal {
 			// ASTO prints the abstract syntax trees received from tokenizing and then parsing the text entered and optimizing the result
 			Some(TerminalCommands::ASTOptimized) => {
 				let (line_number, tokens, error) = match Token::tokenize_line(text_after_terminal_command) {
-					(line_number, Ok(tokens)) => (line_number, tokens, None),
-					(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+					(line_number, Ok(tokens), _) => (line_number, tokens, None),
+					(line_number, Err(error), _) => (line_number, Box::default(), Some(error)),
 				};
 				if let Some(error) = error {
 					handle_error::<()>(Err(error.to_full_error(line_number, Some(text_after_terminal_command.into()))));

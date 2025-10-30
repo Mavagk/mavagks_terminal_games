@@ -127,9 +127,9 @@ impl Machine {
 	/// Called when a line of text is entered into the terminal.
 	pub fn line_of_text_entered(&mut self, line_text: Box<str>, program: &mut Program) -> Result<(), FullError> {
 		// Parse line
-		let (line_number, tokens, error) = match Token::tokenize_line(&*line_text) {
-			(line_number, Ok(tokens)) => (line_number, tokens, None),
-			(line_number, Err(error)) => (line_number, Box::default(), Some(error)),
+		let (line_number, tokens, error, has_comment) = match Token::tokenize_line(&*line_text) {
+			(line_number, Ok(tokens), has_comment) => (line_number, tokens, None, has_comment),
+			(line_number, Err(error), has_comment) => (line_number, Box::default(), Some(error), has_comment),
 		};
 		let (unoptimized_statements, error) = match error {
 			None => parse_line(&mut Tokens::new(&tokens)),
@@ -148,7 +148,7 @@ impl Machine {
 					let error = error.clone().to_full_error(Some((*line_number).clone()), Some(line_text.clone().into()));
 					handle_error::<()>(Err(error));
 				}
-				if unoptimized_statements.is_empty() && error.is_none() {
+				if unoptimized_statements.is_empty() && error.is_none() &&!has_comment {
 					program.remove_line(&line_number);
 				}
 				else {
