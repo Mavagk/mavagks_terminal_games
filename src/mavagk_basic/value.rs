@@ -54,7 +54,7 @@ pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space
 			false => write!(f, ""),
 		};
 	}
-	let number_full: String = match value_abs {
+	let mut number_full: String = match value_abs {
 		_ if value_abs == 0. => "0".into(),
 		_ => format!("{value_abs}").trim_start_matches('0').into(),
 	};
@@ -62,6 +62,7 @@ pub fn print_float<T: Write>(value: f64, f: &mut T, print_leading_positive_space
 		write!(f, "{}", format!("{0:.1$E}", value_abs, (abs_max_length - 7) as usize))?;
 	}
 	else {
+		number_full.truncate(abs_max_length as usize);
 		write!(f, "{number_full}")?;
 	}
 	match print_trailing_space {
