@@ -594,22 +594,21 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 					},
 			}
 		}
-		Keyword::End => Statement {
+		// Statements without any arguments
+		Keyword::End | Keyword::Stop | Keyword::Return | Keyword::Randomize | Keyword::Clear | Keyword::Clr | Keyword::New => Statement {
 			column: statement_keyword_start_column,
-			variant: StatementVariant::End,
+			variant: match statement_keyword {
+				Keyword::End       => StatementVariant::End,
+				Keyword::Stop      => StatementVariant::Stop,
+				Keyword::Return    => StatementVariant::Return,
+				Keyword::Randomize => StatementVariant::Randomize,
+				Keyword::Clear     => StatementVariant::Clear,
+				Keyword::Clr       => StatementVariant::Clr,
+				Keyword::New       => StatementVariant::New,
+				_ => unreachable!()
+			},
 		},
-		Keyword::Stop => Statement {
-			column: statement_keyword_start_column,
-			variant: StatementVariant::Stop,
-		},
-		Keyword::Return => Statement {
-			column: statement_keyword_start_column,
-			variant: StatementVariant::Return,
-		},
-		Keyword::Randomize => Statement {
-			column: statement_keyword_start_column,
-			variant: StatementVariant::Randomize,
-		},
+		// DATA
 		Keyword::Data => 'a: {
 			if !is_root_statement {
 				return Err(ErrorVariant::StatementCannotBeNested.at_column(statement_keyword_start_column));

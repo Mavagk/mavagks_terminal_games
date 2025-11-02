@@ -209,6 +209,15 @@ impl Statement {
 			StatementVariant::Return => {
 				println!("RETURN");
 			}
+			StatementVariant::Clear => {
+				println!("CLEAR");
+			}
+			StatementVariant::Clr => {
+				println!("CLR");
+			}
+			StatementVariant::New => {
+				println!("NEW");
+			}
 			StatementVariant::Data(data) => {
 				println!("DATA");
 				for (datum, datum_start_column) in data {
@@ -324,6 +333,9 @@ pub enum StatementVariant {
 	Randomize,
 	OnGoto { index: IntExpression, line_numbers: Box<[IntExpression]>, else_statement: Option<Box<Statement>> },
 	OnGosub { index: IntExpression, line_numbers: Box<[IntExpression]>, else_statement: Option<Box<Statement>> },
+	Clear,
+	Clr,
+	New,
 }
 
 #[derive(Debug, Clone)]

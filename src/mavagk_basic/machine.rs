@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
-use crossterm::{cursor::position, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}};
+use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}, terminal::{Clear, ClearType}};
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
@@ -344,6 +344,12 @@ impl Machine {
 				}
 				file.flush().map_err(|_| ErrorVariant::UnableToWriteFile.at_column(filepath_expression.as_ref().unwrap().get_start_column()))?;
 				Ok(false)
+			}
+			StatementVariant::New => {
+				self.clear_machine_state(program);
+				program.clear_program();
+				self.execution_source = ExecutionSource::ProgramEnded;
+				Ok(true)
 			}
 			_ => self.execute_statement(statement, program),
 		}
@@ -767,9 +773,7 @@ impl Machine {
 					OptionVariableAndValue::Base(base_option) => self.options.base = *base_option,
 				}
 			}
-			StatementVariant::Load(_filename_expression) | StatementVariant::Save(_filename_expression) => {
-				return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column));
-			}
+			StatementVariant::Load(..) | StatementVariant::Save(..) | StatementVariant::New => return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column)),
 			StatementVariant::End => {
 				// TODO: Should store stop location to allow a CONT
 				self.execution_source = ExecutionSource::ProgramEnded;
@@ -917,6 +921,11 @@ impl Machine {
 				self.set_line_executing_by_jumping(program, Some(line_number_to_jump_to), line_number_expression.get_start_column())?;
 				// Flow control used
 				return Ok(true);
+			}
+			StatementVariant::Clr => self.clear_machine_state(program),
+			StatementVariant::Clear => {
+				// TODO: Test
+				execute!(stdout(), Clear(ClearType::All), MoveTo(0, 0)).unwrap();
 			}
 		}
 		Ok(false)
