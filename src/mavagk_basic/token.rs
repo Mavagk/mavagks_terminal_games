@@ -81,10 +81,10 @@ impl Token {
 		if line_starting_with_token.is_empty() {
 			return Ok(None);
 		}
-		if line_starting_with_token.get(0..=2).is_some_and(|chars| chars.eq_ignore_ascii_case("REM")) {
-			*has_comment = true;
-			return Ok(None);
-		}
+		//if line_starting_with_token.get(0..=2).is_some_and(|chars| chars.eq_ignore_ascii_case("REM")) {
+		//	*has_comment = true;
+		//	return Ok(None);
+		//}
 		// Parse token
 		let first_char = line_starting_with_token.chars().next().unwrap();
 		let (variant, rest_of_string_with_token_removed) = match (first_char, is_datum) {
@@ -140,6 +140,10 @@ impl Token {
 				// Get name part of identifier
 				let length_of_identifier_name_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
+				if name.eq_ignore_ascii_case("REM") {
+					*has_comment = true;
+					return Ok(None);
+				}
 				// Convert to upper case
 				let mut name: Box<str> = name.into();
 				name.make_ascii_uppercase();
