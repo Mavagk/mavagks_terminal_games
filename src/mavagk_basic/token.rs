@@ -90,6 +90,10 @@ impl Token {
 		let (variant, rest_of_string_with_token_removed) = match (first_char, is_datum) {
 			(':', _) => (TokenVariant::Colon, &line_starting_with_token[1..]),
 			(',', _) => (TokenVariant::Comma, &line_starting_with_token[1..]),
+			('!', _) => {
+				*has_comment = true;
+				return Ok(None);
+			}
 			// Datum
 			(_, true) => {
 				let (string_value, line_after_token) = parse_datum_string(line_starting_with_token, true).map_err(|err| err.at_column(column_number))?;
