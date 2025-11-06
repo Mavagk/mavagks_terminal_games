@@ -100,6 +100,14 @@ impl Options {
 		}
 	}
 
+	/// Returns false if ANGLE(0, 0) or ATAN2(0, 0) should throw an error, returns true if it should return a non finite value.
+	pub const fn allow_angle_zero_zero(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
+		}
+	}
+
 	/// Returns if arc real trigonometric functions given values outside their input range should trow an error.
 	pub const fn allow_real_trig_out_of_range(&self) -> bool {
 		match self.get_math_option() {

@@ -227,7 +227,7 @@ impl Display for ErrorVariant {
 			Self::SquareRootOfNegative => write!(f, "Square root of negative number."),
 			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
 			Self::ATrigFunctionOutOfRange => write!(f, "Arc real trigonometric function argument out of range."),
-			Self::AngleOfZeroZero => write!(f, "ANGLE of 0, 0."),
+			Self::AngleOfZeroZero => write!(f, "ANGLE or ATAN2 of 0, 0."),
 			Self::ExpectedColonAfterInputPrompt => write!(f, "Expected colon or semicolon after input prompt."),
 			Self::MultiplePromptsForInput => write!(f, "Multiple PROMPT arguments for an INPUT statement."),
 			Self::MultipleTimeoutsForInput => write!(f, "Multiple TIMEOUT arguments for an INPUT statement."),

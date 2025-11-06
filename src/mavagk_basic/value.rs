@@ -541,6 +541,17 @@ impl FloatValue {
 		Self::new(self.value.atan()).from_radians(options)
 	}
 
+	pub fn atan2(self, x: Self, options: &Options) -> Result<Self, ErrorVariant> {
+		if self.is_zero() && x.is_zero() && !options.allow_angle_zero_zero() {
+			return Err(ErrorVariant::AngleOfZeroZero);
+		}
+		let result = self.value.atan2(x.value);
+		if !result.is_finite() && !options.allow_angle_zero_zero() {
+			return Err(ErrorVariant::AngleOfZeroZero);
+		}
+		Self::new(result).from_radians(options)
+	}
+
 	pub fn acot(self, options: &Options) -> Result<Self, ErrorVariant> {
 		Self::new(1. / (self.value).atan()).from_radians(options)
 	}

@@ -890,6 +890,8 @@ pub enum SuppliedFunction {
 	Acsch,
 	Log,
 	Exp,
+	Angle,
+	Atan2,
 }
 
 impl SuppliedFunction {
@@ -943,6 +945,8 @@ impl SuppliedFunction {
 			Self::Imag => &["IMAG"],
 			Self::Log => &["LOG", "LN"],
 			Self::Exp => &["EXP"],
+			Self::Angle => &["ANGLE"],
+			Self::Atan2 => &["ATAN2", "ATN2"],
 		}
 	}
 
