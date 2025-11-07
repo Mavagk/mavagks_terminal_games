@@ -1585,7 +1585,7 @@ impl Machine {
 					}))
 				}
 				// Functions that have two float arguments
-				SuppliedFunction::Angle | SuppliedFunction::Atan2 if arguments.len() == 2 => {
+				SuppliedFunction::Angle | SuppliedFunction::Atan2 | SuppliedFunction::Mod | SuppliedFunction::Remainder if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1597,6 +1597,10 @@ impl Machine {
 							argument_value_1.atan2(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
 						SuppliedFunction::Atan2 =>
 							argument_value_0.atan2(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunction::Mod =>
+							argument_value_0.basic_modulo(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunction::Remainder =>
+							argument_value_0.remainder(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!()
 					}))
 				}

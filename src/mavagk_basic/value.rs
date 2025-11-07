@@ -442,6 +442,28 @@ impl FloatValue {
 		}
 	}
 
+	pub fn basic_modulo(self, rhs: Self, options: &Options) -> Result<Self, ErrorVariant> {
+		if rhs.is_zero() && !options.allow_divide_by_zero() {
+			return Err(ErrorVariant::ModOrRemainderByZero);
+		}
+		let float_result = self.value - rhs.value * (self.value / rhs.value).floor();
+		match float_result.is_finite() || options.allow_divide_by_zero() {
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
+	}
+
+	pub fn remainder(self, rhs: Self, options: &Options) -> Result<Self, ErrorVariant> {
+		if rhs.is_zero() && !options.allow_divide_by_zero() {
+			return Err(ErrorVariant::ModOrRemainderByZero);
+		}
+		let float_result = self.value % rhs.value;
+		match float_result.is_finite() || options.allow_divide_by_zero() {
+			true => Ok(Self::new(float_result)),
+			false => Err(ErrorVariant::ValueOverflow),
+		}
+	}
+
 	pub fn pow(self, rhs: Self, options: Option<&Options>) -> Result<Self, ErrorVariant> {
 		if self.is_negative() && !rhs.is_int() && !options.is_some_and(|options| options.allow_negative_to_non_int_power()) {
 			return Err(ErrorVariant::NegativeNumberRaisedToNonIntegerPower);
