@@ -1532,7 +1532,9 @@ impl Machine {
 				// Functions that have one float argument
 				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc if arguments.len() == 1 => {
+				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
+				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil |
+				SuppliedFunction::Log10 | SuppliedFunction::Log2 if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1568,7 +1570,17 @@ impl Machine {
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log =>
 							argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log10 =>
+							argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log2 =>
+							argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Ceil => argument_value.ceil(),
+						SuppliedFunction::Rad => argument_value.degrees_to_radians(),
+						SuppliedFunction::Ip => argument_value.integer_part(),
+						SuppliedFunction::Fp => argument_value.fractional_part(),
+						SuppliedFunction::Deg =>
+							argument_value.radians_to_degrees(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}))
 				}
@@ -1587,6 +1599,33 @@ impl Machine {
 							argument_value_0.atan2(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!()
 					}))
+				}
+				// Fold functions
+				SuppliedFunction::Min | SuppliedFunction::Max if arguments.len() > 0 => {
+					// Get first argument
+					let mut result = self.execute_any_type_expression(&arguments[0], program)?
+						.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+					// Get other values and apply function
+					for argument in arguments.iter().skip(1) {
+						let argument_value = self.execute_any_type_expression(argument, program)?
+							.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+						result = match supplied_function {
+							SuppliedFunction::Min => result.min(argument_value),
+							SuppliedFunction::Max => result.max(argument_value),
+							_ => unreachable!(),
+						};
+					}
+					return Ok(Some(result));
+				}
+				SuppliedFunction::Max if arguments.len() > 0 => {
+					let mut result = self.execute_any_type_expression(&arguments[0], program)?
+						.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+					for argument in arguments.iter().skip(1) {
+						let argument_value = self.execute_any_type_expression(argument, program)?
+							.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+						result = result.max(argument_value);
+					}
+					return Ok(Some(result));
 				}
 				// Functions that have one complex argument
 				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {

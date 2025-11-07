@@ -489,6 +489,10 @@ impl FloatValue {
 		Self::new(self.value.floor())
 	}
 
+	pub fn ceil(self) -> Self {
+		Self::new(self.value.ceil())
+	}
+
 	pub fn sqrt(self, options: &Options) -> Result<Self, ErrorVariant> {
 		match self {
 			value if value.is_negative() && !options.allow_real_square_root_of_negative() => return Err(ErrorVariant::SquareRootOfNegative),
@@ -552,6 +556,14 @@ impl FloatValue {
 		Self::new(result).from_radians(options)
 	}
 
+	pub fn min(self, other: Self) -> Self {
+		Self::new(self.value.min(other.value))
+	}
+
+	pub fn max(self, other: Self) -> Self {
+		Self::new(self.value.max(other.value))
+	}
+
 	pub fn acot(self, options: &Options) -> Result<Self, ErrorVariant> {
 		Self::new(1. / (self.value).atan()).from_radians(options)
 	}
@@ -582,6 +594,37 @@ impl FloatValue {
 			true => Ok(Self::new(result)),
 			false => Err(ErrorVariant::LogOfNonPositive)
 		}
+	}
+	pub fn log2(self, options: &Options) -> Result<Self, ErrorVariant> {
+		let result = self.value.log2();
+		match result.is_finite() || options.allow_real_log_of_non_positive() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::LogOfNonPositive)
+		}
+	}
+	pub fn log10(self, options: &Options) -> Result<Self, ErrorVariant> {
+		let result = self.value.log10();
+		match result.is_finite() || options.allow_real_log_of_non_positive() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::LogOfNonPositive)
+		}
+	}
+
+	pub fn degrees_to_radians(self) -> Self {
+		Self::new(self.value / 180. * PI)
+	}
+
+	pub fn radians_to_degrees(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.value / PI * 180., Some(options))
+	}
+
+	/// Rounds a number towards zero.
+	pub fn integer_part(self) -> Self {
+		Self::new(self.value.signum() * self.value.abs().floor())
+	}
+
+	pub fn fractional_part(self) -> Self {
+		Self::new((self.value % 1.).abs())
 	}
 
 	pub const fn to_radians(self, options: &Options) -> Result<Self, ErrorVariant> {
