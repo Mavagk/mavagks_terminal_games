@@ -92,6 +92,22 @@ impl Options {
 		}
 	}
 
+	/// Returns false if evaluating the tanh(0) or csch(0) should throw an error, returns true if it should return a non finite value.
+	pub const fn allow_tanh_csch_of_zero(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
+		}
+	}
+
+	/// Returns false if evaluating inverse hyperbolic trigonometric functions outside of their range should throw an error, returns true if it should return a non finite value.
+	pub const fn allow_inverse_hyperbolic_trig_out_of_range(&self) -> bool {
+		match self.get_math_option() {
+			MathOption::Ieee => true,
+			MathOption::AnsiFull | MathOption::EcmaMinimal => false,
+		}
+	}
+
 	/// Returns false if division by zero should throw an error, returns true if it should return a non finite value.
 	pub const fn allow_divide_by_zero(&self) -> bool {
 		match self.get_math_option() {

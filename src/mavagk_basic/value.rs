@@ -578,6 +578,96 @@ impl FloatValue {
 		Self::new(result).from_radians(options)
 	}
 
+	pub fn sinh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.value.sinh(), Some(options))
+	}
+	
+	pub fn cosh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		Self::try_new(self.value.cosh(), Some(options))
+	}
+
+	pub fn tanh(self) -> Self {
+		Self::new(self.value.tanh())
+	}
+
+	pub fn coth(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if self.is_zero() && !options.allow_tanh_csch_of_zero() {
+			return Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero);
+		}
+		match Self::try_new(self.value.sinh() / self.value.cosh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero),
+		}
+	}
+
+	pub fn sech(self) -> Self {
+		Self::new(1. / self.value.cosh())
+	}
+
+	pub fn csch(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if self.is_zero() && !options.allow_tanh_csch_of_zero() {
+			return Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero);
+		}
+		match Self::try_new(1. / self.value.sinh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero),
+		}
+	}
+
+	pub fn asinh(self) -> Self {
+		Self::new(self.value.asinh())
+	}
+
+	pub fn acosh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if self.value < 1. && !options.allow_inverse_hyperbolic_trig_out_of_range() {
+			return Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange);
+		}
+		match Self::try_new(self.value.acosh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange),
+		}
+	}
+
+	pub fn atanh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if (self.value >= 1. || self.value <= -1.) && !options.allow_inverse_hyperbolic_trig_out_of_range() {
+			return Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange);
+		}
+		match Self::try_new(self.value.atanh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange),
+		}
+	}
+
+	pub fn acoth(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if (self.value <= 1. && self.value >= -1.) && !options.allow_inverse_hyperbolic_trig_out_of_range() {
+			return Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange);
+		}
+		match Self::try_new((1. / self.value).atanh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange),
+		}
+	}
+
+	pub fn asech(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if (self.value > 1. || self.value <= 0.) && !options.allow_inverse_hyperbolic_trig_out_of_range() {
+			return Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange);
+		}
+		match Self::try_new((1. / self.value).acosh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange),
+		}
+	}
+
+	pub fn acsch(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if self.value == 0. && !options.allow_inverse_hyperbolic_trig_out_of_range() {
+			return Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange);
+		}
+		match Self::try_new((1. / self.value).asinh(), Some(options)) {
+			Ok(value) => Ok(value),
+			Err(_) => Err(ErrorVariant::HyperbolicATrigFunctionOutOfRange),
+		}
+	}
+
 	pub fn min(self, other: Self) -> Self {
 		Self::new(self.value.min(other.value))
 	}

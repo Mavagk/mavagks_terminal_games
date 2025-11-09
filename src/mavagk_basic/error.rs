@@ -136,6 +136,8 @@ pub enum ErrorVariant {
 	NoMatchingNext,
 	ZeroForInDirectMode,
 	TabArgumentTooLow,
+	HyperbolicCotangentOrCosecantOfZero,
+	HyperbolicATrigFunctionOutOfRange,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -227,6 +229,7 @@ impl Display for ErrorVariant {
 			Self::SquareRootOfNegative => write!(f, "Square root of negative number."),
 			Self::ModOrRemainderByZero => write!(f, "MOD or REMAINDER by zero."),
 			Self::ATrigFunctionOutOfRange => write!(f, "Arc real trigonometric function argument out of range."),
+			Self::HyperbolicATrigFunctionOutOfRange => write!(f, "Arc real hyperbolic trigonometric function argument out of range."),
 			Self::AngleOfZeroZero => write!(f, "ANGLE or ATAN2 of 0, 0."),
 			Self::ExpectedColonAfterInputPrompt => write!(f, "Expected colon or semicolon after input prompt."),
 			Self::MultiplePromptsForInput => write!(f, "Multiple PROMPT arguments for an INPUT statement."),
@@ -277,6 +280,7 @@ impl Display for ErrorVariant {
 			Self::NoMatchingNext => write!(f, "A FOR loops condition was initially false but there was no unnested NEXT statement with the same control variable to jump to."),
 			Self::ZeroForInDirectMode => write!(f, "A FOR loops condition was initially false in direct mode."),
 			Self::TabArgumentTooLow => write!(f, "TAB argument too low."),
+			Self::HyperbolicCotangentOrCosecantOfZero => write!(f, "Attempted to evaluate the the hyperbolic cotangent or cosecant of zero."),
 		}
 	}
 }

@@ -1533,6 +1533,8 @@ impl Machine {
 				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
+				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
+				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch |
 				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil |
 				SuppliedFunction::Log10 | SuppliedFunction::Log2 if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
@@ -1568,6 +1570,30 @@ impl Machine {
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Acsc => argument_value.acsc(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sinh =>
+							argument_value.sinh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cosh =>
+							argument_value.cosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tanh =>
+							argument_value.tanh(),
+						SuppliedFunction::Coth =>
+							argument_value.coth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sech =>
+							argument_value.sech(),
+						SuppliedFunction::Csch =>
+							argument_value.csch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asinh =>
+							argument_value.asinh(),
+						SuppliedFunction::Acosh =>
+							argument_value.acosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Atanh =>
+							argument_value.atanh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acoth =>
+							argument_value.acoth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asech =>
+							argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acsch =>
+							argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log =>
 							argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log10 =>
