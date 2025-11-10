@@ -768,6 +768,30 @@ impl FloatValue {
 		}
 	}
 
+	pub fn round_to_digits(self, digits: IntValue) -> Self {
+		let sign = self.value.signum();
+		let digits = match digits.clone().neg().to_i32() {
+			Some(digits) => digits,
+			None => match digits.is_negative() {
+				true => return FloatValue::ZERO,
+				false => return self,
+			},
+		};
+		let truncate_to = f64::powi(10., digits);
+		let value_abs = match sign.is_sign_positive() {
+			true => self.value.abs() + truncate_to / 2.,
+			false => self.value.abs() - truncate_to / 2.
+		};
+		let out = (value_abs - value_abs % truncate_to) * sign;
+		match out.is_finite() {
+			true => FloatValue::new(out),
+			false => match digits.is_negative() {
+				false => return FloatValue::ZERO,
+				true => return self,
+			},
+		}
+	}
+
 	pub const fn to_radians(self, options: &Options) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match options.get_angle_option() {
 			AngleOption::Radians => self.value,

@@ -1694,6 +1694,16 @@ impl Machine {
 						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(argument_value_0.truncate_to_digits(argument_value_1)));
 				}
+				// ROUND(X, N)
+				SuppliedFunction::Round if arguments.len() == 2 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_float().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					return Ok(Some(argument_value_0.round_to_digits(argument_value_1)));
+				}
 				// RND(X)
 				SuppliedFunction::Rnd if arguments.len() < 2 => {
 					// If the function has an argument
