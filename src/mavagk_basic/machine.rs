@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
+use chrono::{DateTime, Datelike, Local, Timelike};
 use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}, terminal::{Clear, ClearType}};
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
@@ -1508,7 +1509,7 @@ impl Machine {
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
-				// Constants
+				// Constants and pseudo-variables
 				_ if !has_parentheses => match supplied_function {
 					SuppliedFunction::Pi => return Ok(Some(FloatValue::PI)),
 					SuppliedFunction::E => return Ok(Some(FloatValue::E)),
@@ -1521,6 +1522,15 @@ impl Machine {
 					SuppliedFunction::NInf => return Ok(Some(FloatValue::NEG_INFINITY)),
 					SuppliedFunction::True => return Ok(Some(FloatValue::TRUE)),
 					SuppliedFunction::False => return Ok(Some(FloatValue::FALSE)),
+					SuppliedFunction::Time => return Ok(Some(FloatValue::from_u32(Local::now().num_seconds_from_midnight()))),
+					SuppliedFunction::Date => return Ok(Some({
+						let date = Local::now();
+						let mut day_of_year = date.day();
+						for month in 1..date.month() {
+							day_of_year += date.with_day(1).unwrap().with_month(month).unwrap().num_days_in_month() as u32;
+						}
+						FloatValue::from_u32((date.year() % 100) as u32 * 1000 + day_of_year)
+					})),
 					_ => return Ok(None),
 				}
 				// ABS(X#)

@@ -368,6 +368,10 @@ impl FloatValue {
 		Self::new(value as f64)
 	}
 
+	pub const fn from_u32(value: u32) -> Self {
+		Self::new(value as f64)
+	}
+
 	pub const fn is_zero(self) -> bool {
 		self.value == 0.
 	}
