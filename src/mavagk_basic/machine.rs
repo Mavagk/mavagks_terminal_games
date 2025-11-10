@@ -1546,7 +1546,7 @@ impl Machine {
 				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
 				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch |
 				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil |
-				SuppliedFunction::Log10 | SuppliedFunction::Log2 if arguments.len() == 1 => {
+				SuppliedFunction::Log10 | SuppliedFunction::Log2 | SuppliedFunction::Eps if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1615,6 +1615,7 @@ impl Machine {
 						SuppliedFunction::Rad => argument_value.degrees_to_radians(),
 						SuppliedFunction::Ip => argument_value.integer_part(),
 						SuppliedFunction::Fp => argument_value.fractional_part(),
+						SuppliedFunction::Eps => argument_value.basic_eps(),
 						SuppliedFunction::Deg =>
 							argument_value.radians_to_degrees(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()

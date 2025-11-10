@@ -792,6 +792,13 @@ impl FloatValue {
 		}
 	}
 
+	pub fn basic_eps(self) -> Self {
+		Self::new(match self.value.next_up().max(f64::MIN_POSITIVE) {
+			value if !value.is_finite() => f64::MAX,
+			value => value,
+		})
+	}
+
 	pub const fn to_radians(self, options: &Options) -> Result<Self, ErrorVariant> {
 		Ok(Self::new(match options.get_angle_option() {
 			AngleOption::Radians => self.value,

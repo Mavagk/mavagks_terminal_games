@@ -895,7 +895,6 @@ pub enum SuppliedFunction {
 	Ceil,
 	Date,
 	Deg,
-	Esp,
 	Fp,
 	Log10,
 	Log2,
@@ -908,6 +907,7 @@ pub enum SuppliedFunction {
 	Time,
 	Truncate,
 	Ip,
+	Eps,
 }
 
 impl SuppliedFunction {
@@ -966,7 +966,6 @@ impl SuppliedFunction {
 			Self::Ceil      => &["CEIL"],
 			Self::Date      => &["DATE"],
 			Self::Deg       => &["DEG"],
-			Self::Esp       => &["ESP"],
 			Self::Fp        => &["FP"],
 			Self::Log10     => &["LOG10"],
 			Self::Log2      => &["LOG2"],
@@ -979,6 +978,7 @@ impl SuppliedFunction {
 			Self::Time      => &["TIME"],
 			Self::Truncate  => &["TRUNCATE"],
 			Self::Ip        => &["IP"],
+			Self::Eps       => &["EPS"],
 		}
 	}
 
