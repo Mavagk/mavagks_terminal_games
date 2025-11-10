@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, f64::{consts::{E, PI, TAU}, INFINITY, NAN, NEG_INFINITY}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
+use std::{collections::{HashMap, HashSet}, f64::{INFINITY, NAN, NEG_INFINITY, consts::{E, PI, TAU}}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
 
 use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
 
@@ -244,6 +244,10 @@ impl IntValue {
 
 	pub fn to_usize(&self) -> Option<usize> {
 		self.value.to_usize()
+	}
+
+	pub fn to_i32(&self) -> Option<i32> {
+		self.value.to_i32()
 	}
 
 	pub fn from_ones_index_to_usize(&self) -> Option<usize> {
@@ -736,11 +740,32 @@ impl FloatValue {
 
 	/// Rounds a number towards zero.
 	pub fn integer_part(self) -> Self {
-		Self::new(self.value.signum() * self.value.abs().floor())
+		Self::new(self.value.trunc())
 	}
 
 	pub fn fractional_part(self) -> Self {
 		Self::new((self.value % 1.).abs())
+	}
+
+	pub fn truncate_to_digits(self, digits: IntValue) -> Self {
+		let sign = self.value.signum();
+		let value_abs = self.value.abs();
+		let digits = match digits.clone().neg().to_i32() {
+			Some(digits) => digits,
+			None => match digits.is_negative() {
+				true => return FloatValue::ZERO,
+				false => return self,
+			},
+		};
+		let truncate_to = f64::powi(10., digits);
+		let out = (value_abs - value_abs % truncate_to) * sign;
+		match out.is_finite() {
+			true => FloatValue::new(out),
+			false => match digits.is_negative() {
+				false => return FloatValue::ZERO,
+				true => return self,
+			},
+		}
 	}
 
 	pub const fn to_radians(self, options: &Options) -> Result<Self, ErrorVariant> {

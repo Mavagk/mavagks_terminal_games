@@ -1,6 +1,6 @@
 use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
-use chrono::{DateTime, Datelike, Local, Timelike};
+use chrono::{Datelike, Local, Timelike};
 use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}, terminal::{Clear, ClearType}};
 use num::{BigInt, FromPrimitive, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
@@ -1683,6 +1683,16 @@ impl Machine {
 					let argument = &arguments[0];
 					return Ok(Some(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
 						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars())))
+				}
+				// TRUNCATE(X, N)
+				SuppliedFunction::Truncate if arguments.len() == 2 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_float().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					return Ok(Some(argument_value_0.truncate_to_digits(argument_value_1)));
 				}
 				// RND(X)
 				SuppliedFunction::Rnd if arguments.len() < 2 => {
