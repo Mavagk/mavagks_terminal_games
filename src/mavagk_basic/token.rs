@@ -679,6 +679,8 @@ pub enum Keyword {
 	Full,
 	Ecma,
 	Minimal,
+	Ascii,
+	Unicode,
 }
 
 impl Keyword {
@@ -816,6 +818,8 @@ impl Keyword {
 			Self::Full =>         &[("FULL",         IdentifierType::UnmarkedOrFloat)],
 			Self::Ecma =>         &[("ECMA",         IdentifierType::UnmarkedOrFloat)],
 			Self::Minimal =>      &[("MINIMAL",      IdentifierType::UnmarkedOrFloat)],
+			Self::Ascii =>        &[("ASCII",        IdentifierType::UnmarkedOrFloat)],
+			Self::Unicode =>      &[("UNICODE",      IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 

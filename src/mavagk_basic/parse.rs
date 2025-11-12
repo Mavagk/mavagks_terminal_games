@@ -3,7 +3,7 @@ use std::{collections::HashSet, mem::replace, num::NonZeroUsize, rc::Rc};
 use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
 use strum::IntoDiscriminant;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -547,21 +547,38 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Decimal), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDecimal, 1),
 					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Native), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticNative, 1),
 					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDefault, 1),
-					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
-						=> (OptionVariableAndValue::Math(Some(MathOption::AnsiFull)), 2),
-					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
-						=> (OptionVariableAndValue::Math(Some(MathOption::EcmaMinimal)), 2),
+					(
+						Keyword::Math,
+						Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. },
+						Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. })
+					) => (OptionVariableAndValue::Math(Some(MathOption::AnsiFull)), 2),
+					(
+						Keyword::Math,
+						Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. },
+						Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. })
+					) => (OptionVariableAndValue::Math(Some(MathOption::EcmaMinimal)), 2),
 					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ieee), .. }, .. }, _) => (OptionVariableAndValue::Math(Some(MathOption::Ieee)), 1),
 					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Math(None), 1),
-					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
-						=> (OptionVariableAndValue::Machine(Some(MachineOption::AnsiFull)), 2),
-					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
-						=> (OptionVariableAndValue::Machine(Some(MachineOption::EcmaMinimal)), 2),
+					(
+						Keyword::Machine,
+						Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. },
+						Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. })
+					) => (OptionVariableAndValue::Machine(Some(MachineOption::AnsiFull)), 2),
+					(
+						Keyword::Machine,
+						Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. },
+						Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. })
+					) => (OptionVariableAndValue::Machine(Some(MachineOption::EcmaMinimal)), 2),
 					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::C64), .. }, .. }, _) => (OptionVariableAndValue::Machine(Some(MachineOption::C64)), 1),
 					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Machine(None), 1),
 					(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_zero() => (OptionVariableAndValue::Base(Some(BaseOption::Zero)), 1),
 					(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_one() => (OptionVariableAndValue::Base(Some(BaseOption::One)), 1),
 					(Keyword::Base, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Base(None), 1),
+					(Keyword::Collate, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Native | Keyword::Unicode), .. }, .. }, _)
+						=> (OptionVariableAndValue::Collate(Some(CollateOption::Native)), 1),
+					(Keyword::Collate, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Collate(None), 1),
+					(Keyword::Collate, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Standard | Keyword::Ascii), .. }, .. }, _)
+						=> (OptionVariableAndValue::Collate(Some(CollateOption::Standard)), 1),
 					_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
 				};
 				tokens.tokens = &tokens.tokens[token_count_to_pop..];

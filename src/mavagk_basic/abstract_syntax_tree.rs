@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use strum_macros::EnumDiscriminants;
 
-use crate::mavagk_basic::{options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -339,6 +339,7 @@ pub enum OptionVariableAndValue {
 	Math(Option<MathOption>),
 	Machine(Option<MachineOption>),
 	Base(Option<BaseOption>),
+	Collate(Option<CollateOption>),
 	ArithmeticDecimal,
 	ArithmeticNative,
 	ArithmeticDefault,
@@ -384,6 +385,14 @@ impl OptionVariableAndValue {
 				match machine_option {
 					Some(BaseOption::Zero) => print!("0"),
 					Some(BaseOption::One) => print!("1"),
+					None => print!("DEFAULT"),
+				}
+			}
+			OptionVariableAndValue::Collate(collate_option) => {
+				print!("COLLATE ");
+				match collate_option {
+					Some(CollateOption::Native) => print!("NATIVE/UNICODE"),
+					Some(CollateOption::Standard) => print!("STANDARD/ASCII"),
 					None => print!("DEFAULT"),
 				}
 			}

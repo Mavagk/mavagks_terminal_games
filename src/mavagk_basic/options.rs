@@ -28,6 +28,14 @@ pub enum BaseOption {
 	One,
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum CollateOption {
+	// Unicode
+	Native,
+	// ASCII
+	Standard,
+}
+
 /// The set of OPTIONs set at a given time.
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -35,6 +43,7 @@ pub struct Options {
 	pub math: Option<MathOption>,
 	pub machine: Option<MachineOption>,
 	pub base: Option<BaseOption>,
+	pub collate: Option<CollateOption>,
 }
 
 impl Options {
@@ -45,6 +54,7 @@ impl Options {
 			base: None,
 			machine: None,
 			math: None,
+			collate: None,
 		}
 	}
 
@@ -71,8 +81,18 @@ impl Options {
 
 	pub const fn get_base_option(&self) -> BaseOption {
 		match self.base {
-			None => BaseOption::Zero,
+			None => match self.get_machine_option() {
+				MachineOption::EcmaMinimal | MachineOption::C64 => BaseOption::Zero,
+				MachineOption::AnsiFull => BaseOption::One,
+			}
 			Some(base_option) => base_option,
+		}
+	}
+
+	pub const fn get_collate_option(&self) -> CollateOption {
+		match self.collate {
+			None => CollateOption::Standard,
+			Some(collate_option) => collate_option,
 		}
 	}
 

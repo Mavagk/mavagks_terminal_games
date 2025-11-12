@@ -2,7 +2,7 @@ use std::{collections::{BTreeMap, BTreeSet, HashMap, HashSet}, num::NonZeroUsize
 
 use num::BigInt;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeLValue, Datum, OptionVariableAndValue, Statement, StatementVariant}, error::Error, options::{AngleOption, BaseOption, MachineOption, MathOption, Options}, token::IdentifierType};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeLValue, Datum, OptionVariableAndValue, Statement, StatementVariant}, error::Error, options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption, Options}, token::IdentifierType};
 
 /// A MavagkBasic program containing all its lines, does not include a direct mode line.
 pub struct Program {
@@ -14,6 +14,7 @@ pub struct Program {
 	math_options: BTreeMap<(Rc<BigInt>, usize), Option<MathOption>>,
 	machine_options: BTreeMap<(Rc<BigInt>, usize), Option<MachineOption>>,
 	base_options: BTreeMap<(Rc<BigInt>, usize), Option<BaseOption>>,
+	collate_options: BTreeMap<(Rc<BigInt>, usize), Option<CollateOption>>,
 
 	// Maps identifier names to array declarations lines and sub-lines
 	pub float_array_declarations: HashMap<Box<str>, HashSet<(Rc<BigInt>, usize)>>,
@@ -43,6 +44,7 @@ impl Program {
 			math_options: BTreeMap::new(),
 			machine_options: BTreeMap::new(),
 			base_options: BTreeMap::new(),
+			collate_options: BTreeMap::new(),
 			float_array_declarations: HashMap::new(),
 			int_array_declarations: HashMap::new(),
 			complex_array_declarations: HashMap::new(),
@@ -74,6 +76,10 @@ impl Program {
 				None => None,
 			},
 			base: match self.base_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
+				Some(option) => *option.1,
+				None => None,
+			},
+			collate: match self.collate_options.range::<(Rc<BigInt>, usize), RangeTo<(Rc<BigInt>, usize)>>(..(line_number.clone(), sub_line)).last() {
 				Some(option) => *option.1,
 				None => None,
 			},
@@ -109,6 +115,9 @@ impl Program {
 							}
 							OptionVariableAndValue::Base(option) => {
 								self.base_options.insert((line_number.clone(), sub_line_number), *option);
+							}
+							OptionVariableAndValue::Collate(option) => {
+								self.collate_options.insert((line_number.clone(), sub_line_number), *option);
 							}
 							OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticDefault | OptionVariableAndValue::ArithmeticNative => {}
 						}
@@ -271,6 +280,9 @@ impl Program {
 							}
 							OptionVariableAndValue::Base(..) => {
 								self.base_options.remove(&(line_number.clone(), sub_line_number));
+							}
+							OptionVariableAndValue::Collate(..) => {
+								self.collate_options.remove(&(line_number.clone(), sub_line_number));
 							}
 							OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticDefault | OptionVariableAndValue::ArithmeticNative => {}
 						}

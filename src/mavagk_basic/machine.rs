@@ -773,6 +773,7 @@ impl Machine {
 						OptionVariableAndValue::Math(math_option) => self.options.math = *math_option,
 						OptionVariableAndValue::Machine(machine_option) => self.options.machine = *machine_option,
 						OptionVariableAndValue::Base(base_option) => self.options.base = *base_option,
+						OptionVariableAndValue::Collate(collate_option) => self.options.collate = *collate_option,
 					}
 				}
 			}
