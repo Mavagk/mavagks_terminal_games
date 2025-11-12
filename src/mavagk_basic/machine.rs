@@ -765,13 +765,15 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Option(option_variable_and_value) => {
-				match option_variable_and_value {
-					OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
-					OptionVariableAndValue::Angle(angle_option) => self.options.angle = *angle_option,
-					OptionVariableAndValue::Math(math_option) => self.options.math = *math_option,
-					OptionVariableAndValue::Machine(machine_option) => self.options.machine = *machine_option,
-					OptionVariableAndValue::Base(base_option) => self.options.base = *base_option,
+			StatementVariant::Option(options) => {
+				for (option, _) in options {
+					match option {
+						OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticNative | OptionVariableAndValue::ArithmeticDefault => {},
+						OptionVariableAndValue::Angle(angle_option) => self.options.angle = *angle_option,
+						OptionVariableAndValue::Math(math_option) => self.options.math = *math_option,
+						OptionVariableAndValue::Machine(machine_option) => self.options.machine = *machine_option,
+						OptionVariableAndValue::Base(base_option) => self.options.base = *base_option,
+					}
 				}
 			}
 			StatementVariant::Load(..) | StatementVariant::Save(..) | StatementVariant::New => return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column)),

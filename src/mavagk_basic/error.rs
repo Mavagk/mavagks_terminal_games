@@ -138,6 +138,7 @@ pub enum ErrorVariant {
 	TabArgumentTooLow,
 	HyperbolicCotangentOrCosecantOfZero,
 	HyperbolicATrigFunctionOutOfRange,
+	OptionStatementWithTwoOfAnOptionVariable,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -281,6 +282,7 @@ impl Display for ErrorVariant {
 			Self::ZeroForInDirectMode => write!(f, "A FOR loops condition was initially false in direct mode."),
 			Self::TabArgumentTooLow => write!(f, "TAB argument too low."),
 			Self::HyperbolicCotangentOrCosecantOfZero => write!(f, "Attempted to evaluate the the hyperbolic cotangent or cosecant of zero."),
+			Self::OptionStatementWithTwoOfAnOptionVariable => write!(f, "OPTION statement sets an OPTION variable multiple times."),
 		}
 	}
 }

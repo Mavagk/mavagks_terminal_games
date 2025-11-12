@@ -95,14 +95,24 @@ impl Program {
 		self.remove_line(&line_number);
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
 			match &statement.variant {
-				StatementVariant::Option(OptionVariableAndValue::Angle(option)) => {
-					self.angle_options.insert((line_number.clone(), sub_line_number), *option);
-				}
-				StatementVariant::Option(OptionVariableAndValue::Math(option)) => {
-					self.math_options.insert((line_number.clone(), sub_line_number), *option);
-				}
-				StatementVariant::Option(OptionVariableAndValue::Machine(option)) => {
-					self.machine_options.insert((line_number.clone(), sub_line_number), *option);
+				StatementVariant::Option(options) => {
+					for (option, _) in options {
+						match option {
+							OptionVariableAndValue::Angle(option) => {
+								self.angle_options.insert((line_number.clone(), sub_line_number), *option);
+							}
+							OptionVariableAndValue::Math(option) => {
+								self.math_options.insert((line_number.clone(), sub_line_number), *option);
+							}
+							OptionVariableAndValue::Machine(option) => {
+								self.machine_options.insert((line_number.clone(), sub_line_number), *option);
+							}
+							OptionVariableAndValue::Base(option) => {
+								self.base_options.insert((line_number.clone(), sub_line_number), *option);
+							}
+							OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticDefault | OptionVariableAndValue::ArithmeticNative => {}
+						}
+					}
 				}
 				StatementVariant::Dimension(arrays) => {
 					for array in arrays {
@@ -247,17 +257,24 @@ impl Program {
 		};
 		for (sub_line_number, statement) in line.optimized_statements.iter().enumerate() {
 			match &statement.variant {
-				StatementVariant::Option(OptionVariableAndValue::Angle(_)) => {
-					self.angle_options.remove(&(line_number.clone(), sub_line_number));
-				}
-				StatementVariant::Option(OptionVariableAndValue::Math(_)) => {
-					self.math_options.remove(&(line_number.clone(), sub_line_number));
-				}
-				StatementVariant::Option(OptionVariableAndValue::Machine(_)) => {
-					self.machine_options.remove(&(line_number.clone(), sub_line_number));
-				}
-				StatementVariant::Option(OptionVariableAndValue::Base(_)) => {
-					self.base_options.remove(&(line_number.clone(), sub_line_number));
+				StatementVariant::Option(options) => {
+					for (option, _) in options {
+						match option {
+							OptionVariableAndValue::Angle(..) => {
+								self.angle_options.remove(&(line_number.clone(), sub_line_number));
+							}
+							OptionVariableAndValue::Math(..) => {
+								self.math_options.remove(&(line_number.clone(), sub_line_number));
+							}
+							OptionVariableAndValue::Machine(..) => {
+								self.machine_options.remove(&(line_number.clone(), sub_line_number));
+							}
+							OptionVariableAndValue::Base(..) => {
+								self.base_options.remove(&(line_number.clone(), sub_line_number));
+							}
+							OptionVariableAndValue::ArithmeticDecimal | OptionVariableAndValue::ArithmeticDefault | OptionVariableAndValue::ArithmeticNative => {}
+						}
+					}
 				}
 				StatementVariant::Dimension(arrays) => {
 					for array in arrays {

@@ -1,6 +1,7 @@
-use std::{mem::replace, num::NonZeroUsize, rc::Rc};
+use std::{collections::HashSet, mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
+use strum::IntoDiscriminant;
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
@@ -520,49 +521,68 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			}
 		}
 		Keyword::Option => {
+			// Should be a root statement
 			if !is_root_statement {
 				return Err(ErrorVariant::ShouldBeRootStatement.at_column(statement_keyword_start_column));
 			}
-			// Get the next two keywords
-			let (option_variable, option_variable_start_column) = match tokens.take_keyword() {
-				Some(option_variable) => option_variable.clone(),
-				None => return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column)),
-			};
-			if tokens.tokens.is_empty() {
-				return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column));
+			// Get comma separated OPTIONs
+			let mut option_variables_set = HashSet::new();
+			let mut options = Vec::new();
+			loop {
+				// Get the next two keywords
+				let (option_variable, option_variable_start_column) = match tokens.take_keyword() {
+					Some(option_variable) => option_variable.clone(),
+					None => return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column)),
+				};
+				if tokens.tokens.is_empty() {
+					return Err(ErrorVariant::ExpectedOptionArguments.at_column(tokens.last_removed_token_end_column));
+				}
+				// Get the option variable/value pair
+				let (option_variable_and_value, token_count_to_pop) = match (option_variable, tokens.tokens.get(0).unwrap(), tokens.tokens.get(1)) {
+					(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Radians), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Radians)), 1),
+					(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Degrees), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Degrees)), 1),
+					(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Gradians), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Gradians)), 1),
+					(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Revolutions), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Revolutions)), 1),
+					(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Angle(None), 1),
+					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Decimal), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDecimal, 1),
+					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Native), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticNative, 1),
+					(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDefault, 1),
+					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
+						=> (OptionVariableAndValue::Math(Some(MathOption::AnsiFull)), 2),
+					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
+						=> (OptionVariableAndValue::Math(Some(MathOption::EcmaMinimal)), 2),
+					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ieee), .. }, .. }, _) => (OptionVariableAndValue::Math(Some(MathOption::Ieee)), 1),
+					(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Math(None), 1),
+					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
+						=> (OptionVariableAndValue::Machine(Some(MachineOption::AnsiFull)), 2),
+					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
+						=> (OptionVariableAndValue::Machine(Some(MachineOption::EcmaMinimal)), 2),
+					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::C64), .. }, .. }, _) => (OptionVariableAndValue::Machine(Some(MachineOption::C64)), 1),
+					(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Machine(None), 1),
+					(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_zero() => (OptionVariableAndValue::Base(Some(BaseOption::Zero)), 1),
+					(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_one() => (OptionVariableAndValue::Base(Some(BaseOption::One)), 1),
+					(Keyword::Base, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Base(None), 1),
+					_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
+				};
+				tokens.tokens = &tokens.tokens[token_count_to_pop..];
+				// Make sure this OPTION does not have the variable set twice
+				let option_variable_discriminant = option_variable_and_value.discriminant();
+				if option_variables_set.contains(&option_variable_discriminant) {
+					return Err(ErrorVariant::OptionStatementWithTwoOfAnOptionVariable.at_column(option_variable_start_column));
+				}
+				option_variables_set.insert(option_variable_discriminant);
+				// Push the variable/value pair to the OPTION list
+				options.push((option_variable_and_value, option_variable_start_column));
+				// If there is not a comma after the OPTION, end the statement
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				tokens.take_next_token();
 			}
-			// Get the option variable/value pair
-			let (option_variable_and_value, token_count_to_pop) = match (option_variable, tokens.tokens.get(0).unwrap(), tokens.tokens.get(1)) {
-				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Radians), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Radians)), 1),
-				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Degrees), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Degrees)), 1),
-				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Gradians), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Gradians)), 1),
-				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Revolutions), .. }, .. }, _) => (OptionVariableAndValue::Angle(Some(AngleOption::Revolutions)), 1),
-				(Keyword::Angle, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Angle(None), 1),
-				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Decimal), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDecimal, 1),
-				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Native), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticNative, 1),
-				(Keyword::Arithmetic, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::ArithmeticDefault, 1),
-				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
-					=> (OptionVariableAndValue::Math(Some(MathOption::AnsiFull)), 2),
-				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
-					=> (OptionVariableAndValue::Math(Some(MathOption::EcmaMinimal)), 2),
-				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ieee), .. }, .. }, _) => (OptionVariableAndValue::Math(Some(MathOption::Ieee)), 1),
-				(Keyword::Math, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Math(None), 1),
-				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ansi), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Full), .. }, .. }))
-					=> (OptionVariableAndValue::Machine(Some(MachineOption::AnsiFull)), 2),
-				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Ecma), .. }, .. }, Some(Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Minimal), .. }, .. }))
-					=> (OptionVariableAndValue::Machine(Some(MachineOption::EcmaMinimal)), 2),
-				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::C64), .. }, .. }, _) => (OptionVariableAndValue::Machine(Some(MachineOption::C64)), 1),
-				(Keyword::Machine, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Machine(None), 1),
-				(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_zero() => (OptionVariableAndValue::Base(Some(BaseOption::Zero)), 1),
-				(Keyword::Base, Token { variant: TokenVariant::IntegerLiteral(value), .. }, _) if value.is_one() => (OptionVariableAndValue::Base(Some(BaseOption::One)), 1),
-				(Keyword::Base, Token { variant: TokenVariant::Identifier { keyword: Some(Keyword::Default), .. }, .. }, _) => (OptionVariableAndValue::Base(None), 1),
-				_ => return Err(ErrorVariant::InvalidOptionVariableOrValue.at_column(option_variable_start_column)),
-			};
-			tokens.tokens = &tokens.tokens[token_count_to_pop..];
 			// Assemble into statement
 			Statement {
 				column: statement_keyword_start_column,
-				variant: StatementVariant::Option(option_variable_and_value),
+				variant: StatementVariant::Option(options.into()),
 			}
 		}
 		Keyword::Load | Keyword::Save => {

@@ -1,5 +1,7 @@
 use std::num::NonZeroUsize;
 
+use strum_macros::EnumDiscriminants;
+
 use crate::mavagk_basic::{options::{AngleOption, BaseOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
@@ -143,50 +145,11 @@ impl Statement {
 					else_statement.print(depth + 1);
 				}
 			}
-			StatementVariant::Option(option) => {
-				print!("OPTION ");
-				match option {
-					OptionVariableAndValue::Angle(angle_option) => {
-						print!("ANGLE ");
-						match angle_option {
-							Some(AngleOption::Radians) => print!("RADIANS"),
-							Some(AngleOption::Degrees) => print!("DEGREES"),
-							Some(AngleOption::Gradians) => print!("GRADIANS"),
-							Some(AngleOption::Revolutions) => print!("REVOLUTIONS"),
-							None => print!("DEFAULT"),
-						}
-					}
-					OptionVariableAndValue::Math(math_option) => {
-						print!("MATH ");
-						match math_option {
-							Some(MathOption::AnsiFull) => print!("ANSI FULL"),
-							Some(MathOption::EcmaMinimal) => print!("ECMA MINIMAL"),
-							Some(MathOption::Ieee) => print!("IEEE"),
-							None => print!("DEFAULT"),
-						}
-					}
-					OptionVariableAndValue::Machine(machine_option) => {
-						print!("MATH ");
-						match machine_option {
-							Some(MachineOption::AnsiFull) => print!("ANSI FULL"),
-							Some(MachineOption::EcmaMinimal) => print!("ECMA MINIMAL"),
-							Some(MachineOption::C64) => print!("C64"),
-							None => print!("DEFAULT"),
-						}
-					}
-					OptionVariableAndValue::Base(machine_option) => {
-						print!("BASE ");
-						match machine_option {
-							Some(BaseOption::Zero) => print!("0"),
-							Some(BaseOption::One) => print!("1"),
-							None => print!("DEFAULT"),
-						}
-					}
-					OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
-					OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
-					OptionVariableAndValue::ArithmeticDefault => print!("ARITHMETIC DEFAULT"),
+			StatementVariant::Option(options) => {
+				println!("OPTION ");
+				for option in options {
+					option.0.print(depth + 1, option.1);
 				}
-				println!();
 			}
 			StatementVariant::Load(filename_expression) => {
 				println!("LOAD");
@@ -313,7 +276,7 @@ pub enum StatementVariant {
 	AssignString(StringLValue, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
-	Option(OptionVariableAndValue),
+	Option(Box<[(OptionVariableAndValue, NonZeroUsize)]>),
 	ForInt { loop_variable: IntLValue, initial: IntExpression, limit: IntExpression, step: Option<IntExpression> },
 	ForFloat { loop_variable: FloatLValue, initial: FloatExpression, limit: FloatExpression, step: Option<FloatExpression> },
 	Next(Box<[AnyTypeLValue]>),
@@ -369,7 +332,8 @@ impl PrintOperand {
 	}
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, EnumDiscriminants)]
+#[strum_discriminants(derive(Hash))]
 pub enum OptionVariableAndValue {
 	Angle(Option<AngleOption>),
 	Math(Option<MathOption>),
@@ -378,6 +342,57 @@ pub enum OptionVariableAndValue {
 	ArithmeticDecimal,
 	ArithmeticNative,
 	ArithmeticDefault,
+}
+
+impl OptionVariableAndValue {
+	pub fn print(&self, depth: usize, column: NonZeroUsize) {
+		for _ in 0..depth {
+			print!("-");
+		}
+		print!(" {:03}: ", column);
+		match self {
+			OptionVariableAndValue::Angle(angle_option) => {
+				print!("ANGLE ");
+				match angle_option {
+					Some(AngleOption::Radians) => print!("RADIANS"),
+					Some(AngleOption::Degrees) => print!("DEGREES"),
+					Some(AngleOption::Gradians) => print!("GRADIANS"),
+					Some(AngleOption::Revolutions) => print!("REVOLUTIONS"),
+					None => print!("DEFAULT"),
+				}
+			}
+			OptionVariableAndValue::Math(math_option) => {
+				print!("MATH ");
+				match math_option {
+					Some(MathOption::AnsiFull) => print!("ANSI FULL"),
+					Some(MathOption::EcmaMinimal) => print!("ECMA MINIMAL"),
+					Some(MathOption::Ieee) => print!("IEEE"),
+					None => print!("DEFAULT"),
+				}
+			}
+			OptionVariableAndValue::Machine(machine_option) => {
+				print!("MATH ");
+				match machine_option {
+					Some(MachineOption::AnsiFull) => print!("ANSI FULL"),
+					Some(MachineOption::EcmaMinimal) => print!("ECMA MINIMAL"),
+					Some(MachineOption::C64) => print!("C64"),
+					None => print!("DEFAULT"),
+				}
+			}
+			OptionVariableAndValue::Base(machine_option) => {
+				print!("BASE ");
+				match machine_option {
+					Some(BaseOption::Zero) => print!("0"),
+					Some(BaseOption::One) => print!("1"),
+					None => print!("DEFAULT"),
+				}
+			}
+			OptionVariableAndValue::ArithmeticDecimal => print!("ARITHMETIC DECIMAL"),
+			OptionVariableAndValue::ArithmeticNative => print!("ARITHMETIC NATIVE"),
+			OptionVariableAndValue::ArithmeticDefault => print!("ARITHMETIC DEFAULT"),
+		}
+		println!();
+	}
 }
 
 #[derive(Debug, Clone)]
