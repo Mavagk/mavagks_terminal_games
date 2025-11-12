@@ -144,10 +144,6 @@ impl Token {
 				// Get name part of identifier
 				let length_of_identifier_name_in_bytes = line_starting_with_token.find(|chr| !matches!(chr, 'a'..='z' | 'A'..='Z' | '0'..='9' | '_')).unwrap_or_else(|| line_starting_with_token.len());
 				let (name, string_with_name_removed) = line_starting_with_token.split_at(length_of_identifier_name_in_bytes);
-				if name.eq_ignore_ascii_case("REM") {
-					*has_comment = true;
-					return Ok(None);
-				}
 				// Convert to upper case
 				let mut name: Box<str> = name.into();
 				name.make_ascii_uppercase();
@@ -162,6 +158,11 @@ impl Token {
 					_ if string_with_name_removed.starts_with("?")  => (IdentifierType::UnmarkedOrFloat, true,  &string_with_name_removed[1..]),
 					_                                               => (IdentifierType::UnmarkedOrFloat, false, string_with_name_removed),
 				};
+				// Return if we encounter a comment
+				if name.eq_ignore_ascii_case("REM") && identifier_type == IdentifierType::UnmarkedOrFloat && !is_optional {
+					*has_comment = true;
+					return Ok(None);
+				}
 				// Get if the token is an alphabetic operator
 				let (binary_operator, unary_operator) = match identifier_type {
 					IdentifierType::UnmarkedOrFloat if !is_optional => (BinaryOperator::from_name(&name), UnaryOperator::from_name(&name)),

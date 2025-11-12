@@ -38,6 +38,7 @@
 		"RECSIZE",
 		"RECTYPE",
 		"reen",
+		"rfind",
 		"rngs",
 		"Seedable",
 		"termion",

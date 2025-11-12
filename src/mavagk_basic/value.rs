@@ -250,6 +250,10 @@ impl IntValue {
 		self.value.to_i32()
 	}
 
+	pub fn to_u32(&self) -> Option<u32> {
+		self.value.to_u32()
+	}
+
 	pub fn from_ones_index_to_usize(&self) -> Option<usize> {
 		self.value.to_usize().and_then(|index| index.checked_sub(1))
 	}
@@ -1190,6 +1194,31 @@ impl StringValue {
 		let string = Rc::<String>::make_mut(&mut self.value);
 		string.push_str(&rhs.value);
 		self
+	}
+
+	pub fn to_lowercase(self) -> Self {
+		Self::new(Rc::new(self.value.to_lowercase()))
+	}
+
+	pub fn to_uppercase(self) -> Self {
+		Self::new(Rc::new(self.value.to_uppercase()))
+	}
+
+	pub fn trim_start_spaces(self) -> Self {
+		Self::new(Rc::new(self.value.trim_start_matches(' ').into()))
+	}
+
+	pub fn trim_end_spaces(mut self) -> Self {
+		let string = Rc::<String>::make_mut(&mut self.value);
+		match string.rfind(|chr| chr != ' ') {
+			Some(index_before_trailing_spaces_start) => string.truncate(index_before_trailing_spaces_start + 1),
+			None => *string = String::new(),
+		}
+		self
+	}
+
+	pub fn repeat(self, times: usize) -> Self {
+		Self::new(Rc::new(self.value.repeat(times)))
 	}
 
 	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
