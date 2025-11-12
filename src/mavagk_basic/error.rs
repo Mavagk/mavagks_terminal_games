@@ -142,6 +142,7 @@ pub enum ErrorVariant {
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
+	OutOfMemoryEvaluatingString = 1051,
 	ArrayIndexOutOfBounds = 2001,
 	DivisionByZero = 3001,
 	NegativeNumberRaisedToNonIntegerPower = 3002,
@@ -151,6 +152,7 @@ pub enum ErrorVariant {
 	ModOrRemainderByZero = 3006,
 	ATrigFunctionOutOfRange = 3007,
 	AngleOfZeroZero = 3008,
+	NegativeRepeat = 4010,
 	ReadOutOfData = 8001,
 	NonNumericReadToNumeric(BigInt, NonZeroUsize) = 8101,
 	ReturnWithoutGosub = 10002,
@@ -283,6 +285,8 @@ impl Display for ErrorVariant {
 			Self::TabArgumentTooLow => write!(f, "TAB argument too low."),
 			Self::HyperbolicCotangentOrCosecantOfZero => write!(f, "Attempted to evaluate the the hyperbolic cotangent or cosecant of zero."),
 			Self::OptionStatementWithTwoOfAnOptionVariable => write!(f, "OPTION statement sets an OPTION variable multiple times."),
+			Self::NegativeRepeat => write!(f, "The second argument of a REPEAT$(A$, M) function is negative."),
+			Self::OutOfMemoryEvaluatingString => write!(f, "Out of memory while evaluating a string."),
 		}
 	}
 }

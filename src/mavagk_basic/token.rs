@@ -913,6 +913,14 @@ pub enum SuppliedFunction {
 	Truncate,
 	Ip,
 	Eps,
+	Chr,
+	LCase,
+	LTrim,
+	Repeat,
+	RTrim,
+	Str,
+	UCase,
+	Using,
 }
 
 impl SuppliedFunction {
@@ -984,6 +992,14 @@ impl SuppliedFunction {
 			Self::Truncate  => &["TRUNCATE"],
 			Self::Ip        => &["IP"],
 			Self::Eps       => &["EPS"],
+			Self::Chr       => &["CHR"],
+			Self::LCase     => &["LCASE"],
+			Self::LTrim     => &["LTRIM"],
+			Self::RTrim     => &["RTRIM"],
+			Self::Repeat    => &["REPEAT"],
+			Self::Str       => &["STR"],
+			Self::UCase     => &["UCASE"],
+			Self::Using     => &["USING"],
 		}
 	}
 

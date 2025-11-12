@@ -1167,47 +1167,57 @@ impl Display for ComplexValue {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
+/// A string value in MavagkBASIC, contains a reference counted string.
 pub struct StringValue {
 	pub value: Rc<String>,
 }
 
 impl StringValue {
+	/// Creates a `StringValue` from a `Rc<String>`.
 	pub const fn new(value: Rc<String>) -> Self {
 		Self {
 			value,
 		}
 	}
 
+	/// Returns a `BoolValue` with a false value if this string is empty, returns true if this string contains any chars.
 	pub fn to_bool(&self) -> BoolValue {
-		BoolValue::new(!self.value.is_empty())
+		BoolValue::new(!self.is_empty())
 	}
 
+	/// Returns `true` if the string contains no chars and has a length of zero.
 	pub fn is_empty(&self) -> bool {
 		self.value.is_empty()
 	}
 
+	/// Creates a new empty `StringValue` containing no chars.
 	pub fn empty() -> Self {
 		Self::new(Rc::default())
 	}
 
+	/// Returns a `StringValue` containing the chars of `rhs` concatenated onto the end of `self`.
 	pub fn concat(mut self, rhs: Self) -> Self {
 		let string = Rc::<String>::make_mut(&mut self.value);
 		string.push_str(&rhs.value);
 		self
 	}
 
+	/// Returns a `StringValue` containing the chars of `self` but any uppercase chars will be replaced with their corresponding lowercase variant.
 	pub fn to_lowercase(self) -> Self {
 		Self::new(Rc::new(self.value.to_lowercase()))
 	}
 
+	/// Returns a `StringValue` containing the chars of `self` but any lowercase chars will be replaced with their corresponding uppercase variant.
 	pub fn to_uppercase(self) -> Self {
 		Self::new(Rc::new(self.value.to_uppercase()))
 	}
 
+	/// Returns a `StringValue` containing the chars of `self` but with leading spaces removed.
 	pub fn trim_start_spaces(self) -> Self {
 		Self::new(Rc::new(self.value.trim_start_matches(' ').into()))
 	}
 
+	/// Returns a `StringValue` containing the chars of `self` but with trailing spaces removed.
 	pub fn trim_end_spaces(mut self) -> Self {
 		let string = Rc::<String>::make_mut(&mut self.value);
 		match string.rfind(|chr| chr != ' ') {
@@ -1217,22 +1227,36 @@ impl StringValue {
 		self
 	}
 
-	pub fn repeat(self, times: usize) -> Self {
-		Self::new(Rc::new(self.value.repeat(times)))
+	/// Returns a `StringValue` containing the chars of `self` repeated a given amount of times.
+	pub fn repeat(self, times: IntValue) -> Result<Self, ErrorVariant> {
+		match times.to_usize() {
+			// If we can repeat the string
+			Some(times) => Ok(Self::new(Rc::new(self.value.repeat(times)))),
+			// If the repeat amount is negative
+			None if times.is_negative() => Err(ErrorVariant::NegativeRepeat),
+			// If the input string is empty and the repeat amount is not negative, return an empty string
+			None if self.is_empty() => Ok(self),
+			// If the repeat amount is larger that what a usize can contain and the input string is not empty
+			_ => Err(ErrorVariant::OutOfMemoryEvaluatingString),
+		}
 	}
 
+	/// Returns a `BoolValue` with a true value if the two input strings are the same size and contain the same sequence of chars in the same order, else returns false.
 	pub fn equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value == rhs.value)
 	}
 
+	/// Returns a `BoolValue` with a false value if the two input strings are the same size and contain the same sequence of chars in the same order, else returns true.
 	pub fn not_equal_to(&self, rhs: &Self) -> BoolValue {
 		BoolValue::new(self.value != rhs.value)
 	}
 
+	/// Returns how many chars (not necessarily bytes) the input string contains.
 	pub fn count_chars(&self) -> usize {
 		self.value.chars().count()
 	}
 
+	/// Prints the string to the console.
 	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
 		write!(f, "{}", self.value)
 	}

@@ -1830,12 +1830,25 @@ impl Machine {
 		Ok(None)
 	}
 
-	pub fn execute_string_supplied_function(&mut self, l_value: &StringLValue, _program: Option<&Program>) -> Result<Option<StringValue>, Error> {
+	pub fn execute_string_supplied_function(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<Option<StringValue>, Error> {
 		// Unpack
-		let StringLValue { arguments: _, has_parentheses: _, start_column: _, supplied_function, .. } = l_value;
+		let StringLValue { arguments, has_parentheses: _, start_column: _, supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
+				// Functions that have one string argument
+				SuppliedFunction::UCase | SuppliedFunction::LCase | SuppliedFunction::LTrim | SuppliedFunction::RTrim if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::UCase => argument_value.to_uppercase(),
+						SuppliedFunction::LCase => argument_value.to_lowercase(),
+						SuppliedFunction::LTrim => argument_value.trim_start_spaces(),
+						SuppliedFunction::RTrim => argument_value.trim_end_spaces(),
+						_ => unreachable!(),
+					}));
+				}
 				_ => {}
 			}
 		}
