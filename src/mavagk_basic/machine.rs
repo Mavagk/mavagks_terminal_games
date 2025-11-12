@@ -1849,6 +1849,16 @@ impl Machine {
 						_ => unreachable!(),
 					}));
 				}
+				// REPEAT$(A$, M)
+				SuppliedFunction::Repeat if arguments.len() == 2 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					return Ok(Some(argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?));
+				}
 				_ => {}
 			}
 		}
