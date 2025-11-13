@@ -393,6 +393,7 @@ impl OptionVariableAndValue {
 				match collate_option {
 					Some(CollateOption::Native) => print!("NATIVE/UNICODE"),
 					Some(CollateOption::Standard) => print!("STANDARD/ASCII"),
+					Some(CollateOption::C64UnshiftedPETSCII) => print!("C64 ASCII"),
 					None => print!("DEFAULT"),
 				}
 			}

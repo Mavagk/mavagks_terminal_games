@@ -1256,6 +1256,18 @@ impl StringValue {
 		self.value.chars().count()
 	}
 
+	pub fn from_char_value(int_value: IntValue, options: &Options) -> Result<Self, ErrorVariant> {
+		// Convert the input value to a u32
+		let int_value_u32 = match int_value.to_u32() {
+			Some(int_value_u32) => int_value_u32,
+			None => return Err(ErrorVariant::InvalidCharValue),
+		};
+		// Convert to a char depending on the collating option
+		let chr = options.get_collate_option().from_u32(int_value_u32)?;
+		// Convert char to a one char string
+		Ok(StringValue::new(Rc::new(chr.into())))
+	}
+
 	/// Prints the string to the console.
 	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
 		write!(f, "{}", self.value)

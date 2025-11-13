@@ -1,4 +1,4 @@
-use crate::mavagk_basic::value::IntValue;
+use crate::mavagk_basic::{error::ErrorVariant, value::IntValue};
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum AngleOption {
@@ -30,10 +30,39 @@ pub enum BaseOption {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum CollateOption {
-	// Unicode
+	/// Unicode
 	Native,
-	// ASCII
+	/// ASCII
 	Standard,
+	C64UnshiftedPETSCII,
+}
+
+impl CollateOption {
+	pub fn from_u32(self, int_value: u32) -> Result<char, ErrorVariant> {
+		match self {
+			CollateOption::Native => match int_value < 128 {
+				true => Ok(int_value as u8 as char),
+				false => Err(ErrorVariant::InvalidCharValue),
+			}
+			CollateOption::Standard => match char::from_u32(int_value) {
+				Some(chr) => Ok(chr),
+				None => Err(ErrorVariant::InvalidCharValue),
+			}
+			CollateOption::C64UnshiftedPETSCII => match int_value {
+				0x20..=0x40 => Ok(int_value as u8 as char),
+				0x41..=0x5A => Ok(((int_value as u8) - 0x41 + b'A') as char),
+				0x5B => Ok('['),
+				0x5C => Ok('£'),
+				0x5D => Ok(']'),
+				0x5E => Ok('↑'),
+				0x5F => Ok('←'),
+				0x60 => Ok('─'),
+				0x61 => Ok('♠'),
+				0x100.. => Err(ErrorVariant::InvalidCharValue),
+				_ => return Err(ErrorVariant::NotYetImplemented("Some unshifted PETSCII chars".into())),
+			},
+		}
+	}
 }
 
 /// The set of OPTIONs set at a given time.
@@ -91,7 +120,10 @@ impl Options {
 
 	pub const fn get_collate_option(&self) -> CollateOption {
 		match self.collate {
-			None => CollateOption::Standard,
+			None => match self.get_machine_option() {
+				MachineOption::EcmaMinimal | MachineOption::AnsiFull => CollateOption::Standard,
+				MachineOption::C64 => CollateOption::C64UnshiftedPETSCII,
+			},
 			Some(collate_option) => collate_option,
 		}
 	}

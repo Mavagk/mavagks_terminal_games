@@ -152,6 +152,7 @@ pub enum ErrorVariant {
 	ModOrRemainderByZero = 3006,
 	ATrigFunctionOutOfRange = 3007,
 	AngleOfZeroZero = 3008,
+	InvalidCharValue = 4002,
 	NegativeRepeat = 4010,
 	ReadOutOfData = 8001,
 	NonNumericReadToNumeric(BigInt, NonZeroUsize) = 8101,
@@ -287,6 +288,7 @@ impl Display for ErrorVariant {
 			Self::OptionStatementWithTwoOfAnOptionVariable => write!(f, "OPTION statement sets an OPTION variable multiple times."),
 			Self::NegativeRepeat => write!(f, "The second argument of a REPEAT$(A$, M) function is negative."),
 			Self::OutOfMemoryEvaluatingString => write!(f, "Out of memory while evaluating a string."),
+			Self::InvalidCharValue => write!(f, "Character value is not valid for the currently set COLLATE OPTION."),
 		}
 	}
 }

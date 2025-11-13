@@ -50,7 +50,9 @@
 		"underflows",
 		"unflags",
 		"Ungenerated",
-		"ZONEWIDTH"
+		"ZONEWIDTH",
+		"Unshifted",
+		"PETSCII"
 	],
 	"terminal.explorerKind": "external",
 	"terminal.integrated.defaultProfile.windows": null

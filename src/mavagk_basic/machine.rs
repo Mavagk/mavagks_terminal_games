@@ -1849,6 +1849,17 @@ impl Machine {
 						_ => unreachable!(),
 					}));
 				}
+				// Functions that have one int argument
+				SuppliedFunction::Chr if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Chr =>
+							StringValue::from_char_value(argument_value, &self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!(),
+					}))
+				}
 				// REPEAT$(A$, M)
 				SuppliedFunction::Repeat if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
