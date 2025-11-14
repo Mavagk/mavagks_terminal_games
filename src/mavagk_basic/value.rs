@@ -122,6 +122,10 @@ impl IntValue {
 		Self::new(Rc::new(BigInt::from_usize(value).unwrap()))
 	}
 
+	pub fn from_u32(value: u32) -> Self {
+		Self::new(Rc::new(BigInt::from_u32(value).unwrap()))
+	}
+
 	pub fn is_zero(&self) -> bool {
 		self.value.is_zero()
 	}
@@ -1254,6 +1258,24 @@ impl StringValue {
 	/// Returns how many chars (not necessarily bytes) the input string contains.
 	pub fn count_chars(&self) -> usize {
 		self.value.chars().count()
+	}
+
+	/// Returns the code point value of the first char in the string or returns 0 if the string is empty.
+	pub fn value_of_first_char(&self, options: &Options) -> Result<u32, ErrorVariant> {
+		match self.value.chars().next() {
+			Some(value) => options.get_collate_option().to_u32(value),
+			None => Ok(0),
+		}
+	}
+
+	/// If the input string contains a single char, returns the code point value of the char.
+	/// If the string is case-insensitively equal to a multi-character mnemonic for a char, returns the char, else throw an error.
+	pub fn value_of_char_or_mnemonic(&self, options: &Options) -> Result<u32, ErrorVariant> {
+		match self.count_chars() {
+			0 => Err(ErrorVariant::InvalidOrdArgument),
+			1 => Ok(options.get_collate_option().to_u32(self.value.chars().next().unwrap())?),
+			_ => Err(ErrorVariant::NotYetImplemented("ORD on mnemonics".into())),
+		}
 	}
 
 	pub fn from_char_value(int_value: IntValue, options: &Options) -> Result<Self, ErrorVariant> {

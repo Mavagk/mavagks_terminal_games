@@ -1682,11 +1682,20 @@ impl Machine {
 						_ => unreachable!()
 					}))
 				}
+				// Functions that have one string argument
 				// LEN(X$)
-				SuppliedFunction::Len if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(Some(FloatValue::from_usize(self.execute_any_type_expression(argument, program)?
-						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars())))
+				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Len => FloatValue::from_usize(argument_value.count_chars()),
+						SuppliedFunction::Ord =>
+							FloatValue::from_u32(argument_value.value_of_char_or_mnemonic(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
+						SuppliedFunction::Asc =>
+							FloatValue::from_u32(argument_value.value_of_first_char(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
+						_ => unreachable!()
+					}))
 				}
 				// TRUNCATE(X, N)
 				SuppliedFunction::Truncate if arguments.len() == 2 => {

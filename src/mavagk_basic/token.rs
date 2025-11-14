@@ -921,6 +921,8 @@ pub enum SuppliedFunction {
 	Str,
 	UCase,
 	Using,
+	Ord,
+	Asc,
 }
 
 impl SuppliedFunction {
@@ -1000,6 +1002,8 @@ impl SuppliedFunction {
 			Self::Str       => &["STR"],
 			Self::UCase     => &["UCASE"],
 			Self::Using     => &["USING"],
+			Self::Ord       => &["ORD"],
+			Self::Asc       => &["ASC"],
 		}
 	}
 

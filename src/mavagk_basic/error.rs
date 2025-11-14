@@ -153,6 +153,7 @@ pub enum ErrorVariant {
 	ATrigFunctionOutOfRange = 3007,
 	AngleOfZeroZero = 3008,
 	InvalidCharValue = 4002,
+	InvalidOrdArgument = 4003,
 	NegativeRepeat = 4010,
 	ReadOutOfData = 8001,
 	NonNumericReadToNumeric(BigInt, NonZeroUsize) = 8101,
@@ -289,6 +290,7 @@ impl Display for ErrorVariant {
 			Self::NegativeRepeat => write!(f, "The second argument of a REPEAT$(A$, M) function is negative."),
 			Self::OutOfMemoryEvaluatingString => write!(f, "Out of memory while evaluating a string."),
 			Self::InvalidCharValue => write!(f, "Character value is not valid for the currently set COLLATE OPTION."),
+			Self::InvalidOrdArgument => write!(f, "Attempted to evaluate the ORD function on a string that is not a single character or a valid character mnemonic."),
 		}
 	}
 }

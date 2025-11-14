@@ -40,16 +40,16 @@ pub enum CollateOption {
 impl CollateOption {
 	pub fn from_u32(self, int_value: u32) -> Result<char, ErrorVariant> {
 		match self {
-			CollateOption::Native => match int_value < 128 {
+			CollateOption::Standard => match int_value < 128 {
 				true => Ok(int_value as u8 as char),
 				false => Err(ErrorVariant::InvalidCharValue),
 			}
-			CollateOption::Standard => match char::from_u32(int_value) {
+			CollateOption::Native => match char::from_u32(int_value) {
 				Some(chr) => Ok(chr),
 				None => Err(ErrorVariant::InvalidCharValue),
 			}
 			CollateOption::C64UnshiftedPETSCII => match int_value {
-				0x20..=0x40 => Ok(int_value as u8 as char),
+				/*0x20..=0x40 => Ok(int_value as u8 as char),
 				0x41..=0x5A => Ok(((int_value as u8) - 0x41 + b'A') as char),
 				0x5B => Ok('['),
 				0x5C => Ok('£'),
@@ -115,8 +115,26 @@ impl CollateOption {
 				0xFF => Ok('π'),
 
 				0x100.. => Err(ErrorVariant::InvalidCharValue),
-				_ => Ok('?'),
+				_ => Ok('?'),*/
+				0x100.. => Err(ErrorVariant::InvalidCharValue),
+				_ => return Err(ErrorVariant::NotYetImplemented("Code point values of chars with PETSCII char set.".into())),
 			},
+		}
+	}
+
+	pub fn to_u32(self, chr: char) -> Result<u32, ErrorVariant> {
+		match self {
+			CollateOption::Standard => {
+				let value = chr as u32;
+				if value > 127 {
+					return Err(ErrorVariant::NotYetImplemented("Code point values of non-ASCII chars while OPTION COLLATE STANDARD is set.".into()));
+				}
+				Ok(value)
+			}
+			CollateOption::Native => Ok(self as u32),
+			CollateOption::C64UnshiftedPETSCII => {
+				return Err(ErrorVariant::NotYetImplemented("Code point values of chars with PETSCII char set.".into()));
+			}
 		}
 	}
 }
