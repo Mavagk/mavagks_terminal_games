@@ -1841,10 +1841,22 @@ impl Machine {
 
 	pub fn execute_string_supplied_function(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<Option<StringValue>, Error> {
 		// Unpack
-		let StringLValue { arguments, has_parentheses: _, start_column: _, supplied_function, .. } = l_value;
+		let StringLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
+				// Constants and pseudo-variables
+				_ if !has_parentheses => match supplied_function {
+					SuppliedFunction::Time => return Ok(Some({
+						let time = Local::now();
+						StringValue::new(Rc::new(format!("{:02}:{:02}:{:02}", time.hour(), time.minute(), time.second())))
+					})),
+					SuppliedFunction::Date => return Ok(Some({
+						let time = Local::now();
+						StringValue::new(Rc::new(format!("{:04}{:02}{:02}", time.year(), time.month(), time.day())))
+					})),
+					_ => return Ok(None),
+				}
 				// Functions that have one string argument
 				SuppliedFunction::UCase | SuppliedFunction::LCase | SuppliedFunction::LTrim | SuppliedFunction::RTrim if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
