@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::{create_dir_all, File}, io::{stdin, stdout, BufRead, Read, Write}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
+use std::{collections::HashMap, fs::{File, create_dir_all}, io::{BufRead, Cursor, Read, Write, stdin, stdout}, iter::repeat_n, mem::take, num::NonZeroUsize, ops::{RangeFrom, RangeFull, RangeInclusive, RangeToInclusive}, path::{Path, PathBuf}, rc::Rc, str::FromStr};
 
 use chrono::{Datelike, Local, Timelike};
 use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}, terminal::{Clear, ClearType}};
@@ -1890,6 +1890,18 @@ impl Machine {
 					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?));
+				}
+				// STR$(X)
+				SuppliedFunction::Str if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?;
+					if matches!(argument_value, AnyTypeValue::String(..)) {
+						return Err(ErrorVariant::Unimplemented("STR$ function used on string".into()).at_column(argument_expression.get_start_column()));
+					}
+					let mut string_bytes = Vec::new();
+					let mut string_cursor = Cursor::new(&mut string_bytes);
+					argument_value.print(&mut string_cursor, false, false, &self.options).unwrap();
+					return Ok(Some(StringValue::new(Rc::new(String::from_utf8(string_bytes).unwrap()))));
 				}
 				_ => {}
 			}
