@@ -1683,7 +1683,6 @@ impl Machine {
 					}))
 				}
 				// Functions that have one string argument
-				// LEN(X$)
 				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc | SuppliedFunction::Val if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
@@ -1701,6 +1700,24 @@ impl Machine {
 								(Some(..), remaining) if remaining.contains(|chr: char| !chr.is_ascii_whitespace())
 									=> return Err(ErrorVariant::MalformedNumber.at_column(l_value.start_column)),
 								(Some(value), _) => value,
+							}
+						}
+						_ => unreachable!()
+					}))
+				}
+				// Functions that have two string arguments
+				SuppliedFunction::Pos if arguments.len() == 2 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Pos => {
+							match argument_value_0.find_substring_char_index(&argument_value_1) {
+								Some(index) => FloatValue::from_usize(index + 1),
+								None => FloatValue::ZERO,
 							}
 						}
 						_ => unreachable!()

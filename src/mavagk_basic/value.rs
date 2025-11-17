@@ -1290,6 +1290,16 @@ impl StringValue {
 		Ok(StringValue::new(Rc::new(chr.into())))
 	}
 
+	pub fn find_substring_char_index(&self, substring: &StringValue) -> Option<usize> {
+		let byte_index = self.value.find(&**substring.value)?;
+		for (char_index, (x, _)) in self.value.char_indices().enumerate() {
+			if x == byte_index {
+				return Some(char_index);
+			}
+		}
+		unreachable!()
+	}
+
 	/// Prints the string to the console.
 	pub fn print<T: Write>(&self, f: &mut T) -> io::Result<()> {
 		write!(f, "{}", self.value)

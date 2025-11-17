@@ -924,6 +924,7 @@ pub enum SuppliedFunction {
 	Ord,
 	Asc,
 	Val,
+	Pos,
 }
 
 impl SuppliedFunction {
@@ -1006,6 +1007,7 @@ impl SuppliedFunction {
 			Self::Ord       => &["ORD"],
 			Self::Asc       => &["ASC"],
 			Self::Val       => &["VAL"],
+			Self::Pos       => &["POS"],
 		}
 	}
 
