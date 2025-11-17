@@ -1684,7 +1684,7 @@ impl Machine {
 				}
 				// Functions that have one string argument
 				// LEN(X$)
-				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc if arguments.len() == 1 => {
+				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc | SuppliedFunction::Val if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1694,6 +1694,15 @@ impl Machine {
 							FloatValue::from_u32(argument_value.value_of_char_or_mnemonic(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
 						SuppliedFunction::Asc =>
 							FloatValue::from_u32(argument_value.value_of_first_char(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
+						SuppliedFunction::Val => {
+							let result = parse_datum_float(&argument_value.value, Some(&self.options)).map_err(|error| error.at_column(l_value.start_column))?;
+							match result {
+								(None, _) => return Err(ErrorVariant::MalformedNumber.at_column(l_value.start_column)),
+								(Some(..), remaining) if remaining.contains(|chr: char| !chr.is_ascii_whitespace())
+									=> return Err(ErrorVariant::MalformedNumber.at_column(l_value.start_column)),
+								(Some(value), _) => value,
+							}
+						}
 						_ => unreachable!()
 					}))
 				}

@@ -518,11 +518,11 @@ pub fn parse_datum_float<'a>(input_string: &'a str, options: Option<&Options>) -
 		return Ok((None, chars_after_int_string));
 	}
 	if !matches!(chars_after_int_string.trim_ascii_start().chars().next(), None | Some(',' | ':' | '!')) {
-		return Err(ErrorVariant::MalformedInteger);
+		return Err(ErrorVariant::MalformedNumber);
 	}
 	match int_string.parse::<f64>() {
 		Ok(value) => Ok((Some(FloatValue::try_new(value, options)?), chars_after_int_string)),
-		Err(_) => return Err(ErrorVariant::MalformedInteger),
+		Err(_) => return Err(ErrorVariant::MalformedNumber),
 	}
 }
 
@@ -923,6 +923,7 @@ pub enum SuppliedFunction {
 	Using,
 	Ord,
 	Asc,
+	Val,
 }
 
 impl SuppliedFunction {
@@ -1004,6 +1005,7 @@ impl SuppliedFunction {
 			Self::Using     => &["USING"],
 			Self::Ord       => &["ORD"],
 			Self::Asc       => &["ASC"],
+			Self::Val       => &["VAL"],
 		}
 	}
 
