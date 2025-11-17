@@ -925,6 +925,7 @@ pub enum SuppliedFunction {
 	Asc,
 	Val,
 	Pos,
+	MaxLen,
 }
 
 impl SuppliedFunction {
@@ -1008,6 +1009,7 @@ impl SuppliedFunction {
 			Self::Asc       => &["ASC"],
 			Self::Val       => &["VAL"],
 			Self::Pos       => &["POS"],
+			Self::MaxLen    => &["MAXLEN"],
 		}
 	}
 

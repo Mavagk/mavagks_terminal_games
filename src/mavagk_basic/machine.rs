@@ -1683,7 +1683,7 @@ impl Machine {
 					}))
 				}
 				// Functions that have one string argument
-				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc | SuppliedFunction::Val if arguments.len() == 1 => {
+				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc | SuppliedFunction::Val | SuppliedFunction::MaxLen if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1702,6 +1702,7 @@ impl Machine {
 								(Some(value), _) => value,
 							}
 						}
+						SuppliedFunction::MaxLen => FloatValue::MAX,
 						_ => unreachable!()
 					}))
 				}

@@ -29,12 +29,14 @@
 		"mavagk",
 		"Mavagk's",
 		"mavagks",
+		"MAXLEN",
 		"MAXNUM",
 		"nanos",
 		"NINF",
 		"olor",
 		"OUTIN",
 		"peekable",
+		"PETSCII",
 		"powc",
 		"Quoteless",
 		"RECSIZE",
@@ -50,9 +52,8 @@
 		"underflows",
 		"unflags",
 		"Ungenerated",
-		"ZONEWIDTH",
 		"Unshifted",
-		"PETSCII"
+		"ZONEWIDTH"
 	],
 	"terminal.explorerKind": "external",
 	"terminal.integrated.defaultProfile.windows": null
