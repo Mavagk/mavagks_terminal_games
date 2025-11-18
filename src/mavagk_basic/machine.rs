@@ -1911,7 +1911,7 @@ impl Machine {
 					}))
 				}
 				// Functions that have one string argument and an int argument
-				SuppliedFunction::Repeat | SuppliedFunction::Left | SuppliedFunction::Right if arguments.len() == 2 => {
+				SuppliedFunction::Repeat | SuppliedFunction::Left | SuppliedFunction::Right | SuppliedFunction::Mid if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1921,7 +1921,25 @@ impl Machine {
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Repeat => argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
 						SuppliedFunction::Left => argument_value_0.take_left_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Right => argument_value_0.take_right_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunction::Right | SuppliedFunction::Mid =>
+							argument_value_0.take_right_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
+						_ => unreachable!(),
+					}));
+				}
+				// Functions that have one string argument and two int arguments
+				SuppliedFunction::Mid if arguments.len() == 3 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_expression_2 = &arguments[2];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					let argument_value_2 = self.execute_any_type_expression(argument_expression_2, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression_2.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Mid =>
+							argument_value_0.take_middle_chars(argument_value_1, argument_value_2).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!(),
 					}));
 				}

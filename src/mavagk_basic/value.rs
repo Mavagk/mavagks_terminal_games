@@ -1345,6 +1345,31 @@ impl StringValue {
 		Ok(StringValue::new(Rc::new((&self.value[start_from_byte_index..]).to_string())))
 	}
 
+	/// Returns a string with containing the chars of `take_from_char_ones_index` starting from ones char index `take_from_char_ones_index`.
+	/// Takes `count_to_take` chars. Takes all chars if `take_from_char_ones_index` is zero. Takes no chars if all chars are sliced off and no input integers ane negative.
+	pub fn take_middle_chars(self, take_from_char_ones_index: IntValue, count_to_take: IntValue) -> Result<StringValue, ErrorVariant> {
+		// Get how many bytes to take
+		let take_from_char_index = match take_from_char_ones_index.to_usize() {
+			Some(take_from_char_ones_index) => take_from_char_ones_index.saturating_sub(1),
+			None if take_from_char_ones_index.is_negative() => return Err(ErrorVariant::StrSliceFnOutOfRange),
+			None => usize::MAX,
+		};
+		let take_from_byte_index = match self.char_index_to_byte_index(take_from_char_index) {
+			Ok(byte_count_to_take) | Err(byte_count_to_take) => byte_count_to_take,
+		};
+		// Get how many bytes to take
+		let char_count_to_take = match count_to_take.to_usize() {
+			Some(char_count_to_take) => char_count_to_take,
+			None if count_to_take.is_negative() => return Err(ErrorVariant::StrSliceFnOutOfRange),
+			None => usize::MAX,
+		};
+		let byte_end_index = match self.char_index_to_byte_index(char_count_to_take.saturating_add(take_from_byte_index)) {
+			Ok(byte_count_to_take) | Err(byte_count_to_take) => byte_count_to_take,
+		}.min(self.value.len());
+		// Return
+		Ok(StringValue::new(Rc::new((&self.value[take_from_byte_index..byte_end_index]).to_string())))
+	}
+
 	/// Returns a string containing only the last char of `self`.
 	pub fn take_last_char(&self) -> Result<StringValue, ErrorVariant> {
 		if self.is_empty() {
