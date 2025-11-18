@@ -1323,6 +1323,36 @@ impl StringValue {
 		Ok(self)
 	}
 
+	/// Returns a string with the last `count_to_take` chars of `self` or the entire string if the count is larger than the input string length.
+	pub fn take_right_chars(&self, char_index_from: IntValue) -> Result<StringValue, ErrorVariant> {
+		// Get how many chars to take
+		let char_index_from = match char_index_from.to_usize() {
+			Some(char_index_from) => char_index_from,
+			None if char_index_from.is_negative() => return Err(ErrorVariant::StrSliceFnOutOfRange),
+			None => usize::MAX,
+		};
+		if char_index_from == 0 {
+			return Ok(StringValue::empty());
+		}
+		// Get how many bytes to take
+		let mut start_from_byte_index = 0;
+		for (char_count, (byte_index, _)) in self.value.char_indices().rev().enumerate() {
+			if char_count == char_index_from {
+				start_from_byte_index = byte_index + 1;
+			}
+		}
+		// Return
+		Ok(StringValue::new(Rc::new((&self.value[start_from_byte_index..]).to_string())))
+	}
+
+	/// Returns a string containing only the last char of `self`.
+	pub fn take_last_char(&self) -> Result<StringValue, ErrorVariant> {
+		if self.is_empty() {
+			return Err(ErrorVariant::StrSliceFnOutOfRange);
+		}
+		Ok(StringValue::new(Rc::new(self.value.chars().last().unwrap().into())))
+	}
+
 	/// Returns the byte index of the char with the input char index. Returns the byte length of the string wrapped in an `Err` variant if the char index does not exist.
 	pub fn char_index_to_byte_index(&self, char_index: usize) -> Result<usize, usize> {
 		if self.is_empty() {

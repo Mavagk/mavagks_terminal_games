@@ -1885,7 +1885,7 @@ impl Machine {
 					_ => return Ok(None),
 				}
 				// Functions that have one string argument
-				SuppliedFunction::UCase | SuppliedFunction::LCase | SuppliedFunction::LTrim | SuppliedFunction::RTrim | SuppliedFunction::Left if arguments.len() == 1 => {
+				SuppliedFunction::UCase | SuppliedFunction::LCase | SuppliedFunction::LTrim | SuppliedFunction::RTrim | SuppliedFunction::Left | SuppliedFunction::Right if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
@@ -1895,6 +1895,7 @@ impl Machine {
 						SuppliedFunction::LTrim => argument_value.trim_start_spaces(),
 						SuppliedFunction::RTrim => argument_value.trim_end_spaces(),
 						SuppliedFunction::Left  => argument_value.pop_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Right => argument_value.take_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}));
 				}
@@ -1910,7 +1911,7 @@ impl Machine {
 					}))
 				}
 				// Functions that have one string argument and an int argument
-				SuppliedFunction::Repeat | SuppliedFunction::Left if arguments.len() == 2 => {
+				SuppliedFunction::Repeat | SuppliedFunction::Left | SuppliedFunction::Right if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1920,6 +1921,7 @@ impl Machine {
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Repeat => argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
 						SuppliedFunction::Left => argument_value_0.take_left_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunction::Right => argument_value_0.take_right_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!(),
 					}));
 				}
@@ -1935,10 +1937,6 @@ impl Machine {
 					argument_value.print(&mut string_cursor, false, false, &self.options).unwrap();
 					return Ok(Some(StringValue::new(Rc::new(String::from_utf8(string_bytes).unwrap()))));
 				}
-				// LEFT$(X$, Y), RIGHT$(X$, Y)
-				//SuppliedFunction::Left if arguments.len() > 0 && arguments.len() < 3 => {
-
-				//}
 				// TODO
 				// MID$(X$[, Y[, Z]])
 				_ => {}
