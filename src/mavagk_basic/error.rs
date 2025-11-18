@@ -139,6 +139,7 @@ pub enum ErrorVariant {
 	HyperbolicCotangentOrCosecantOfZero,
 	HyperbolicATrigFunctionOutOfRange,
 	OptionStatementWithTwoOfAnOptionVariable,
+	StrSliceFnOutOfRange,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -291,6 +292,7 @@ impl Display for ErrorVariant {
 			Self::OutOfMemoryEvaluatingString => write!(f, "Out of memory while evaluating a string."),
 			Self::InvalidCharValue => write!(f, "Character value is not valid for the currently set COLLATE OPTION."),
 			Self::InvalidOrdArgument => write!(f, "Attempted to evaluate the ORD function on a string that is not a single character or a valid character mnemonic."),
+			Self::StrSliceFnOutOfRange => write!(f, "String slicing function index out of range."),
 		}
 	}
 }

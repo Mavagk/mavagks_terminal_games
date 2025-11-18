@@ -1278,6 +1278,7 @@ impl StringValue {
 		}
 	}
 
+	/// Takes in an integer value and converts it to a string containing one char with the code point that matches the input value.
 	pub fn from_char_value(int_value: IntValue, options: &Options) -> Result<Self, ErrorVariant> {
 		// Convert the input value to a u32
 		let int_value_u32 = match int_value.to_u32() {
@@ -1290,6 +1291,56 @@ impl StringValue {
 		Ok(StringValue::new(Rc::new(chr.into())))
 	}
 
+	/// Returns a string with the first `count_to_take` chars of `self` or the entire string if the count is larger than the input string length.
+	pub fn take_left_chars(mut self, count_to_take: IntValue) -> Result<StringValue, ErrorVariant> {
+		// Get how many bytes to take
+		let char_count_to_take = match count_to_take.to_usize() {
+			Some(char_count_to_take) => char_count_to_take,
+			None if count_to_take.is_negative() => return Err(ErrorVariant::StrSliceFnOutOfRange),
+			None => usize::MAX,
+		};
+		let byte_count_to_take = match self.char_index_to_byte_index(char_count_to_take) {
+			Ok(byte_count_to_take) | Err(byte_count_to_take) => byte_count_to_take,
+		};
+		// Take or clone string
+		let string = Rc::<String>::make_mut(&mut self.value);
+		// Truncate to byte length
+		string.truncate(byte_count_to_take);
+		// Return
+		Ok(self)
+	}
+
+	/// Returns `self` string with the last char removed.
+	pub fn pop_last_char(mut self) -> Result<StringValue, ErrorVariant> {
+		if self.is_empty() {
+			return Err(ErrorVariant::StrSliceFnOutOfRange);
+		}
+		// Take or clone string
+		let string = Rc::<String>::make_mut(&mut self.value);
+		// Truncate
+		string.pop();
+		// Return
+		Ok(self)
+	}
+
+	/// Returns the byte index of the char with the input char index. Returns the byte length of the string wrapped in an `Err` variant if the char index does not exist.
+	pub fn char_index_to_byte_index(&self, char_index: usize) -> Result<usize, usize> {
+		if self.is_empty() {
+			return Err(0);
+		}
+		let mut iter = self.value.char_indices().enumerate().peekable();
+		loop {
+			let (iter_char_index, (byte_index, _)) = iter.next().unwrap();
+			if iter_char_index == char_index {
+				return Ok(byte_index);
+			}
+			if iter.peek().is_none() {
+				return Err(self.value.len());
+			}
+		}
+	}
+
+	/// Returns the char index of the first occurrence of `substring` in `self`, returns `None` if it is not a substring.
 	pub fn find_substring_char_index(&self, substring: &StringValue) -> Option<usize> {
 		let byte_index = self.value.find(&**substring.value)?;
 		for (char_index, (x, _)) in self.value.char_indices().enumerate() {
