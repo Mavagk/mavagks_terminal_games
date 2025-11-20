@@ -64,30 +64,30 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 		let statement = match l_value_expression {
 			AnyTypeLValue::Int(l_value) => Statement {
 				column: l_value_start_column,
-				variant: StatementVariant::AssignInt(
-					l_value,
-					cast_to_int_expression(r_value_expression)?
+				variant: StatementVariant::NumericAssignment(
+					Box::new([AnyTypeLValue::Int(l_value)]),
+					AnyTypeExpression::Int(cast_to_int_expression(r_value_expression)?),
 				),
 			},
 			AnyTypeLValue::Float(l_value) => Statement {
 				column: l_value_start_column,
-				variant: StatementVariant::AssignFloat(
-					l_value,
-					cast_to_float_expression(r_value_expression)?
+				variant: StatementVariant::NumericAssignment(
+					Box::new([AnyTypeLValue::Float(l_value)]),
+					AnyTypeExpression::Float(cast_to_float_expression(r_value_expression)?),
 				),
 			},
 			AnyTypeLValue::Complex(l_value) => Statement {
 				column: l_value_start_column,
-				variant: StatementVariant::AssignComplex(
-					l_value,
-					cast_to_complex_expression(r_value_expression)?
+				variant: StatementVariant::NumericAssignment(
+					Box::new([AnyTypeLValue::Complex(l_value)]),
+					AnyTypeExpression::Complex(cast_to_complex_expression(r_value_expression)?),
 				),
 			},
 			AnyTypeLValue::String(l_value) => Statement {
 				column: l_value_start_column,
-				variant: StatementVariant::AssignString(
-					l_value,
-					cast_to_string_expression(r_value_expression)?
+				variant: StatementVariant::StringAssignment(
+					Box::new([l_value]),
+					cast_to_string_expression(r_value_expression)?,
 				),
 			},
 		};
@@ -102,11 +102,22 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 	Ok(Some(match statement_keyword {
 		// LET
 		Keyword::Let => {
-			// Get l-value expression
-			let l_value_expression = match parse_l_value(tokens)? {
-				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
-				Some(l_value_expression) => l_value_expression,
-			};
+			// Get comma separated l_values
+			let mut l_value_expressions = Vec::new();
+			loop {
+				// Get l-value expression
+				let l_value_expression = match parse_l_value(tokens)? {
+					None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+					Some(l_value_expression) => l_value_expression,
+				};
+				l_value_expressions.push(l_value_expression);
+				// If there is not a comma after the input, end the statement
+				if !matches!(tokens.tokens.first(), Some(Token { variant: TokenVariant::Comma, .. })) {
+					break;
+				}
+				// If there is a comma, take it and continue
+				tokens.take_next_token();
+			}
 			// Expect equal sign
 			expect_and_remove_equal_sign(tokens)?;
 			// Get r-value expression
@@ -115,33 +126,61 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 				Some(l_value_expression) => l_value_expression,
 			};
 			// Assemble into statement
-			match l_value_expression {
-				AnyTypeLValue::Int(l_value) => Statement {
+			match r_value_expression {
+				// String assignments
+				AnyTypeExpression::String(r_value_expression) => Statement {
 					column: statement_keyword_start_column,
-					variant: StatementVariant::AssignInt(
-						l_value,
-						cast_to_int_expression(r_value_expression)?
+					variant: StatementVariant::StringAssignment(
+						{
+							let mut string_l_value_expressions = Vec::new();
+							for l_value_expression in l_value_expressions {
+								match l_value_expression {
+									AnyTypeLValue::String(l_value_expression) => string_l_value_expressions.push(l_value_expression),
+									_ => return Err(ErrorVariant::NumberCastToString.at_column(l_value_expression.get_start_column())),
+								}
+							}
+							string_l_value_expressions.into()
+						},
+						r_value_expression,
 					),
 				},
-				AnyTypeLValue::Float(l_value) => Statement {
+				// If all l-values are floats
+				_ if l_value_expressions.iter().all(|l_value_expression| matches!(l_value_expression, AnyTypeLValue::Float(..))) => Statement {
 					column: statement_keyword_start_column,
-					variant: StatementVariant::AssignFloat(
-						l_value,
-						cast_to_float_expression(r_value_expression)?
+					variant: StatementVariant::NumericAssignment(
+						l_value_expressions.into(),
+						AnyTypeExpression::Float(cast_to_float_expression(r_value_expression)?),
 					),
 				},
-				AnyTypeLValue::Complex(l_value) => Statement {
+				// If all l-values are ints
+				_ if l_value_expressions.iter().all(|l_value_expression| matches!(l_value_expression, AnyTypeLValue::Float(..))) => Statement {
 					column: statement_keyword_start_column,
-					variant: StatementVariant::AssignComplex(
-						l_value,
-						cast_to_complex_expression(r_value_expression)?
+					variant: StatementVariant::NumericAssignment(
+						l_value_expressions.into(),
+						AnyTypeExpression::Int(cast_to_int_expression(r_value_expression)?),
 					),
 				},
-				AnyTypeLValue::String(l_value) => Statement {
+				// If all l-values are complexes
+				_ if l_value_expressions.iter().all(|l_value_expression| matches!(l_value_expression, AnyTypeLValue::Float(..))) => Statement {
 					column: statement_keyword_start_column,
-					variant: StatementVariant::AssignString(
-						l_value,
-						cast_to_string_expression(r_value_expression)?
+					variant: StatementVariant::NumericAssignment(
+						l_value_expressions.into(),
+						AnyTypeExpression::Complex(cast_to_complex_expression(r_value_expression)?),
+					),
+				},
+				// Mixed numeric l-value types
+				_ => Statement {
+					column: statement_keyword_start_column,
+					variant: StatementVariant::NumericAssignment(
+						{
+							for l_value_expression in l_value_expressions.iter() {
+								if matches!(l_value_expression, AnyTypeLValue::String(..)) {
+									return Err(ErrorVariant::StringCastToNumber.at_column(l_value_expression.get_start_column()));
+								}
+							}
+							l_value_expressions.into()
+						},
+						r_value_expression,
 					),
 				},
 			}

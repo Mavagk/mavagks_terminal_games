@@ -65,27 +65,34 @@ pub fn optimize_statement(statement: &mut Statement) {
 			}
 		}
 		StatementVariant::Option(_) => {}
-		StatementVariant::AssignInt(l_value, r_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
+		StatementVariant::NumericAssignment(l_values, r_value) => {
+			for l_value in l_values {
+				match l_value {
+					AnyTypeLValue::Float(l_value_argument) => {
+						for l_value_argument in l_value_argument.arguments.iter_mut() {
+							optimize_any_type_expression(l_value_argument);
+						}
+					}
+					AnyTypeLValue::Int(l_value_argument) => {
+						for l_value_argument in l_value_argument.arguments.iter_mut() {
+							optimize_any_type_expression(l_value_argument);
+						}
+					}
+					AnyTypeLValue::Complex(l_value_argument) => {
+						for l_value_argument in l_value_argument.arguments.iter_mut() {
+							optimize_any_type_expression(l_value_argument);
+						}
+					}
+					AnyTypeLValue::String(_) => unreachable!(),
+				}
 			}
-			optimize_int_expression(r_value);
+			optimize_any_type_expression(r_value);
 		}
-		StatementVariant::AssignFloat(l_value, r_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-			optimize_float_expression(r_value);
-		}
-		StatementVariant::AssignComplex(l_value, r_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
-			}
-			optimize_complex_expression(r_value);
-		}
-		StatementVariant::AssignString(l_value, r_value) => {
-			for l_value_argument in l_value.arguments.iter_mut() {
-				optimize_any_type_expression(l_value_argument);
+		StatementVariant::StringAssignment(l_values, r_value) => {
+			for l_value in l_values {
+				for l_value_argument in l_value.arguments.iter_mut() {
+					optimize_any_type_expression(l_value_argument);
+				}
 			}
 			optimize_string_expression(r_value);
 		}

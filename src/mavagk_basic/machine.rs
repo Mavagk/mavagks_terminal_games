@@ -709,24 +709,143 @@ impl Machine {
 				if matches!(variant, StatementVariant::Run(..)) {
 					self.clear_machine_state(program);
 				}
+				//self.execute_l_value_write(l_value, value, program)
 				// Flow control used
 				return Ok(true);
 			}
-			StatementVariant::AssignInt(l_value, r_value_expression) => {
-				let value = self.execute_int_expression(r_value_expression, Some(program))?;
-				self.execute_l_value_write(l_value, value, Some(program))?
+			StatementVariant::NumericAssignment(l_value_expressions, r_value_expression) => {
+				// Evaluate l-value arguments
+				let mut l_value_argument_values = Vec::new();
+				for l_value_expression in l_value_expressions {
+					let mut argument_values_for_this_l_value = Vec::new();
+					match l_value_expression {
+						AnyTypeLValue::Float(l_value_expression) => {
+							for argument_expression in l_value_expression.arguments.iter() {
+								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
+							}
+						}
+						AnyTypeLValue::Int(l_value_expression) => {
+							for argument_expression in l_value_expression.arguments.iter() {
+								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
+							}
+						}
+						AnyTypeLValue::Complex(l_value_expression) => {
+							for argument_expression in l_value_expression.arguments.iter() {
+								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
+							}
+						}
+						_ => unreachable!()
+					}
+					l_value_argument_values.push(argument_values_for_this_l_value);
+				}
+				// Evaluate r-value
+				let value_to_assign = self.execute_any_type_expression(r_value_expression, Some(program))?;
+				// Assign
+				for (l_value_index, l_value_expression) in l_value_expressions.iter().enumerate() {
+					match l_value_expression {
+						AnyTypeLValue::Float(l_value_expression) => {
+							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
+							self.make_sure_defined_array_or_function_is_created::<FloatValue>(l_value_expression, Some(program))?;
+							// If we are writing to an array and it has been created, write to it.
+							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
+								let mut indices = Vec::new();
+								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
+									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+								}
+								FloatValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
+									.write_element(&indices, value_to_assign.clone().to_float().map_err(|err| err.at_column(l_value_expression.start_column))?)
+									.map_err(|err| err.at_column(l_value_expression.start_column))?;
+								continue;
+							}
+							// Else assign to global variable
+							if l_value_expression.has_parentheses {
+								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
+							}
+							FloatValue::get_stored_values_mut(self).simple_variables.insert(
+								(&*l_value_expression.name).into(), value_to_assign.clone().to_float().map_err(|err| err.at_column(l_value_expression.start_column))?
+							);
+						}
+						AnyTypeLValue::Int(l_value_expression) => {
+							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
+							self.make_sure_defined_array_or_function_is_created::<IntValue>(l_value_expression, Some(program))?;
+							// If we are writing to an array and it has been created, write to it.
+							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
+								let mut indices = Vec::new();
+								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
+									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+								}
+								IntValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
+									.write_element(&indices, value_to_assign.clone().to_int().map_err(|err| err.at_column(l_value_expression.start_column))?)
+									.map_err(|err| err.at_column(l_value_expression.start_column))?;
+								continue;
+							}
+							// Else assign to global variable
+							if l_value_expression.has_parentheses {
+								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
+							}
+							IntValue::get_stored_values_mut(self).simple_variables.insert(
+								(&*l_value_expression.name).into(), value_to_assign.clone().to_int().map_err(|err| err.at_column(l_value_expression.start_column))?
+							);
+						}
+						AnyTypeLValue::Complex(l_value_expression) => {
+							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
+							self.make_sure_defined_array_or_function_is_created::<ComplexValue>(l_value_expression, Some(program))?;
+							// If we are writing to an array and it has been created, write to it.
+							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
+								let mut indices = Vec::new();
+								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
+									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+								}
+								ComplexValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
+									.write_element(&indices, value_to_assign.clone().to_complex().map_err(|err| err.at_column(l_value_expression.start_column))?)
+									.map_err(|err| err.at_column(l_value_expression.start_column))?;
+								continue;
+							}
+							// Else assign to global variable
+							if l_value_expression.has_parentheses {
+								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
+							}
+							ComplexValue::get_stored_values_mut(self).simple_variables.insert(
+								(&*l_value_expression.name).into(), value_to_assign.clone().to_complex().map_err(|err| err.at_column(l_value_expression.start_column))?
+							);
+						}
+						_ => unreachable!(),
+					}
+				}
 			}
-			StatementVariant::AssignFloat(l_value, r_value_expression) => {
-				let value = self.execute_float_expression(r_value_expression, Some(program))?;
-				self.execute_l_value_write(l_value, value, Some(program))?
-			}
-			StatementVariant::AssignComplex(l_value, r_value_expression) => {
-				let value = self.execute_complex_expression(r_value_expression, Some(program))?;
-				self.execute_l_value_write(l_value, value, Some(program))?
-			}
-			StatementVariant::AssignString(l_value, r_value_expression) => {
-				let value = self.execute_string_expression(r_value_expression, Some(program))?;
-				self.execute_l_value_write(l_value, value, Some(program))?
+			StatementVariant::StringAssignment(l_value_expressions, r_value_expression) => {
+				// Evaluate l-value arguments
+				let mut l_value_argument_values = Vec::new();
+				for l_value_expression in l_value_expressions {
+					let mut argument_values_for_this_l_value = Vec::new();
+					for argument_expression in l_value_expression.arguments.iter() {
+						argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
+					}
+					l_value_argument_values.push(argument_values_for_this_l_value);
+				}
+				// Evaluate r-value
+				let value_to_assign = self.execute_string_expression(r_value_expression, Some(program))?;
+				// Assign
+				for (l_value_index, l_value_expression) in l_value_expressions.iter().enumerate() {
+					// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
+					self.make_sure_defined_array_or_function_is_created::<StringValue>(l_value_expression, Some(program))?;
+					// If we are writing to an array and it has been created, write to it.
+					if l_value_expression.has_parentheses && StringValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
+						let mut indices = Vec::new();
+						for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
+							indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+						}
+						StringValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
+							.write_element(&indices, value_to_assign.clone())
+							.map_err(|err| err.at_column(l_value_expression.start_column))?;
+						continue;
+					}
+					// Else assign to global variable
+					if l_value_expression.has_parentheses {
+						return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
+					}
+					StringValue::get_stored_values_mut(self).simple_variables.insert((&*l_value_expression.name).into(), value_to_assign.clone());
+				}
 			}
 			StatementVariant::List(range_start, range_end) => {
 				let range_start_value = match range_start {

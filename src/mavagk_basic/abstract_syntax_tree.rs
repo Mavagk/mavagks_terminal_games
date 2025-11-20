@@ -98,24 +98,18 @@ impl Statement {
 					argument.print(depth + 1);
 				}
 			}
-			StatementVariant::AssignInt(l_value, r_value) => {
-				println!("LET (Integer)");
-				l_value.print(depth + 1);
+			StatementVariant::NumericAssignment(l_values, r_value) => {
+				println!("LET (Numeric)");
+				for l_value in l_values {
+					l_value.print(depth + 1);
+				}
 				r_value.print(depth + 1);
 			}
-			StatementVariant::AssignFloat(l_value, r_value) => {
-				println!("LET (Float)");
-				l_value.print(depth + 1);
-				r_value.print(depth + 1);
-			}
-			StatementVariant::AssignComplex(l_value, r_value) => {
-				println!("LET (Complex)");
-				l_value.print(depth + 1);
-				r_value.print(depth + 1);
-			}
-			StatementVariant::AssignString(l_value, r_value) => {
+			StatementVariant::StringAssignment(l_values, r_value) => {
 				println!("LET (String)");
-				l_value.print(depth + 1);
+				for l_value in l_values {
+					l_value.print(depth + 1);
+				}
 				r_value.print(depth + 1);
 			}
 			StatementVariant::List(from, to) => {
@@ -270,10 +264,12 @@ pub enum StatementVariant {
 	Run(Option<IntExpression>),
 	Goto(Option<IntExpression>),
 	Gosub(Option<IntExpression>),
-	AssignInt(IntLValue, IntExpression),
-	AssignFloat(FloatLValue, FloatExpression),
-	AssignComplex(ComplexLValue, ComplexExpression),
-	AssignString(StringLValue, StringExpression),
+	StringAssignment(Box<[StringLValue]>, StringExpression),
+	NumericAssignment(Box<[AnyTypeLValue]>, AnyTypeExpression),
+	//AssignInt(Box<[IntLValue]>, IntExpression),
+	//AssignFloat(Box<[FloatLValue]>, FloatExpression),
+	//AssignComplex(Box<[ComplexLValue]>, ComplexExpression),
+	//AssignString(Box<[StringLValue]>, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 	Option(Box<[(OptionVariableAndValue, NonZeroUsize)]>),
