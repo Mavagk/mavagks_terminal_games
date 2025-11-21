@@ -785,10 +785,10 @@ impl StringExpression {
 pub struct StringLValue {
 	pub name: Box<str>,
 	pub arguments: Box<[AnyTypeExpression]>,
-	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
+	pub is_slicing_operator: bool,
 }
 
 impl StringLValue {
@@ -797,9 +797,9 @@ impl StringLValue {
 			print!("-");
 		}
 		print!(" {:03}: String L-Value \"{}\"", self.start_column, self.name);
-		//if self.uses_fn_keyword {
-		//	print!(", Fn");
-		//}
+		if self.is_slicing_operator {
+			print!(", Slicing");
+		}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}

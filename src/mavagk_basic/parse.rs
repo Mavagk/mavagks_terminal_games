@@ -1196,14 +1196,6 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 	if is_reserved {
 		return Ok(None);
 	}
-	// Get if this is a FN function
-	//let uses_fn_keyword = keyword == Some(Keyword::Fn);
-	//match uses_fn_keyword {
-	//	false => {}
-	//	true => {
-	//		tokens.take_next_token();
-	//	}
-	//}
 	// Get identifier name
 	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: _ } = match tokens.tokens.get(0) {
 		Some(token_after_fn) => token_after_fn,
@@ -1222,16 +1214,16 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
 		_ => return Ok(Some(match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: identifier_name.clone(), arguments: Box::default()/*, uses_fn_keyword*/, has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function, is_slicing_operator: false
 			}),
 		})),
 	}
@@ -1245,16 +1237,18 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 		_ => {},
 	}
 	// Parse each argument
+	let mut is_slicing_operator = false;
 	'b: loop {
 		// If we reach a non-expression token
 		match tokens.tokens.get(0) {
 			// Comma
 			Some(Token { variant: TokenVariant::Comma, start_column, ..}) => return Err(ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments.at_column(*start_column)),
 			// Right parenthesis
-			Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
+			Some(Token { variant: TokenVariant::RightParenthesis, .. }) if arguments.len() == 0 => {
 				tokens.take_next_token();
 				break 'b;
 			}
+			Some(Token { variant: TokenVariant::RightParenthesis, start_column, .. }) => return Err(ErrorVariant::TrailingComma.at_column(*start_column)),
 			// Colon / semicolon
 			Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
 				return Err(ErrorVariant::InvalidSeparatorInFunctionArguments.at_column(*start_column)),
@@ -1270,6 +1264,10 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 			Some(Token { variant: TokenVariant::Comma, ..}) => {
 				tokens.take_next_token();
 			}
+			Some(Token { variant: TokenVariant::Colon, ..}) => {
+				is_slicing_operator = true;
+				tokens.take_next_token();
+			}
 			Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
 				tokens.take_next_token();
 				break 'b;
@@ -1277,19 +1275,23 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Er
 			_ => {}
 		};
 	}
+	//
+	if is_slicing_operator && arguments.len() != 2 {
+		return Err(ErrorVariant::SlicingOperatorWithTooManyArguments.at_column(arguments.last().unwrap().get_start_column()));
+	}
 	// Return
 	return Ok(Some(match identifier_type {
 		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 		}),
 		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: identifier_name.clone(), arguments: arguments.into()/*, uses_fn_keyword*/, has_parentheses: true, start_column: *first_token_start_column, supplied_function
+			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function, is_slicing_operator
 		}),
 	}))
 }

@@ -140,6 +140,7 @@ pub enum ErrorVariant {
 	HyperbolicATrigFunctionOutOfRange,
 	OptionStatementWithTwoOfAnOptionVariable,
 	StrSliceFnOutOfRange,
+	SlicingOperatorWithTooManyArguments,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -293,6 +294,7 @@ impl Display for ErrorVariant {
 			Self::InvalidCharValue => write!(f, "Character value is not valid for the currently set COLLATE OPTION."),
 			Self::InvalidOrdArgument => write!(f, "Attempted to evaluate the ORD function on a string that is not a single character or a valid character mnemonic."),
 			Self::StrSliceFnOutOfRange => write!(f, "String slicing function index out of range."),
+			Self::SlicingOperatorWithTooManyArguments => write!(f, "Slicing operator has too many arguments."),
 		}
 	}
 }
