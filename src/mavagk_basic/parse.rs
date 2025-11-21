@@ -1182,118 +1182,124 @@ fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
 }
 
 /// Parses a l-value of any type for a list of tokens, removes the parsed tokens from the list.
-fn parse_l_value<'a, 'b>(tokens: &mut Tokens)-> Result<Option<AnyTypeLValue>, Error> {
-	// Get the first token or return if there are no more tokens to parse
-	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
-		Some(first_token) => first_token,
-		None => return Ok(None),
-	};
-	let (_keyword, is_reserved) = match first_token_variant {
-		TokenVariant::Identifier { keyword, is_reserved_keyword, .. } => (*keyword, *is_reserved_keyword),
-		_ => return Err(ErrorVariant::InvalidLValue.at_column(*first_token_start_column)),
-	};
-	// Return if the identifier name is a reserved keyword
-	if is_reserved {
-		return Ok(None);
-	}
-	// Get identifier name
-	let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: _ } = match tokens.tokens.get(0) {
-		Some(token_after_fn) => token_after_fn,
-		None => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*first_token_end_column)),
-	};
-	let (identifier_name, identifier_type, identifier_is_optional, supplied_function) = match token_after_fn_variant {
-		TokenVariant::Identifier { name, identifier_type, is_optional, supplied_function, .. } => (name, identifier_type, is_optional, *supplied_function),
-		_ => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*token_after_fn_start_column)),
-	};
-	if *identifier_is_optional {
-		return Err(ErrorVariant::Unimplemented("Optional functions".into()).at_column(*token_after_fn_start_column));
-	}
-	tokens.take_next_token();
-	// Return if there is not a left parenthesis after the identifier
-	match tokens.tokens.get(0) {
-		Some(Token { variant: TokenVariant::LeftParenthesis, .. }) => {},
-		_ => return Ok(Some(match identifier_type {
+fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, Error> {
+	// Get the part of the l-value before any slicing
+	let l_value_expression = 'a: {
+		// Get the first token or return if there are no more tokens to parse
+		let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
+			Some(first_token) => first_token,
+			None => return Ok(None),
+		};
+		let (_keyword, is_reserved) = match first_token_variant {
+			TokenVariant::Identifier { keyword, is_reserved_keyword, .. } => (*keyword, *is_reserved_keyword),
+			_ => return Err(ErrorVariant::InvalidLValue.at_column(*first_token_start_column)),
+		};
+		// Return if the identifier name is a reserved keyword
+		if is_reserved {
+			return Ok(None);
+		}
+		// Get identifier name
+		let Token { variant: token_after_fn_variant, start_column: token_after_fn_start_column, end_column: _ } = match tokens.tokens.get(0) {
+			Some(token_after_fn) => token_after_fn,
+			None => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*first_token_end_column)),
+		};
+		let (identifier_name, identifier_type, identifier_is_optional, supplied_function) = match token_after_fn_variant {
+			TokenVariant::Identifier { name, identifier_type, is_optional, supplied_function, .. } => (name, identifier_type, is_optional, *supplied_function),
+			_ => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*token_after_fn_start_column)),
+		};
+		if *identifier_is_optional {
+			return Err(ErrorVariant::Unimplemented("Optional functions".into()).at_column(*token_after_fn_start_column));
+		}
+		tokens.take_next_token();
+		// Get if any parentheses after this identifier are part of a string slicing operator
+		let mut has_slicing_next = false;
+		if matches!(tokens.tokens.get(0), Some(Token { variant: TokenVariant::LeftParenthesis, .. })) {
+			let mut temp_tokens = tokens.clone();
+			temp_tokens.take_next_token();
+			if temp_tokens.has_colon_before_closing_parenthesis() {
+				has_slicing_next = true;
+			}
+		}
+		// Return if there is not a left parenthesis after the identifier or if said parenthesis is part of a string slicing operator
+		match tokens.tokens.get(0) {
+			Some(Token { variant: TokenVariant::LeftParenthesis, .. }) if !has_slicing_next => {},
+			_ => break 'a match identifier_type {
+				IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				}),
+				IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				}),
+				IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				}),
+				IdentifierType::String => AnyTypeLValue::String(StringLValue {
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				}),
+			},
+		}
+		// Skip opening parenthesis
+		tokens.take_next_token();
+		// Get arguments
+		let mut arguments = Vec::new();
+		// Make sure there is not a leading comma
+		match tokens.tokens.get(0) {
+			Some(Token { variant: TokenVariant::Comma, start_column, .. }) => return Err(ErrorVariant::LeadingCommaInFunctionArguments.at_column(*start_column)),
+			_ => {},
+		}
+		// Parse each argument
+		'b: loop {
+			// If we reach a non-expression token
+			match tokens.tokens.get(0) {
+				// Comma
+				Some(Token { variant: TokenVariant::Comma, start_column, ..}) => return Err(ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments.at_column(*start_column)),
+				// Right parenthesis
+				Some(Token { variant: TokenVariant::RightParenthesis, .. }) if arguments.len() == 0 => {
+					tokens.take_next_token();
+					break 'b;
+				}
+				Some(Token { variant: TokenVariant::RightParenthesis, start_column, .. }) => return Err(ErrorVariant::TrailingComma.at_column(*start_column)),
+				// Colon / semicolon
+				Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
+					return Err(ErrorVariant::InvalidSeparatorInFunctionArguments.at_column(*start_column)),
+				// End of statement without closing parenthesis
+					None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
+				_ => {}
+			}
+			// Parse argument
+			let argument_expression = parse_expression(tokens)?.unwrap();
+			arguments.push(argument_expression);
+			// Parse comma or right parentheses
+			match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::Comma, ..}) => {
+					tokens.take_next_token();
+				}
+				Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
+					tokens.take_next_token();
+					break 'b;
+				}
+				// End of statement without closing parenthesis
+				None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
+				_ => {}
+			};
+		}
+		// Return
+		break 'a match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function, is_slicing_operator: false
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 			}),
-		})),
-	}
-	// Skip opening parenthesis
-	tokens.take_next_token();
-	// Get arguments
-	let mut arguments = Vec::new();
-	// Make sure there is not a leading comma
-	match tokens.tokens.get(0) {
-		Some(Token { variant: TokenVariant::Comma, start_column, .. }) => return Err(ErrorVariant::LeadingCommaInFunctionArguments.at_column(*start_column)),
-		_ => {},
-	}
-	// Parse each argument
-	let mut is_slicing_operator = false;
-	'b: loop {
-		// If we reach a non-expression token
-		match tokens.tokens.get(0) {
-			// Comma
-			Some(Token { variant: TokenVariant::Comma, start_column, ..}) => return Err(ErrorVariant::TwoSequentialCommasTogetherInFunctionArguments.at_column(*start_column)),
-			// Right parenthesis
-			Some(Token { variant: TokenVariant::RightParenthesis, .. }) if arguments.len() == 0 => {
-				tokens.take_next_token();
-				break 'b;
-			}
-			Some(Token { variant: TokenVariant::RightParenthesis, start_column, .. }) => return Err(ErrorVariant::TrailingComma.at_column(*start_column)),
-			// Colon / semicolon
-			Some(Token { variant: TokenVariant::Colon | TokenVariant::Semicolon, start_column, .. }) =>
-				return Err(ErrorVariant::InvalidSeparatorInFunctionArguments.at_column(*start_column)),
-			// End of statement without closing parenthesis
-			None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
-			_ => {}
 		}
-		// Parse argument
-		let argument_expression = parse_expression(tokens)?.unwrap();
-		arguments.push(argument_expression);
-		// Parse comma or right parentheses
-		match tokens.tokens.get(0) {
-			Some(Token { variant: TokenVariant::Comma, ..}) => {
-				tokens.take_next_token();
-			}
-			Some(Token { variant: TokenVariant::Colon, ..}) => {
-				is_slicing_operator = true;
-				tokens.take_next_token();
-			}
-			Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {
-				tokens.take_next_token();
-				break 'b;
-			}
-			_ => {}
-		};
-	}
-	//
-	if is_slicing_operator && arguments.len() != 2 {
-		return Err(ErrorVariant::SlicingOperatorWithTooManyArguments.at_column(arguments.last().unwrap().get_start_column()));
-	}
-	// Return
-	return Ok(Some(match identifier_type {
-		IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
-		}),
-		IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
-		}),
-		IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
-		}),
-		IdentifierType::String => AnyTypeLValue::String(StringLValue {
-			name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function, is_slicing_operator
-		}),
-	}))
+	};
+	Ok(Some(l_value_expression))
 }
 
 /// Gets the length of an l-value
@@ -1893,5 +1899,27 @@ impl<'b> Tokens<'b> {
 		}
 		// Else return the first keyword variant
 		Some((first_keyword_variant, first_keyword_start_column))
+	}
+
+	/// Returns `true` if there is an unparenthesized colon token before the next closing parenthesis that is'nt closing an opening parenthesis in the remaining tokens.
+	pub fn has_colon_before_closing_parenthesis(&self) -> bool {
+		let mut parenthesis_depth = 0usize;
+		for token in self.tokens.iter() {
+			if matches!(token.variant, TokenVariant::LeftParenthesis) {
+				parenthesis_depth += 1;
+			}
+			if matches!(token.variant, TokenVariant::RightParenthesis) {
+				parenthesis_depth = match parenthesis_depth.checked_sub(1) {
+					Some(parenthesis_depth) => parenthesis_depth,
+					None => return false,
+				}
+			}
+			if parenthesis_depth == 0 {
+				if matches!(token, Token { variant: TokenVariant::Colon, .. }) {
+					return true;
+				}
+			}
+		}
+		false
 	}
 }

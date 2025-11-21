@@ -788,7 +788,6 @@ pub struct StringLValue {
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
-	pub is_slicing_operator: bool,
 }
 
 impl StringLValue {
@@ -797,9 +796,6 @@ impl StringLValue {
 			print!("-");
 		}
 		print!(" {:03}: String L-Value \"{}\"", self.start_column, self.name);
-		if self.is_slicing_operator {
-			print!(", Slicing");
-		}
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}
