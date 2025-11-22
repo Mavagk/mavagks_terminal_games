@@ -827,6 +827,10 @@ impl Machine {
 				let value_to_assign = self.execute_string_expression(r_value_expression, Some(program))?;
 				// Assign
 				for (l_value_index, l_value_expression) in l_value_expressions.iter().enumerate() {
+					// TODO
+					if l_value_expression.string_slicings.len() > 0 {
+						return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(l_value_expression.string_slicings[0].2));
+					}
 					// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
 					self.make_sure_defined_array_or_function_is_created::<StringValue>(l_value_expression, Some(program))?;
 					// If we are writing to an array and it has been created, write to it.
@@ -1509,6 +1513,12 @@ impl Machine {
 		let arguments = T::get_l_value_arguments(l_value);
 		let has_parentheses = T::get_l_value_has_parentheses(l_value);
 		let l_value_start_column = T::get_l_value_start_column(l_value);
+		// TODO
+		if let Some(string_slicings) = T::get_string_slicings(l_value) {
+			if string_slicings.len() > 0 {
+				return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(string_slicings[0].2));
+			}
+		}
 		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
 		self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
 		// If the user has defined an array with the name read from it.
@@ -1603,6 +1613,12 @@ impl Machine {
 		let arguments = T::get_l_value_arguments(l_value);
 		let has_parentheses = T::get_l_value_has_parentheses(l_value);
 		let l_value_start_column = T::get_l_value_start_column(l_value);
+		// TODO
+		if let Some(string_slicings) = T::get_string_slicings(l_value) {
+			if string_slicings.len() > 0 {
+				return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(string_slicings[0].2));
+			}
+		}
 		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
 		self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
 		// If we are writing to an array and it has been created, write to it.
@@ -2074,8 +2090,6 @@ impl Machine {
 					argument_value.print(&mut string_cursor, false, false, &self.options).unwrap();
 					return Ok(Some(StringValue::new(Rc::new(String::from_utf8(string_bytes).unwrap()))));
 				}
-				// TODO
-				// MID$(X$[, Y[, Z]])
 				_ => {}
 			}
 		}

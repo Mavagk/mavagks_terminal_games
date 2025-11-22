@@ -94,6 +94,7 @@ pub enum ErrorVariant {
 	InvalidOptionVariableOrValue,
 	ExpectedColonAfterInputPrompt,
 	ExpectedColonAfterIfMissingThen,
+	ExpectedColonInStringSlicingOperator,
 	MultiplePromptsForInput,
 	MultipleTimeoutsForInput,
 	MultipleElapsedsForInput,
@@ -295,6 +296,7 @@ impl Display for ErrorVariant {
 			Self::InvalidOrdArgument => write!(f, "Attempted to evaluate the ORD function on a string that is not a single character or a valid character mnemonic."),
 			Self::StrSliceFnOutOfRange => write!(f, "String slicing function index out of range."),
 			Self::SlicingOperatorWithTooManyArguments => write!(f, "Slicing operator has too many arguments."),
+			Self::ExpectedColonInStringSlicingOperator => write!(f, "Expected colon in string slicing operator."),
 		}
 	}
 }

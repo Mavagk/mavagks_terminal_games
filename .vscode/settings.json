@@ -46,6 +46,7 @@
 		"rngs",
 		"RTRIM",
 		"Seedable",
+		"slicings",
 		"termion",
 		"Timelike",
 		"UCASE",

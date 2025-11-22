@@ -1184,7 +1184,7 @@ fn expect_and_remove_equal_sign(tokens: &mut Tokens) -> Result<(), Error> {
 /// Parses a l-value of any type for a list of tokens, removes the parsed tokens from the list.
 fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, Error> {
 	// Get the part of the l-value before any slicing
-	let l_value_expression = 'a: {
+	let mut l_value_expression = 'a: {
 		// Get the first token or return if there are no more tokens to parse
 		let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: first_token_end_column } = match tokens.tokens.first() {
 			Some(first_token) => first_token,
@@ -1234,7 +1234,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
 				}),
 				IdentifierType::String => AnyTypeLValue::String(StringLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function, string_slicings: Box::default(),
 				}),
 			},
 		}
@@ -1295,10 +1295,44 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function, string_slicings: Box::default(),
 			}),
 		}
 	};
+	// Parse slicings
+	if let AnyTypeLValue::String(l_value_expression) = &mut l_value_expression {
+		let mut string_slicings = Vec::new();
+		loop {
+			// Get left parenthesis or break
+			let slice_operator_start_column = match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::LeftParenthesis, start_column, .. }) => start_column,
+				_ => break,
+			};
+			tokens.take_next_token();
+			// Get slice start
+			let slice_start_index_expression = Box::new(cast_to_int_expression(parse_expression(tokens)?.unwrap())?);
+			// Expect colon
+			match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::Colon, .. }) => {},
+				Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(*start_column)),
+				None => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(tokens.last_removed_token_end_column)),
+			};
+			tokens.take_next_token();
+			// Get slice end
+			let slice_end_index_expression = Box::new(cast_to_int_expression(parse_expression(tokens)?.unwrap())?);
+			// Expect closing parenthesis
+			match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {},
+				Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(*start_column)),
+				None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
+			};
+			tokens.take_next_token();
+			// Push
+			string_slicings.push((slice_start_index_expression, slice_end_index_expression, *slice_operator_start_column));
+		}
+		l_value_expression.string_slicings = string_slicings.into_boxed_slice();
+	}
+	// Return
 	Ok(Some(l_value_expression))
 }
 

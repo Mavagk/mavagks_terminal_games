@@ -863,6 +863,10 @@ pub fn optimize_string_l_value(l_value: &mut StringLValue) {
 	for l_value_argument in l_value.arguments.iter_mut() {
 		optimize_any_type_expression(l_value_argument);
 	}
+	for (slicing_start_index, slicing_end_index, _) in l_value.string_slicings.iter_mut() {
+		optimize_int_expression(slicing_start_index);
+		optimize_int_expression(slicing_end_index);
+	}
 }
 
 pub fn optimize_any_type_l_value(l_value: &mut AnyTypeLValue) {

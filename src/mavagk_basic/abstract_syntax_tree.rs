@@ -788,6 +788,7 @@ pub struct StringLValue {
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
 	pub supplied_function: Option<SuppliedFunction>,
+	pub string_slicings: Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>,
 }
 
 impl StringLValue {
@@ -799,9 +800,14 @@ impl StringLValue {
 		if self.has_parentheses {
 			print!(", Parenthesised/()");
 		}
+		print!(", {} Slicings", self.string_slicings.len());
 		println!();
 		for argument in &self.arguments {
 			argument.print(depth + 1);
+		}
+		for string_slicing in &self.string_slicings {
+			string_slicing.0.print(depth + 1);
+			string_slicing.1.print(depth + 1);
 		}
 	}
 }

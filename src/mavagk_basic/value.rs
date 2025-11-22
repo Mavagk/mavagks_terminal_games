@@ -92,6 +92,9 @@ pub trait Value: Default + Clone {
 	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self>;
 	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self>;
 
+	fn get_string_slicings<'a>(l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>>;
+	fn get_string_slicings_mut<'a>(l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>>;
+
 	fn execute_expression(machine: &mut Machine, expression: &Self::ExpressionType, program: Option<&Program>) -> Result<Self, Error>;
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error>;
 
@@ -325,6 +328,14 @@ impl Value for IntValue {
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
 		machine.execute_int_supplied_function(l_value, program)
+	}
+
+	fn get_string_slicings<'a>(_l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
+	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::Integer;
@@ -904,6 +915,14 @@ impl Value for FloatValue {
 		machine.execute_float_supplied_function(l_value, program)
 	}
 
+	fn get_string_slicings<'a>(_l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
+	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1153,6 +1172,14 @@ impl Value for ComplexValue {
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
 		machine.execute_complex_supplied_function(l_value, program)
+	}
+
+	fn get_string_slicings<'a>(_l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
+	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
@@ -1476,6 +1503,14 @@ impl Value for StringValue {
 		machine.execute_string_supplied_function(l_value, program)
 	}
 
+	fn get_string_slicings<'a>(l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		Some(&l_value.string_slicings)
+	}
+
+	fn get_string_slicings_mut<'a>(l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		Some(&mut l_value.string_slicings)
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
 }
 
@@ -1645,6 +1680,14 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
+	fn get_string_slicings<'a>(_l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
+	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1793,6 +1836,14 @@ impl Value for AnyTypeValue {
 
 	fn execute_supplied_function(_machine: &mut Machine, _l_value: &Self::LValueType, _program: Option<&Program>) -> Result<Option<Self>, Error> {
 		unimplemented!()
+	}
+
+	fn get_string_slicings<'a>(_l_value: &'a Self::LValueType) -> Option<&'a Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
+	}
+
+	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
+		None
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
