@@ -89,6 +89,8 @@ pub trait Value: Default + Clone {
 	fn get_function_declarations<'a>(program: &'a Program) -> &'a HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
 	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
 
+	fn slice_chars(to_slice: &Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> Self;
+
 	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self>;
 	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self>;
 
@@ -238,19 +240,21 @@ impl IntValue {
 
 	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_space: bool, options: &Options) -> io::Result<()> {
 		print_float(self.clone().to_float().value, f, print_leading_positive_space, print_trailing_space, false, options.get_print_zone_width())
-		//match (self, print_leading_positive_space) {
-		//	(x, _) if x.is_negative() => write!(f, "{}", x.value),
-		//	(x, true) => write!(f, " {}", x.value),
-		//	(x, false) => write!(f, "{}", x.value),
-		//}?;
-		//match print_trailing_space {
-		//	true => write!(f, " "),
-		//	false => write!(f, ""),
-		//}
 	}
 
 	pub fn to_usize(&self) -> Option<usize> {
 		self.value.to_usize()
+	}
+
+	pub fn ones_index_to_zeros_index_usize_saturating(self) -> usize {
+		let minus_one = self.sub(IntValue::one());
+		match minus_one.to_usize() {
+			Some(value) => value,
+			None => match minus_one.is_negative() {
+				true => 0,
+				false => usize::MAX,
+			}
+		}
 	}
 
 	pub fn to_i32(&self) -> Option<i32> {
@@ -336,6 +340,10 @@ impl Value for IntValue {
 
 	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
 		None
+	}
+
+	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::Integer;
@@ -923,6 +931,10 @@ impl Value for FloatValue {
 		None
 	}
 
+	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1182,6 +1194,10 @@ impl Value for ComplexValue {
 		None
 	}
 
+	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
 }
 
@@ -1397,6 +1413,25 @@ impl StringValue {
 		Ok(StringValue::new(Rc::new((&self.value[take_from_byte_index..byte_end_index]).to_string())))
 	}
 
+	/// Returns a string with containing the chars of `self` starting from ones char index `char_first_ones_index` and ending at the index `char_last_ones_index`.
+	/// Takes all chars if `take_from_char_ones_index` is zero. Takes no chars if all chars are sliced off and no input integers ane negative.
+	pub fn slice_chars(&self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> StringValue {
+		if char_last_ones_index.is_zero() || char_last_ones_index.is_negative() {
+			return StringValue::empty();
+		}
+		// Get indices to slice
+		let start_char_zeros_index = char_first_ones_index.ones_index_to_zeros_index_usize_saturating();
+		let start_byte_zeros_index = self.char_index_to_byte_index(start_char_zeros_index).unwrap_or_else(|index| index);
+		let end_char_zeros_index = char_last_ones_index.ones_index_to_zeros_index_usize_saturating().saturating_add(1);
+		let end_byte_zeros_index = self.char_index_to_byte_index(end_char_zeros_index).unwrap_or_else(|index| index);
+		// Bounds check
+		if start_byte_zeros_index >= end_byte_zeros_index {
+			return StringValue::empty();
+		}
+		// Slice and return
+		StringValue::new(Rc::new((&self.value[start_byte_zeros_index..end_byte_zeros_index]).into()))
+	}
+
 	/// Returns a string containing only the last char of `self`.
 	pub fn take_last_char(&self) -> Result<StringValue, ErrorVariant> {
 		if self.is_empty() {
@@ -1509,6 +1544,10 @@ impl Value for StringValue {
 
 	fn get_string_slicings_mut<'a>(l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
 		Some(&mut l_value.string_slicings)
+	}
+
+	fn slice_chars(to_slice: &Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> Self {
+		to_slice.slice_chars(char_first_ones_index, char_last_ones_index)
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
@@ -1688,6 +1727,10 @@ impl Value for BoolValue {
 		None
 	}
 
+	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1844,6 +1887,10 @@ impl Value for AnyTypeValue {
 
 	fn get_string_slicings_mut<'a>(_l_value: &'a mut Self::LValueType) -> Option<&'a mut Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>> {
 		None
+	}
+
+	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;

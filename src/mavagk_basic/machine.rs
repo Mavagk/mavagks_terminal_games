@@ -1460,97 +1460,103 @@ impl Machine {
 		let arguments = T::get_l_value_arguments(l_value);
 		let has_parentheses = T::get_l_value_has_parentheses(l_value);
 		let l_value_start_column = T::get_l_value_start_column(l_value);
-		// TODO
-		if let Some(string_slicings) = T::get_string_slicings(l_value) {
-			if string_slicings.len() > 0 {
-				return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(string_slicings[0].2));
+		// Get value before slicing
+		let mut value = 'a: {
+			// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
+			self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
+			// If the user has defined an array with the name read from it.
+			if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
+				// Execute array indices
+				let mut indices = Vec::new();
+				for argument in arguments {
+					indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+				}
+				// Read array element
+				let element = T::get_stored_values(self).arrays.get(name).unwrap()
+					.read_element(&indices, self.options.allow_uninitialized_read())
+					.map_err(|err| err.at_column(l_value_start_column))?;
+				break 'a element;
 			}
-		}
-		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
-		self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
-		// If the user has defined an array with the name read from it.
-		if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
-			// Execute array indices
-			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-			}
-			// Read array element
-			let element = T::get_stored_values(self).arrays.get(name).unwrap()
-				.read_element(&indices, self.options.allow_uninitialized_read())
-				.map_err(|err| err.at_column(l_value_start_column))?;
-			return Ok(element);
-		}
-		// Else if a function with the argument count and name has been defined, execute it
-		if let Some((function_parameters, function_expression, function_location)) = T::get_stored_values(self).functions.get(&(name.into(), arguments.len())).cloned() {
-			// Execute function arguments
-			let mut gosub_level_to_push = GosubLevel::new();
-			for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
-				let argument = &arguments[argument_index];
-				match function_parameter {
-					AnyTypeLValue::Float(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Int(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::Complex(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
-					}
-					AnyTypeLValue::String(l_value) => {
-						let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
-						gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+			// Else if a function with the argument count and name has been defined, execute it
+			if let Some((function_parameters, function_expression, function_location)) = T::get_stored_values(self).functions.get(&(name.into(), arguments.len())).cloned() {
+				// Execute function arguments
+				let mut gosub_level_to_push = GosubLevel::new();
+				for (argument_index, function_parameter) in function_parameters.iter().enumerate() {
+					let argument = &arguments[argument_index];
+					match function_parameter {
+						AnyTypeLValue::Float(l_value) => {
+							let argument_value = self.execute_any_type_expression(argument, program)?.to_float().map_err(|err| err.at_column(l_value.start_column))?;
+							gosub_level_to_push.local_float_variables.insert(l_value.name.clone(), argument_value);
+						}
+						AnyTypeLValue::Int(l_value) => {
+							let argument_value = self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(l_value.start_column))?;
+							gosub_level_to_push.local_int_variables.insert(l_value.name.clone(), argument_value);
+						}
+						AnyTypeLValue::Complex(l_value) => {
+							let argument_value = self.execute_any_type_expression(argument, program)?.to_complex().map_err(|err| err.at_column(l_value.start_column))?;
+							gosub_level_to_push.local_complex_variables.insert(l_value.name.clone(), argument_value);
+						}
+						AnyTypeLValue::String(l_value) => {
+							let argument_value = self.execute_any_type_expression(argument, program)?.to_string().map_err(|err| err.at_column(l_value.start_column))?;
+							gosub_level_to_push.local_string_variables.insert(l_value.name.clone(), argument_value);
+						}
 					}
 				}
+				// Push GOSUB level for function execution
+				self.gosub_stack.push(gosub_level_to_push);
+				// Save program execution location and OPTIONs set
+				let line_executing_before_function_execution = self.line_executing.clone();
+				let sub_line_executing_before_function_execution = self.sub_line_executing;
+				let options_before_function_execution = self.options.clone();
+				// Get the OPTIONs set and program location executing
+				if let Some(function_location) = function_location {
+					self.line_executing = Some(function_location.0);
+					self.sub_line_executing = Some(function_location.1);
+				}
+				if let Some(program) = program {
+					self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+				}
+				// Execute function
+				let result = T::execute_expression(self, &function_expression, program)?;
+				// Pop the pushed GOSUB stack
+				self.gosub_stack.pop();
+				// Restore OPTIONs set and the location in program that is being executed
+				self.line_executing = line_executing_before_function_execution;
+				self.sub_line_executing = sub_line_executing_before_function_execution;
+				self.options = options_before_function_execution;
+				break 'a result;
 			}
-			// Push GOSUB level for function execution
-			self.gosub_stack.push(gosub_level_to_push);
-			// Save program execution location and OPTIONs set
-			let line_executing_before_function_execution = self.line_executing.clone();
-			let sub_line_executing_before_function_execution = self.sub_line_executing;
-			let options_before_function_execution = self.options.clone();
-			// Get the OPTIONs set and program location executing
-			if let Some(function_location) = function_location {
-				self.line_executing = Some(function_location.0);
-				self.sub_line_executing = Some(function_location.1);
+			// Else if a local variable with the name is defined, read it
+			if !has_parentheses && let Some(variable) = T::get_local_variables_mut(self).get(name) {
+				break 'a variable.clone();
 			}
-			if let Some(program) = program {
-				self.options = program.get_options(&self.line_executing.clone().unwrap(), self.sub_line_executing.unwrap());
+			// Else if a global variable with the name is defined, read it
+			if !has_parentheses && let Some(variable) = T::get_stored_values(self).simple_variables.get(name) {
+				break 'a variable.clone();
 			}
-			// Execute function
-			let result = T::execute_expression(self, &function_expression, program)?;
-			// Pop the pushed GOSUB stack
-			self.gosub_stack.pop();
-			// Restore OPTIONs set and the location in program that is being executed
-			self.line_executing = line_executing_before_function_execution;
-			self.sub_line_executing = sub_line_executing_before_function_execution;
-			self.options = options_before_function_execution;
-			return Ok(result);
+			// Else try to execute a supplied (built-in) function
+			match T::execute_supplied_function(self, l_value, program)? {
+				Some(value) => break 'a value,
+				None => {},
+			}
+			// Else
+			if has_parentheses {
+				return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+			}
+			match self.options.allow_uninitialized_read() {
+				true => break 'a Default::default(),
+				false => return Err(ErrorVariant::VariableReadUninitialized.at_column(l_value_start_column)),
+			}
+		};
+		// Slice value if it is a string
+		if let Some(string_slicings) = T::get_string_slicings(l_value) {
+			for (string_slicing_start_index_expression, string_slicing_end_index_expression, _) in string_slicings {
+				let string_slicing_start_index_value = self.execute_int_expression(string_slicing_start_index_expression, program)?;
+				let string_slicing_end_index_value = self.execute_int_expression(string_slicing_end_index_expression, program)?;
+				value = T::slice_chars(&value, string_slicing_start_index_value, string_slicing_end_index_value);
+			}
 		}
-		// Else if a local variable with the name is defined, read it
-		if !has_parentheses && let Some(variable) = T::get_local_variables_mut(self).get(name) {
-			return Ok(variable.clone());
-		}
-		// Else if a global variable with the name is defined, read it
-		if !has_parentheses && let Some(variable) = T::get_stored_values(self).simple_variables.get(name) {
-			return Ok(variable.clone());
-		}
-		// Else try to execute a supplied (built-in) function
-		match T::execute_supplied_function(self, l_value, program)? {
-			Some(value) => return Ok(value),
-			None => {},
-		}
-		// Else
-		if has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
-		}
-		match self.options.allow_uninitialized_read() {
-			true => Ok(Default::default()),
-			false => Err(ErrorVariant::VariableReadUninitialized.at_column(l_value_start_column)),
-		}
+		Ok(value)
 	}
 
 	/// Returns a list of evaluated l_value arguments and and string slice bounds.
