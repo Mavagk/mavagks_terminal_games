@@ -466,7 +466,8 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
+								let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<IntValue>(l_value, Some(program))?;
+								self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Float(l_value) => {
 								let parsed_value;
@@ -474,7 +475,8 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
+								let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<FloatValue>(l_value, Some(program))?;
+								self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::Complex(l_value) => {
 								let parsed_value;
@@ -482,7 +484,8 @@ impl Machine {
 									Ok((Some(parsed_value), input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) | Ok((None, _)) => continue 'a,
 								};
-								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
+								let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<ComplexValue>(l_value, Some(program))?;
+								self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, parsed_value, Some(program))?;
 							}
 							AnyTypeLValue::String(l_value) => {
 								let parsed_value;
@@ -490,7 +493,8 @@ impl Machine {
 									Ok((parsed_value, input_buffer_left)) => (parsed_value, input_buffer_left),
 									Err(_) => continue 'a,
 								};
-								self.execute_l_value_write(l_value, parsed_value, Some(program))?;
+								let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<StringValue>(l_value, Some(program))?;
+								self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, parsed_value, Some(program))?;
 							}
 						}
 						input_buffer_left = input_buffer_left.trim_ascii_start();
@@ -517,7 +521,8 @@ impl Machine {
 				// If the loop condition is initially false
 				let do_skip_to_next = (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) &&
 					self.options.for_initially_false_jumps_to_next();
-				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
+				let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<IntValue>(loop_variable, Some(program))?;
+				self.execute_l_value_write(loop_variable, l_value_arguments, l_value_string_slice_bounds, initial_value, Some(program))?;
 				// Construct loop
 				let stack_loop = BlockOnStack::IntForLoop {
 					name: loop_variable.name.clone(), final_value, step_value, for_line: self.line_executing.clone(), for_sub_line: self.sub_line_executing.unwrap(), is_zero_cycles: do_skip_to_next,
@@ -556,7 +561,8 @@ impl Machine {
 					Some(step) => self.execute_float_expression(step, Some(program))?,
 					None => FloatValue::ONE,
 				};
-				self.execute_l_value_write(loop_variable, initial_value, Some(program))?;
+				let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<FloatValue>(loop_variable, Some(program))?;
+				self.execute_l_value_write(loop_variable, l_value_arguments, l_value_string_slice_bounds, initial_value, Some(program))?;
 				// If the loop condition is initially false
 				let do_skip_to_next = (step_value.is_negative() && (initial_value.value < final_value.value)) || (!step_value.is_negative() && (initial_value.value > final_value.value)) &&
 					self.options.for_initially_false_jumps_to_next();
@@ -716,99 +722,34 @@ impl Machine {
 			StatementVariant::NumericAssignment(l_value_expressions, r_value_expression) => {
 				// Evaluate l-value arguments
 				let mut l_value_argument_values = Vec::new();
+				let mut l_value_string_slice_bounds = Vec::new();
 				for l_value_expression in l_value_expressions {
-					let mut argument_values_for_this_l_value = Vec::new();
-					match l_value_expression {
-						AnyTypeLValue::Float(l_value_expression) => {
-							for argument_expression in l_value_expression.arguments.iter() {
-								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
-							}
-						}
-						AnyTypeLValue::Int(l_value_expression) => {
-							for argument_expression in l_value_expression.arguments.iter() {
-								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
-							}
-						}
-						AnyTypeLValue::Complex(l_value_expression) => {
-							for argument_expression in l_value_expression.arguments.iter() {
-								argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
-							}
-						}
+					let (argument_values_for_this_l_value, string_slice_index_values_for_this_l_value) = match l_value_expression {
+						AnyTypeLValue::Float(l_value_expression) => self.execute_l_value_arguments::<FloatValue>(l_value_expression, Some(program))?,
+						AnyTypeLValue::Int(l_value_expression) => self.execute_l_value_arguments::<IntValue>(l_value_expression, Some(program))?,
+						AnyTypeLValue::Complex(l_value_expression) => self.execute_l_value_arguments::<ComplexValue>(l_value_expression, Some(program))?,
 						_ => unreachable!()
-					}
+					};
 					l_value_argument_values.push(argument_values_for_this_l_value);
+					l_value_string_slice_bounds.push(string_slice_index_values_for_this_l_value);
 				}
 				// Evaluate r-value
 				let value_to_assign = self.execute_any_type_expression(r_value_expression, Some(program))?;
 				// Assign
 				for (l_value_index, l_value_expression) in l_value_expressions.iter().enumerate() {
 					match l_value_expression {
-						AnyTypeLValue::Float(l_value_expression) => {
-							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
-							self.make_sure_defined_array_or_function_is_created::<FloatValue>(l_value_expression, Some(program))?;
-							// If we are writing to an array and it has been created, write to it.
-							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
-								let mut indices = Vec::new();
-								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
-									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-								}
-								FloatValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
-									.write_element(&indices, value_to_assign.clone().to_float().map_err(|err| err.at_column(l_value_expression.start_column))?)
-									.map_err(|err| err.at_column(l_value_expression.start_column))?;
-								continue;
-							}
-							// Else assign to global variable
-							if l_value_expression.has_parentheses {
-								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
-							}
-							FloatValue::get_stored_values_mut(self).simple_variables.insert(
-								(&*l_value_expression.name).into(), value_to_assign.clone().to_float().map_err(|err| err.at_column(l_value_expression.start_column))?
-							);
-						}
-						AnyTypeLValue::Int(l_value_expression) => {
-							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
-							self.make_sure_defined_array_or_function_is_created::<IntValue>(l_value_expression, Some(program))?;
-							// If we are writing to an array and it has been created, write to it.
-							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
-								let mut indices = Vec::new();
-								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
-									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-								}
-								IntValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
-									.write_element(&indices, value_to_assign.clone().to_int().map_err(|err| err.at_column(l_value_expression.start_column))?)
-									.map_err(|err| err.at_column(l_value_expression.start_column))?;
-								continue;
-							}
-							// Else assign to global variable
-							if l_value_expression.has_parentheses {
-								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
-							}
-							IntValue::get_stored_values_mut(self).simple_variables.insert(
-								(&*l_value_expression.name).into(), value_to_assign.clone().to_int().map_err(|err| err.at_column(l_value_expression.start_column))?
-							);
-						}
-						AnyTypeLValue::Complex(l_value_expression) => {
-							// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
-							self.make_sure_defined_array_or_function_is_created::<ComplexValue>(l_value_expression, Some(program))?;
-							// If we are writing to an array and it has been created, write to it.
-							if l_value_expression.has_parentheses && FloatValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
-								let mut indices = Vec::new();
-								for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
-									indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-								}
-								ComplexValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
-									.write_element(&indices, value_to_assign.clone().to_complex().map_err(|err| err.at_column(l_value_expression.start_column))?)
-									.map_err(|err| err.at_column(l_value_expression.start_column))?;
-								continue;
-							}
-							// Else assign to global variable
-							if l_value_expression.has_parentheses {
-								return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
-							}
-							ComplexValue::get_stored_values_mut(self).simple_variables.insert(
-								(&*l_value_expression.name).into(), value_to_assign.clone().to_complex().map_err(|err| err.at_column(l_value_expression.start_column))?
-							);
-						}
+						AnyTypeLValue::Float(l_value_expression) => self.execute_l_value_write::<FloatValue>(
+							l_value_expression, take(&mut l_value_argument_values[l_value_index]), take(&mut l_value_string_slice_bounds[l_value_index]),
+							value_to_assign.clone().to_float().map_err(|error| error.at_column(r_value_expression.get_start_column()))?, Some(program)
+						)?,
+						AnyTypeLValue::Int(l_value_expression) => self.execute_l_value_write::<IntValue>(
+							l_value_expression, take(&mut l_value_argument_values[l_value_index]), take(&mut l_value_string_slice_bounds[l_value_index]),
+							value_to_assign.clone().to_int().map_err(|error| error.at_column(r_value_expression.get_start_column()))?, Some(program)
+						)?,
+						AnyTypeLValue::Complex(l_value_expression) => self.execute_l_value_write::<ComplexValue>(
+							l_value_expression, take(&mut l_value_argument_values[l_value_index]), take(&mut l_value_string_slice_bounds[l_value_index]),
+							value_to_assign.clone().to_complex().map_err(|error| error.at_column(r_value_expression.get_start_column()))?, Some(program)
+						)?,
 						_ => unreachable!(),
 					}
 				}
@@ -932,23 +873,29 @@ impl Machine {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
+							let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<IntValue>(l_value, Some(program))?;
+							self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Float(l_value) => {
 							let datum = match &datum.as_float {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
+							let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<FloatValue>(l_value, Some(program))?;
+							self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, datum.clone(), Some(program))?;
 						}
 						AnyTypeLValue::Complex(l_value) => {
 							let datum = match &datum.as_complex {
 								Some(datum) => datum,
 								None => return Err(ErrorVariant::NonNumericReadToNumeric((*data_line_number_to_read).clone(), datum_start_column).at_column(l_value.start_column)),
 							};
-							self.execute_l_value_write(l_value, datum.clone(), Some(program))?;
+							let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<ComplexValue>(l_value, Some(program))?;
+							self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, datum.clone(), Some(program))?;
 						}
-						AnyTypeLValue::String(l_value) => self.execute_l_value_write(l_value, datum.as_string.clone(), Some(program))?,
+						AnyTypeLValue::String(l_value) => {
+							let (l_value_arguments, l_value_string_slice_bounds) = self.execute_l_value_arguments::<StringValue>(l_value, Some(program))?;
+							self.execute_l_value_write(l_value, l_value_arguments, l_value_string_slice_bounds, datum.as_string, Some(program))?;
+						}
 					}
 					// Calculate new line number
 					self.datum_index_in_data_line_to_read += 1;
@@ -1606,8 +1553,31 @@ impl Machine {
 		}
 	}
 
+	/// Returns a list of evaluated l_value arguments and and string slice bounds.
+	fn execute_l_value_arguments<T: Value>(&mut self, l_value: &T::LValueType, program: Option<&Program>) -> Result<(Box<[AnyTypeValue]>, Box<[(IntValue, IntValue)]>), Error> {
+		// Unpack
+		let arguments_expressions = T::get_l_value_arguments(l_value);
+		let string_slicing_bound_expressions = T::get_string_slicings(l_value);
+		// Evaluate array indices
+		let mut array_index_values = Vec::new();
+		for argument_expression in arguments_expressions {
+			array_index_values.push(self.execute_any_type_expression(argument_expression, program)?);
+		}
+		// Evaluate string slice bounds
+		let mut string_slice_bounds_values = Vec::new();
+		if let Some(string_slicing_bound_expressions) = string_slicing_bound_expressions {
+			for (lower_bound_value, upper_bound_value, _) in string_slicing_bound_expressions {
+				string_slice_bounds_values.push((self.execute_int_expression(lower_bound_value, program)?, self.execute_int_expression(upper_bound_value, program)?));
+			}
+		}
+		// Return
+		Ok((array_index_values.into(), string_slice_bounds_values.into()))
+	}
+
 	/// Writes to a value to a variable or array.
-	fn execute_l_value_write<T: Value>(&mut self, l_value: &T::LValueType, value: T, program: Option<&Program>) -> Result<(), Error> {
+	fn execute_l_value_write<T: Value>(&mut self, l_value: &T::LValueType, l_value_arguments: Box<[AnyTypeValue]>, _l_value_string_slice_bounds: Box<[(IntValue, IntValue)]>, value: T, program: Option<&Program>)
+		-> Result<(), Error>
+	{
 		// Unpack
 		let name = T::get_l_value_name(l_value);
 		let arguments = T::get_l_value_arguments(l_value);
@@ -1616,7 +1586,7 @@ impl Machine {
 		// TODO
 		if let Some(string_slicings) = T::get_string_slicings(l_value) {
 			if string_slicings.len() > 0 {
-				return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(string_slicings[0].2));
+				return Err(ErrorVariant::NotYetImplemented("String l-value slicing operator".into()).at_column(string_slicings[0].2));
 			}
 		}
 		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
@@ -1624,8 +1594,8 @@ impl Machine {
 		// If we are writing to an array and it has been created, write to it.
 		if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
 			let mut indices = Vec::new();
-			for argument in arguments {
-				indices.push(self.execute_any_type_expression(argument, program)?.to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
+			for (argument_index, argument_value) in l_value_arguments.into_iter().enumerate() {
+				indices.push(argument_value.to_int().map_err(|err| err.at_column(arguments[argument_index].get_start_column()))?);
 			}
 			T::get_stored_values_mut(self).arrays.get_mut(name).unwrap()
 				.write_element(&indices, value)
