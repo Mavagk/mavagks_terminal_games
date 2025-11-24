@@ -124,6 +124,7 @@ pub enum ErrorVariant {
 	ArrayDimensionCountMismatch,
 	ArrayReadUninitialized,
 	VariableReadUninitialized,
+	VariableWriteToSliceUninitialized,
 	MultipleDeclarationsOfArray,
 	MultipleDeclarationsOfFunction,
 	MultipleDeclarationsOfFunctionAndArray,
@@ -297,6 +298,7 @@ impl Display for ErrorVariant {
 			Self::StrSliceFnOutOfRange => write!(f, "String slicing function index out of range."),
 			Self::SlicingOperatorWithTooManyArguments => write!(f, "Slicing operator has too many arguments."),
 			Self::ExpectedColonInStringSlicingOperator => write!(f, "Expected colon in string slicing operator."),
+			Self::VariableWriteToSliceUninitialized => write!(f, "Attempted to write to a string slice of a variable that is uninitialized."),
 		}
 	}
 }

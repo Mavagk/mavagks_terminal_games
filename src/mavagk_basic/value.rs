@@ -90,6 +90,7 @@ pub trait Value: Default + Clone {
 	fn get_function_declarations_mut<'a>(program: &'a mut Program) -> &'a mut HashMap<(Box<str>, usize), HashSet<(Rc<BigInt>, usize)>>;
 
 	fn slice_chars(to_slice: &Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> Self;
+	fn insert_slice_chars(to_slice: &mut Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue, replace_with: Self);
 
 	fn get_local_variables<'a>(machine: &'a Machine) -> &'a HashMap<Box<str>, Self>;
 	fn get_local_variables_mut<'a>(machine: &'a mut Machine) -> &'a mut HashMap<Box<str>, Self>;
@@ -343,6 +344,10 @@ impl Value for IntValue {
 	}
 
 	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
+	}
+
+	fn insert_slice_chars(_to_slice: &mut Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue, _replace_with: Self) {
 		unimplemented!()
 	}
 
@@ -935,6 +940,10 @@ impl Value for FloatValue {
 		unimplemented!()
 	}
 
+	fn insert_slice_chars(_to_slice: &mut Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue, _replace_with: Self) {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1198,6 +1207,10 @@ impl Value for ComplexValue {
 		unimplemented!()
 	}
 
+	fn insert_slice_chars(_to_slice: &mut Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue, _replace_with: Self) {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::ComplexNumber;
 }
 
@@ -1414,7 +1427,7 @@ impl StringValue {
 	}
 
 	/// Returns a string with containing the chars of `self` starting from ones char index `char_first_ones_index` and ending at the index `char_last_ones_index`.
-	/// Takes all chars if `take_from_char_ones_index` is zero. Takes no chars if all chars are sliced off and no input integers ane negative.
+	/// Takes from the start if `take_from_char_ones_index` is zero. Takes no chars if all chars are sliced off and no input integers ane negative.
 	pub fn slice_chars(&self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> StringValue {
 		if char_last_ones_index.is_zero() || char_last_ones_index.is_negative() {
 			return StringValue::empty();
@@ -1430,6 +1443,26 @@ impl StringValue {
 		}
 		// Slice and return
 		StringValue::new(Rc::new((&self.value[start_byte_zeros_index..end_byte_zeros_index]).into()))
+	}
+
+	/// Replaces the chars of `self` starting from ones char index `char_first_ones_index` and ending at the index `char_last_ones_index` with the chars of replace_with.
+	/// Replaces from the start if `take_from_char_ones_index` is zero. Replaces no chars if all chars are sliced off and no input integers ane negative.
+	pub fn insert_slice_chars(&mut self, char_first_ones_index: IntValue, char_last_ones_index: IntValue, replace_with: StringValue) {
+		//if char_last_ones_index.is_zero() || char_last_ones_index.is_negative() {
+		//	return StringValue::empty();
+		//}
+		// Get indices to slice
+		let start_char_zeros_index = char_first_ones_index.ones_index_to_zeros_index_usize_saturating();
+		let start_byte_zeros_index = self.char_index_to_byte_index(start_char_zeros_index).unwrap_or_else(|index| index);
+		let end_char_zeros_index = char_last_ones_index.ones_index_to_zeros_index_usize_saturating().saturating_add(1);
+		let mut end_byte_zeros_index = self.char_index_to_byte_index(end_char_zeros_index).unwrap_or_else(|index| index);
+		// Bounds check
+		if start_byte_zeros_index >= end_byte_zeros_index {
+			end_byte_zeros_index = start_byte_zeros_index;
+		}
+		// Slice and return
+		let string = Rc::<String>::make_mut(&mut self.value);
+		string.replace_range(start_byte_zeros_index..end_byte_zeros_index, &replace_with.value);
 	}
 
 	/// Returns a string containing only the last char of `self`.
@@ -1548,6 +1581,10 @@ impl Value for StringValue {
 
 	fn slice_chars(to_slice: &Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue) -> Self {
 		to_slice.slice_chars(char_first_ones_index, char_last_ones_index)
+	}
+
+	fn insert_slice_chars(to_slice: &mut Self, char_first_ones_index: IntValue, char_last_ones_index: IntValue, replace_with: Self) {
+		to_slice.insert_slice_chars(char_first_ones_index, char_last_ones_index, replace_with);
 	}
 
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::String;
@@ -1731,6 +1768,10 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
+	fn insert_slice_chars(_to_slice: &mut Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue, _replace_with: Self) {
+		unimplemented!()
+	}
+
 	const IDENTIFIER_TYPE: IdentifierType = IdentifierType::UnmarkedOrFloat;
 }
 
@@ -1890,6 +1931,10 @@ impl Value for AnyTypeValue {
 	}
 
 	fn slice_chars(_to_slice: &Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue) -> Self {
+		unimplemented!()
+	}
+
+	fn insert_slice_chars(_to_slice: &mut Self, _char_first_ones_index: IntValue, _char_last_ones_index: IntValue, _replace_with: Self) {
 		unimplemented!()
 	}
 

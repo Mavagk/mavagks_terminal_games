@@ -757,39 +757,21 @@ impl Machine {
 			StatementVariant::StringAssignment(l_value_expressions, r_value_expression) => {
 				// Evaluate l-value arguments
 				let mut l_value_argument_values = Vec::new();
+				let mut l_value_string_slice_bounds = Vec::new();
 				for l_value_expression in l_value_expressions {
-					let mut argument_values_for_this_l_value = Vec::new();
-					for argument_expression in l_value_expression.arguments.iter() {
-						argument_values_for_this_l_value.push(self.execute_any_type_expression(&argument_expression, Some(program))?);
-					}
+					let (argument_values_for_this_l_value, string_slice_index_values_for_this_l_value) = 
+						self.execute_l_value_arguments::<StringValue>(l_value_expression, Some(program))?;
 					l_value_argument_values.push(argument_values_for_this_l_value);
+					l_value_string_slice_bounds.push(string_slice_index_values_for_this_l_value);
 				}
 				// Evaluate r-value
 				let value_to_assign = self.execute_string_expression(r_value_expression, Some(program))?;
 				// Assign
 				for (l_value_index, l_value_expression) in l_value_expressions.iter().enumerate() {
-					// TODO
-					if l_value_expression.string_slicings.len() > 0 {
-						return Err(ErrorVariant::NotYetImplemented("String slicing operator".into()).at_column(l_value_expression.string_slicings[0].2));
-					}
-					// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
-					self.make_sure_defined_array_or_function_is_created::<StringValue>(l_value_expression, Some(program))?;
-					// If we are writing to an array and it has been created, write to it.
-					if l_value_expression.has_parentheses && StringValue::get_stored_values(self).arrays.contains_key(&l_value_expression.name) {
-						let mut indices = Vec::new();
-						for (argument_index, argument) in l_value_expression.arguments.iter().enumerate() {
-							indices.push(l_value_argument_values[l_value_index][argument_index].clone().to_int().map_err(|err| err.at_column(argument.get_start_column()))?);
-						}
-						StringValue::get_stored_values_mut(self).arrays.get_mut(&l_value_expression.name).unwrap()
-							.write_element(&indices, value_to_assign.clone())
-							.map_err(|err| err.at_column(l_value_expression.start_column))?;
-						continue;
-					}
-					// Else assign to global variable
-					if l_value_expression.has_parentheses {
-						return Err(ErrorVariant::ArrayNotDefined.at_column(l_value_expression.start_column));
-					}
-					StringValue::get_stored_values_mut(self).simple_variables.insert((&*l_value_expression.name).into(), value_to_assign.clone());
+					self.execute_l_value_write::<StringValue>(
+						l_value_expression, take(&mut l_value_argument_values[l_value_index]), take(&mut l_value_string_slice_bounds[l_value_index]),
+						value_to_assign.clone(), Some(program)
+					)?
 				}
 			}
 			StatementVariant::List(range_start, range_end) => {
@@ -1589,30 +1571,62 @@ impl Machine {
 		let arguments = T::get_l_value_arguments(l_value);
 		let has_parentheses = T::get_l_value_has_parentheses(l_value);
 		let l_value_start_column = T::get_l_value_start_column(l_value);
-		// TODO
-		if let Some(string_slicings) = T::get_string_slicings(l_value) {
-			if string_slicings.len() > 0 {
-				return Err(ErrorVariant::NotYetImplemented("String l-value slicing operator".into()).at_column(string_slicings[0].2));
-			}
-		}
+		let string_slicing_indices = T::get_string_slicings(l_value);
 		// Create the array if it is defined and we are reading from it and it is not yet created and it is not created on executing a DIM
 		self.make_sure_defined_array_or_function_is_created::<T>(l_value, program)?;
-		// If we are writing to an array and it has been created, write to it.
-		if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
-			let mut indices = Vec::new();
-			for (argument_index, argument_value) in l_value_arguments.into_iter().enumerate() {
-				indices.push(argument_value.to_int().map_err(|err| err.at_column(arguments[argument_index].get_start_column()))?);
+		//
+		if let Some(string_slicing_indices) = string_slicing_indices && !string_slicing_indices.is_empty() {
+			if string_slicing_indices.len() > 1 {
+				return Err(ErrorVariant::Unimplemented("More than one string l-value slicing operator".into()).at_column(string_slicing_indices[1].2));
 			}
-			T::get_stored_values_mut(self).arrays.get_mut(name).unwrap()
-				.write_element(&indices, value)
-				.map_err(|err| err.at_column(l_value_start_column))?;
-			return Ok(());
+			let char_first_ones_index = self.execute_int_expression(&(**string_slicing_indices)[0].0, program)?;
+			let char_last_ones_index = self.execute_int_expression(&(**string_slicing_indices)[0].1, program)?;
+			// If we are writing to an array and it has been created, write to it.
+			if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
+				let mut indices = Vec::new();
+				for (argument_index, argument_value) in l_value_arguments.into_iter().enumerate() {
+					indices.push(argument_value.to_int().map_err(|err| err.at_column(arguments[argument_index].get_start_column()))?);
+				}
+				let to_write_to = T::get_stored_values_mut(self).arrays.get_mut(name).unwrap()
+					.get_element_mut(&indices)
+					.map_err(|err| err.at_column(l_value_start_column))?;
+				match to_write_to {
+					None => return Err(ErrorVariant::VariableReadUninitialized.at_column(l_value_start_column)),
+					Some(to_write_to) => {
+						T::insert_slice_chars(to_write_to, char_first_ones_index, char_last_ones_index, value);
+					}
+				}
+				return Ok(());
+			}
+			// Else assign to global variable
+			if has_parentheses {
+				return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+			}
+			match T::get_stored_values_mut(self).simple_variables.get_mut(name.into()) {
+				None => return Err(ErrorVariant::VariableReadUninitialized.at_column(l_value_start_column)),
+				Some(to_write_to) => {
+					T::insert_slice_chars(to_write_to, char_first_ones_index, char_last_ones_index, value);
+				}
+			}
 		}
-		// Else assign to global variable
-		if has_parentheses {
-			return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+		else {
+			// If we are writing to an array and it has been created, write to it.
+			if has_parentheses && T::get_stored_values(self).arrays.contains_key(name) {
+				let mut indices = Vec::new();
+				for (argument_index, argument_value) in l_value_arguments.into_iter().enumerate() {
+					indices.push(argument_value.to_int().map_err(|err| err.at_column(arguments[argument_index].get_start_column()))?);
+				}
+				T::get_stored_values_mut(self).arrays.get_mut(name).unwrap()
+					.write_element(&indices, value)
+					.map_err(|err| err.at_column(l_value_start_column))?;
+				return Ok(());
+			}
+			// Else assign to global variable
+			if has_parentheses {
+				return Err(ErrorVariant::ArrayOrFunctionNotDefined.at_column(l_value_start_column));
+			}
+			T::get_stored_values_mut(self).simple_variables.insert(name.into(), value);
 		}
-		T::get_stored_values_mut(self).simple_variables.insert(name.into(), value);
 		// Return
 		Ok(())
 	}
@@ -2219,6 +2233,12 @@ impl<T: Value> Array<T> {
 		let index = self.indices_to_elements_index(indices)?;
 		self.elements[index] = Some(element);
 		Ok(())
+	}
+
+	/// Writes an element of an array at the given indices.
+	pub fn get_element_mut(&mut self, indices: &[IntValue]) -> Result<&mut Option<T>, ErrorVariant> {
+		let index = self.indices_to_elements_index(indices)?;
+		Ok(&mut self.elements[index])
 	}
 }
 
