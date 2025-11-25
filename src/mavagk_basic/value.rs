@@ -145,7 +145,22 @@ impl IntValue {
 	}
 
 	pub fn signum(&self) -> Self {
-		Self::new(Rc::new(self.value.signum()))
+		match self {
+			_ if self.is_positive() => Self::one(),
+			_ if self.is_zero()     => Self::zero(),
+			_                       => Self::new(Rc::new(BigInt::from_i8(-1).unwrap())),
+		}
+	}
+
+	pub fn sqrt(self) -> Result<Self, ErrorVariant> {
+		match self {
+			value if value.is_negative() => return Err(ErrorVariant::SquareRootOfNegative),
+			value => Ok(Self::new(Rc::new(value.value.sqrt()))),
+		}
+	}
+
+	pub fn abs(self) -> Self {
+		Self::new(Rc::new(self.value.abs()))
 	}
 	
 	pub fn to_bool(&self) -> BoolValue {
@@ -1849,6 +1864,26 @@ impl AnyTypeValue {
 			Self::String(value) => return Ok(value),
 			_ => return Err(ErrorVariant::NumberCastToString),
 		}
+	}
+
+	pub fn floor_to_int(self) -> Result<IntValue, ErrorVariant> {
+		match self {
+			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => self.to_int(),
+			_ => {
+				let float_value = self.to_float()?.value.floor();
+				match BigInt::from_f64(float_value) {
+					Some(result) => Ok(IntValue::new(Rc::new(result))),
+					None => Err(ErrorVariant::NonNumberValueCastToInt(float_value)),
+				}
+			}
+		}
+	}
+
+	pub fn signum_to_int(self) -> Result<IntValue, ErrorVariant> {
+		Ok(match self {
+			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => self.to_int()?.signum(),
+			_ => self.to_float()?.signum().to_int().unwrap(),
+		})
 	}
 
 	pub fn print<T: Write>(&self, f: &mut T, print_leading_positive_space: bool, print_trailing_numeric_space: bool, options: &Options) -> io::Result<()> {

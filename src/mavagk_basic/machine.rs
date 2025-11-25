@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs::{File, create_dir_all}, io::{BufRead, Cursor
 
 use chrono::{Datelike, Local, Timelike};
 use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle, PrintStyledContent, StyledContent}, terminal::{Clear, ClearType}};
-use num::{BigInt, FromPrimitive, Signed, Zero};
+use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::Options, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
@@ -1906,68 +1906,47 @@ impl Machine {
 
 	pub fn execute_int_supplied_function(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<Option<IntValue>, Error> {
 		// Unpack
-		let IntLValue { arguments, has_parentheses, start_column, supplied_function, .. } = l_value;
+		let IntLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
-			match (supplied_function, arguments) {
-				// SQR%(X)
-				(SuppliedFunction::Sqr, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return match self.execute_any_type_expression(&arguments[0], program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))? {
-						result if result.is_negative() => Err(ErrorVariant::IntSquareRootOfNegativeNumber.at_column(*start_column)),
-						result => Ok(Some(IntValue::new(Rc::new(result.value.sqrt()))))
-					};
+			match supplied_function {
+				// Constants and pseudo-variables
+				_ if !has_parentheses => match supplied_function {
+					SuppliedFunction::True => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
+					SuppliedFunction::False => return Ok(Some(IntValue::zero())),
+					_ => return Ok(None),
 				}
-				// ABS%(X)
-				(SuppliedFunction::Abs, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(Some(IntValue::new(Rc::new(
-						self.execute_any_type_expression(argument, program)?.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.value.abs()
-					))))
+				// Functions that have one int argument
+				SuppliedFunction::Sqr | SuppliedFunction::Abs if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Sqr => argument_value.sqrt().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Abs => argument_value.abs(),
+						_ => unreachable!()
+					}));
 				}
-				// TRUE%
-				(SuppliedFunction::Abs, _) if !has_parentheses => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
-				// FALSE%
-				(SuppliedFunction::False, _) if !has_parentheses => return Ok(Some(IntValue::zero())),
-				// INT%(X)
-				(SuppliedFunction::Int, arguments) if arguments.len() == 1 =>
-					return Ok(Some({
-						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument, program)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?,
-							_ => {
-								let float_value = value.to_float().map_err(|error| error.at_column(argument.get_start_column()))?.value.floor();
-								match BigInt::from_f64(float_value) {
-									Some(result) => IntValue::new(Rc::new(result)),
-									None => return Err(ErrorVariant::NonNumberValueCastToInt(float_value).at_column(*start_column)),
-								}
-							}
-						}
-					})),
-				// LEN%(X$)
-				(SuppliedFunction::Len, arguments) if arguments.len() == 1 => {
-					let argument = &arguments[0];
-					return Ok(Some(IntValue::from_usize(self.execute_any_type_expression(argument, program)?
-						.to_string().map_err(|error| error.at_column(argument.get_start_column()))?.count_chars())))
+				// Functions that have one argument that can be multiple types
+				SuppliedFunction::Int | SuppliedFunction::Sgn if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Int => argument_value.floor_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sgn => argument_value.signum_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						_ => unreachable!()
+					}));
 				}
-				// SGN%(X)
-				(SuppliedFunction::Sgn, arguments) if arguments.len() == 1 =>
-					return Ok(Some(IntValue::new(Rc::new({
-						let argument = &arguments[0];
-						let value = self.execute_any_type_expression(argument, program)?;
-						match value {
-							AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => return Ok(Some(value.to_int().map_err(|error| error.at_column(argument.get_start_column()))?.signum())),
-							_ => {
-								match value.to_float().map_err(|error| error.at_column(argument.get_start_column()))? {
-									value if value.is_zero() => 0.into(),
-									value if value.is_negative() => (-1).into(),
-									value if value.is_positive() => 1.into(),
-									value => return Err(ErrorVariant::NonNumberValueCastToInt(value.value).at_column(*start_column)),
-								}
-							}
-						}
-					})))),
+				// Functions that have one string argument
+				SuppliedFunction::Len if arguments.len() == 1 => {
+					let argument_expression = &arguments[0];
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?
+						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Len => IntValue::from_usize(argument_value.count_chars()),
+						_ => unreachable!()
+					}))
+				}
 				_ => {}
 			}
 		}

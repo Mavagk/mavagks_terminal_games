@@ -942,7 +942,7 @@ impl SuppliedFunction {
 	pub fn get_names(self) -> &'static [&'static str] {
 		match self {
 			Self::Abs       => &["ABS"],
-			Self::Sqr       => &["SQR"],
+			Self::Sqr       => &["SQR", "SQRT"],
 			Self::True      => &["TRUE"],
 			Self::False     => &["FALSE"],
 			Self::Int       => &["INT"],
