@@ -899,6 +899,12 @@ pub enum SuppliedFunction {
 	Atan2,
 	Ceil,
 	Date,
+	Second,
+	Minute,
+	Hour,
+	Day,
+	Month,
+	Year,
 	Deg,
 	Fp,
 	Log10,
@@ -1016,6 +1022,12 @@ impl SuppliedFunction {
 			Self::Left      => &["LEFT"],
 			Self::Right     => &["RIGHT"],
 			Self::Mid       => &["MID"],
+			Self::Day       => &["DAY"],
+			Self::Month     => &["MONTH"],
+			Self::Year      => &["YEAR"],
+			Self::Second    => &["SECOND"],
+			Self::Minute    => &["MINUTE"],
+			Self::Hour      => &["HOUR"],
 		}
 	}
 

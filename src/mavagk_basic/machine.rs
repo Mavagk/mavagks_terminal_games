@@ -1659,6 +1659,12 @@ impl Machine {
 						}
 						FloatValue::from_u32((date.year() % 100) as u32 * 1000 + day_of_year)
 					})),
+					SuppliedFunction::Second => return Ok(Some(FloatValue::from_u32(Local::now().second()))),
+					SuppliedFunction::Minute => return Ok(Some(FloatValue::from_u32(Local::now().minute()))),
+					SuppliedFunction::Hour => return Ok(Some(FloatValue::from_u32(Local::now().hour()))),
+					SuppliedFunction::Day => return Ok(Some(FloatValue::from_u32(Local::now().day()))),
+					SuppliedFunction::Month => return Ok(Some(FloatValue::from_u32(Local::now().month()))),
+					SuppliedFunction::Year => return Ok(Some(FloatValue::from_i32(Local::now().year()))),
 					_ => return Ok(None),
 				}
 				// ABS(X#)
