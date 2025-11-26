@@ -798,6 +798,15 @@ impl FloatValue {
 			false => Err(ErrorVariant::LogOfNonPositive)
 		}
 	}
+
+	pub fn log(self, base: Self, options: &Options) -> Result<Self, ErrorVariant> {
+		let result = self.value.log(base.value);
+		match result.is_finite() || options.allow_real_log_of_non_positive() {
+			true => Ok(Self::new(result)),
+			false => Err(ErrorVariant::LogOfNonPositive)
+		}
+	}
+
 	pub fn log2(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let result = self.value.log2();
 		match result.is_finite() || options.allow_real_log_of_non_positive() {
@@ -805,6 +814,7 @@ impl FloatValue {
 			false => Err(ErrorVariant::LogOfNonPositive)
 		}
 	}
+
 	pub fn log10(self, options: &Options) -> Result<Self, ErrorVariant> {
 		let result = self.value.log10();
 		match result.is_finite() || options.allow_real_log_of_non_positive() {
