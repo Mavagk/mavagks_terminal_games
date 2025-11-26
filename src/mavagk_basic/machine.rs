@@ -1983,14 +1983,41 @@ impl Machine {
 				// Constants
 				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
 				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr | SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan if arguments.len() == 1 => {
+				SuppliedFunction::Sqr |
+				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
+				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
+				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
+				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
-					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
+					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex()
+						.map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Sqr => argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sin => argument_value.sin(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cos => argument_value.cos(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tan => argument_value.tan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+
+						SuppliedFunction::Sin =>   argument_value.sin  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cos =>   argument_value.cos  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tan =>   argument_value.tan  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cot =>   argument_value.cot  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sec =>   argument_value.sec  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Csc =>   argument_value.csc  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asin =>  argument_value.asin (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acos =>  argument_value.acos (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Atan =>  argument_value.atan (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acot =>  argument_value.acot (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asec =>  argument_value.asec (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acsc =>  argument_value.acsc (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sinh =>  argument_value.sinh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cosh =>  argument_value.cosh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tanh =>  argument_value.tanh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Coth =>  argument_value.coth (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sech =>  argument_value.sech (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Csch =>  argument_value.csch (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asinh => argument_value.asinh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acosh => argument_value.acosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Atanh => argument_value.atanh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acoth => argument_value.acoth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Asech => argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Acsch => argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}))
 				}

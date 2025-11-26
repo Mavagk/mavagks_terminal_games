@@ -1168,6 +1168,216 @@ impl ComplexValue {
 		}
 	}
 
+	pub fn cot(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.cos() / self.value.sin() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn sec(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match 1. / self.value.cos() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn csc(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match 1. / self.value.sin() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn asin(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.asin() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acos(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.acos() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn atan(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.atan() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acot(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.cos() / self.value.atan() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn asec(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match (1. / self.value).acos() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acsc(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match (1. / self.value).asin() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn sinh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.sinh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn cosh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.cosh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn tanh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.tanh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn coth(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.sinh() / self.value.cosh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn sech(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match 1. / self.value.cosh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn csch(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match 1. / self.value.sinh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn asinh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.asinh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acosh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.acosh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn atanh(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.atanh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acoth(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match (1. / self.value).atanh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn asech(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match (1. / self.value).acosh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn acsch(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match (1. / self.value).asinh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
 	pub const fn re(self) -> FloatValue {
 		FloatValue::new(self.value.re)
 	}
