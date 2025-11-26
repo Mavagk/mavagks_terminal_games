@@ -1911,6 +1911,32 @@ impl AnyTypeValue {
 		}
 	}
 
+	pub fn ceil_to_int(self) -> Result<IntValue, ErrorVariant> {
+		match self {
+			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => self.to_int(),
+			_ => {
+				let float_value = self.to_float()?.value.ceil();
+				match BigInt::from_f64(float_value) {
+					Some(result) => Ok(IntValue::new(Rc::new(result))),
+					None => Err(ErrorVariant::NonNumberValueCastToInt(float_value)),
+				}
+			}
+		}
+	}
+
+	pub fn integer_part_to_int(self) -> Result<IntValue, ErrorVariant> {
+		match self {
+			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => self.to_int(),
+			_ => {
+				let float_value = self.to_float()?.value.trunc();
+				match BigInt::from_f64(float_value) {
+					Some(result) => Ok(IntValue::new(Rc::new(result))),
+					None => Err(ErrorVariant::NonNumberValueCastToInt(float_value)),
+				}
+			}
+		}
+	}
+
 	pub fn signum_to_int(self) -> Result<IntValue, ErrorVariant> {
 		Ok(match self {
 			AnyTypeValue::Bool(_) | AnyTypeValue::Int(_) => self.to_int()?.signum(),

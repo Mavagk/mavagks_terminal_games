@@ -898,6 +898,7 @@ pub enum SuppliedFunction {
 	Angle,
 	Atan2,
 	Ceil,
+	Floor,
 	Date,
 	Second,
 	Minute,
@@ -1028,6 +1029,7 @@ impl SuppliedFunction {
 			Self::Second    => &["SECOND"],
 			Self::Minute    => &["MINUTE"],
 			Self::Hour      => &["HOUR"],
+			Self::Floor     => &["FLOOR"],
 		}
 	}
 

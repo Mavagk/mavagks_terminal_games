@@ -1679,7 +1679,7 @@ impl Machine {
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
 				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
 				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch |
-				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil |
+				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil | SuppliedFunction::Floor |
 				SuppliedFunction::Log10 | SuppliedFunction::Log2 | SuppliedFunction::Eps if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
@@ -1688,7 +1688,7 @@ impl Machine {
 						SuppliedFunction::Sqr =>
 							argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Abs => argument_value.abs(),
-						SuppliedFunction::Int => argument_value.floor(),
+						SuppliedFunction::Int | SuppliedFunction::Floor => argument_value.floor(),
 						SuppliedFunction::Sgn => argument_value.signum(),
 						SuppliedFunction::Sin =>
 							argument_value.sin(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
@@ -1945,11 +1945,13 @@ impl Machine {
 					}));
 				}
 				// Functions that have one argument that can be multiple types
-				SuppliedFunction::Int | SuppliedFunction::Sgn if arguments.len() == 1 => {
+				SuppliedFunction::Int | SuppliedFunction::Floor | SuppliedFunction::Ceil | SuppliedFunction::Ip | SuppliedFunction::Sgn if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Int => argument_value.floor_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Int | SuppliedFunction::Floor => argument_value.floor_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Ceil => argument_value.ceil_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Ip => argument_value.integer_part_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Sgn => argument_value.signum_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}));
