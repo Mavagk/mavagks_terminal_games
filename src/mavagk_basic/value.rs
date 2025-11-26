@@ -1124,16 +1124,46 @@ impl ComplexValue {
 		BoolValue::new(self.value != rhs.value)
 	}
 
-	pub fn abs(self, allow_overflow: bool) -> Result<FloatValue, ErrorVariant> {
+	pub fn abs(self, options: &Options) -> Result<FloatValue, ErrorVariant> {
 		match self.value.norm() {
-			value if value.is_infinite() && !allow_overflow => Err(ErrorVariant::ValueOverflow),
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
 			value => Ok(FloatValue::new(value)),
 		}
 	}
 
-	pub fn sqrt(self, allow_overflow: bool) -> Result<ComplexValue, ErrorVariant> {
+	pub fn sqrt(self, options: &Options) -> Result<ComplexValue, ErrorVariant> {
 		match self.value.sqrt() {
-			value if value.is_infinite() && !allow_overflow => Err(ErrorVariant::ValueOverflow),
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn sin(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.sin() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn cos(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.cos() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn tan(self, options: &Options) -> Result<Self, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.tan() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
 			value => Ok(ComplexValue::new(value)),
 		}
 	}

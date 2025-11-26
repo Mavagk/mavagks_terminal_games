@@ -1671,7 +1671,7 @@ impl Machine {
 				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
 					return Ok(Some(self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
-						.abs(self.options.allow_overflow()).map_err(|error| error.at_column(argument.get_start_column()))?));
+						.abs(&self.options).map_err(|error| error.at_column(argument.get_start_column()))?));
 				}
 				// Functions that have one float argument
 				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
@@ -1983,11 +1983,14 @@ impl Machine {
 				// Constants
 				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
 				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr if arguments.len() == 1 => {
+				SuppliedFunction::Sqr | SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Sqr => argument_value.sqrt(self.options.allow_overflow()).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sqr => argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Sin => argument_value.sin(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Cos => argument_value.cos(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Tan => argument_value.tan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}))
 				}
