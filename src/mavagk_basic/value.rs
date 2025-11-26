@@ -132,6 +132,14 @@ impl IntValue {
 		Self::new(Rc::new(BigInt::from_u32(value).unwrap()))
 	}
 
+	pub fn from_u64(value: u64) -> Self {
+		Self::new(Rc::new(BigInt::from_u64(value).unwrap()))
+	}
+
+	pub fn from_i32(value: i32) -> Self {
+		Self::new(Rc::new(BigInt::from_i32(value).unwrap()))
+	}
+
 	pub fn is_zero(&self) -> bool {
 		self.value.is_zero()
 	}
@@ -156,6 +164,30 @@ impl IntValue {
 		match self {
 			value if value.is_negative() => return Err(ErrorVariant::SquareRootOfNegative),
 			value => Ok(Self::new(Rc::new(value.value.sqrt()))),
+		}
+	}
+
+	pub fn ilog2(&self) -> Result<Self, ErrorVariant> {
+		match self {
+			value if value.is_negative() || value.is_zero() => return Err(ErrorVariant::LogOfNonPositive),
+			value => Ok(Self::from_u64(value.value.bits() - 1)),
+		}
+	}
+
+	pub fn ilog10(&self) -> Result<Self, ErrorVariant> {
+		match self {
+			value if value.is_negative() || value.is_zero() => return Err(ErrorVariant::LogOfNonPositive),
+			value => {
+				let mut temp = (*value.value).clone();
+				for result in 0u64.. {
+					temp /= 10;
+					if temp.is_zero() {
+						return Ok(Self::from_u64(result));
+					}
+				}
+				unreachable!()
+				//Ok(Self::from_u64(value.value.bits() - 1)),
+			}
 		}
 	}
 

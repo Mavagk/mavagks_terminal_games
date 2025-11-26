@@ -1914,16 +1914,33 @@ impl Machine {
 				_ if !has_parentheses => match supplied_function {
 					SuppliedFunction::True => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
 					SuppliedFunction::False => return Ok(Some(IntValue::zero())),
+					SuppliedFunction::Time => return Ok(Some(IntValue::from_u32(Local::now().num_seconds_from_midnight()))),
+					SuppliedFunction::Date => return Ok(Some({
+						let date = Local::now();
+						let mut day_of_year = date.day();
+						for month in 1..date.month() {
+							day_of_year += date.with_day(1).unwrap().with_month(month).unwrap().num_days_in_month() as u32;
+						}
+						IntValue::from_u32((date.year() % 100) as u32 * 1000 + day_of_year)
+					})),
+					SuppliedFunction::Second => return Ok(Some(IntValue::from_u32(Local::now().second()))),
+					SuppliedFunction::Minute => return Ok(Some(IntValue::from_u32(Local::now().minute()))),
+					SuppliedFunction::Hour => return Ok(Some(IntValue::from_u32(Local::now().hour()))),
+					SuppliedFunction::Day => return Ok(Some(IntValue::from_u32(Local::now().day()))),
+					SuppliedFunction::Month => return Ok(Some(IntValue::from_u32(Local::now().month()))),
+					SuppliedFunction::Year => return Ok(Some(IntValue::from_i32(Local::now().year()))),
 					_ => return Ok(None),
 				}
 				// Functions that have one int argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs if arguments.len() == 1 => {
+				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Log2 | SuppliedFunction::Log10 if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Sqr => argument_value.sqrt().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Abs => argument_value.abs(),
+						SuppliedFunction::Log2 => argument_value.ilog2().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log10 => argument_value.ilog10().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}));
 				}
