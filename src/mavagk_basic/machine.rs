@@ -1983,7 +1983,7 @@ impl Machine {
 				// Constants
 				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
 				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr |
+				SuppliedFunction::Sqr | SuppliedFunction::Exp | SuppliedFunction::Log | SuppliedFunction::Log2 | SuppliedFunction::Log10 |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
 				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
@@ -1993,6 +1993,10 @@ impl Machine {
 						.map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Sqr => argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log => argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log2 => argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Log10 => argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 
 						SuppliedFunction::Sin =>   argument_value.sin  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cos =>   argument_value.cos  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
@@ -2019,6 +2023,19 @@ impl Machine {
 						SuppliedFunction::Asech => argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Acsch => argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
+					}))
+				}
+				// Functions that have two complex arguments
+				SuppliedFunction::Log if arguments.len() == 2 => {
+					let argument_expression_0 = &arguments[0];
+					let argument_expression_1 = &arguments[1];
+					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
+						.to_complex().map_err(|error| error.at_column(argument_expression_0.get_start_column()))?;
+					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
+						.to_complex().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
+					return Ok(Some(match supplied_function {
+						SuppliedFunction::Log => argument_value_1.log(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
+						_ => unreachable!()
 					}))
 				}
 				_ => {}

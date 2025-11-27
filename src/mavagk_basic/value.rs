@@ -1,6 +1,6 @@
 use std::{collections::{HashMap, HashSet}, f64::{INFINITY, NAN, NEG_INFINITY, consts::{E, PI, TAU}}, fmt::{self, Display, Formatter}, io::{self, Write}, num::NonZeroUsize, rc::Rc};
 
-use num::{complex::Complex64, BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero};
+use num::{BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero, complex::Complex64};
 
 use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::{AngleOption, Options}, program::Program, token::{IdentifierType, SuppliedFunction}};
 
@@ -1373,6 +1373,41 @@ impl ComplexValue {
 			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
 		}
 		match (1. / self.value).asinh() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn exp(self, options: &Options) -> Result<Self, ErrorVariant> {
+		match self.value.exp() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn ln(self, options: &Options) -> Result<Self, ErrorVariant> {
+		match self.value.ln() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn log2(self, options: &Options) -> Result<Self, ErrorVariant> {
+		match self.value.log2() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn log10(self, options: &Options) -> Result<Self, ErrorVariant> {
+		match self.value.log10() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(ComplexValue::new(value)),
+		}
+	}
+
+	pub fn log(self, base: Self, options: &Options) -> Result<Self, ErrorVariant> {
+		match self.value.ln() / base.value.ln() {
 			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
 			value => Ok(ComplexValue::new(value)),
 		}
