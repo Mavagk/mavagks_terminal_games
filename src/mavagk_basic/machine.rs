@@ -1805,13 +1805,14 @@ impl Machine {
 					return Ok(Some(result));
 				}
 				// Functions that have one complex argument
-				SuppliedFunction::Real | SuppliedFunction::Imag if arguments.len() == 1 => {
+				SuppliedFunction::Real | SuppliedFunction::Imag | SuppliedFunction::Arg if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
 						SuppliedFunction::Real => argument_value.re(),
 						SuppliedFunction::Imag => argument_value.im(),
+						SuppliedFunction::Arg => argument_value.arg(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}))
 				}
@@ -1983,7 +1984,7 @@ impl Machine {
 				// Constants
 				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
 				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr | SuppliedFunction::Exp | SuppliedFunction::Log | SuppliedFunction::Log2 | SuppliedFunction::Log10 |
+				SuppliedFunction::Sqr | SuppliedFunction::Exp | SuppliedFunction::Log | SuppliedFunction::Log2 | SuppliedFunction::Log10 | SuppliedFunction::Conj |
 				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
 				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
 				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
@@ -1997,6 +1998,7 @@ impl Machine {
 						SuppliedFunction::Log => argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log2 => argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Log10 => argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunction::Conj => argument_value.conj(),
 
 						SuppliedFunction::Sin =>   argument_value.sin  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						SuppliedFunction::Cos =>   argument_value.cos  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,

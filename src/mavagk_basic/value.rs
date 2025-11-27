@@ -1413,6 +1413,20 @@ impl ComplexValue {
 		}
 	}
 
+	pub fn conj(self) -> Self {
+		ComplexValue::new(self.value.conj())
+	}
+
+	pub fn arg(self, options: &Options) -> Result<FloatValue, ErrorVariant> {
+		if options.get_angle_option() != AngleOption::Radians {
+			return Err(ErrorVariant::Unimplemented("Complex trigonometric function evaluated while the OPTION ANGLE was not set to RADIANS.".into()));
+		}
+		match self.value.arg() {
+			value if !value.is_finite() && !options.allow_overflow() => Err(ErrorVariant::ValueOverflow),
+			value => Ok(FloatValue::new(value)),
+		}
+	}
+
 	pub const fn re(self) -> FloatValue {
 		FloatValue::new(self.value.re)
 	}

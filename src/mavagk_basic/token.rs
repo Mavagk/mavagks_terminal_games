@@ -936,6 +936,8 @@ pub enum SuppliedFunction {
 	Left,
 	Right,
 	Mid,
+	Arg,
+	Conj,
 }
 
 impl SuppliedFunction {
@@ -1030,6 +1032,8 @@ impl SuppliedFunction {
 			Self::Minute    => &["MINUTE"],
 			Self::Hour      => &["HOUR"],
 			Self::Floor     => &["FLOOR"],
+			Self::Arg       => &["ARG"],
+			Self::Conj      => &["CONJ"],
 		}
 	}
 
