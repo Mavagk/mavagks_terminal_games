@@ -825,6 +825,27 @@ pub fn optimize_string_expression(expression: &mut StringExpression) {
 			optimize_string_expression(to_slice_expression);
 			optimize_int_expression(range_start_expression);
 			optimize_int_expression(range_end_expression);
+			match (&**to_slice_expression, &**range_start_expression, &**range_end_expression) {
+				(StringExpression::ConstantValue { .. }, IntExpression::ConstantValue { .. }, IntExpression::ConstantValue { .. }) => {
+					let (to_slice_expression, range_start_expression, range_end_expression, start_column) =
+						match replace(expression, StringExpression::ConstantValue { value: StringValue::empty(), start_column: 1.try_into().unwrap() })
+					{
+						StringExpression::StringSlicing { to_slice_expression, range_start_expression, range_end_expression, start_column } =>
+							(to_slice_expression, range_start_expression, range_end_expression, start_column),
+						_ => unreachable!(),
+					};
+					let (to_slice_value, range_start_value, range_end_value) = match (*to_slice_expression, *range_start_expression, *range_end_expression) {
+						(
+							StringExpression::ConstantValue { value: to_slice_value, .. },
+							IntExpression::ConstantValue { value: range_start_value, .. },
+							IntExpression::ConstantValue { value: range_end_value, .. }
+						) => (to_slice_value, range_start_value, range_end_value),
+						_ => unreachable!(),
+					};
+					*expression = StringExpression::ConstantValue { value: to_slice_value.slice_chars(range_start_value, range_end_value), start_column };
+				}
+				_ => {}
+			}
 		}
 	}
 }
