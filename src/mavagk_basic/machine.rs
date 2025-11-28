@@ -1361,6 +1361,12 @@ impl Machine {
 			StringExpression::Concatenation { lhs_expression, rhs_expression, .. } =>
 				self.execute_string_expression(lhs_expression, program)?.concat(self.execute_string_expression(rhs_expression, program)?),
 			StringExpression::LValue(l_value) => self.execute_l_value_read(l_value, program)?,
+			StringExpression::StringSlicing { to_slice_expression, range_start_expression, range_end_expression, .. } => {
+				let to_slice_value = self.execute_string_expression(to_slice_expression, program)?;
+				let range_start_value = self.execute_int_expression(range_start_expression, program)?;
+				let range_end_value = self.execute_int_expression(range_end_expression, program)?;
+				to_slice_value.slice_chars(range_start_value, range_end_value)
+			}
 		})
 	}
 

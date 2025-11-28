@@ -1112,64 +1112,108 @@ fn solve_operators_by_precedence(expression_stack: &mut Vec<(AnyTypeExpression, 
 
 /// Parse the parts of an expression that are separated by operators from a list of tokens, removes the parsed tokens. Eg. "2", "(3 + 2)", "f(x)", not "1 + 2".
 fn parse_expression_primary<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeExpression>, Error> {
-	// Get the first token or return if there are no more tokens to parse
-	let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
-		Some(first_token) => first_token,
-		None => return Ok(None),
+	// Get the expression before any string slicings
+	let mut expression_primary = {
+		// Get the first token or return if there are no more tokens to parse
+		let Token { variant: first_token_variant, start_column: first_token_start_column, end_column: _ } = match tokens.tokens.first() {
+			Some(first_token) => first_token,
+			None => return Ok(None),
+		};
+		// Parse the expression primary
+		match first_token_variant {
+			// Literals
+			TokenVariant::IntegerLiteral(value) => {
+				tokens.take_next_token();
+				AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone().into()) }, start_column: *first_token_start_column })
+			}
+			TokenVariant::FloatLiteral { value, is_imaginary } => {
+				tokens.take_next_token();
+				match *is_imaginary {
+					false => AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::new(*value), start_column: *first_token_start_column }),
+					true => AnyTypeExpression::Complex(ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }),
+				}
+			}
+			TokenVariant::StringLiteral(value) => {
+				tokens.take_next_token();
+				AnyTypeExpression::String(StringExpression::ConstantValue { value: StringValue { value: Rc::new(value.to_string().clone()) }, start_column: *first_token_start_column })
+			}
+			// An expression in parentheses
+			TokenVariant::LeftParenthesis => {
+				tokens.take_next_token();
+				// Get the sub-expression
+				let sub_expression = match parse_expression(tokens)? {
+					None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
+					Some(sub_expression) => sub_expression,
+				};
+				// Make sure that there is a closing parenthesis after the sub-expression
+				match tokens.take_next_token() {
+					Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {}
+					Some(Token { variant: _, start_column, .. }) => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(*start_column)),
+					None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
+				}
+				// Return
+				sub_expression
+			}
+			// There should not be operators
+			TokenVariant::Operator(..) => return Err(ErrorVariant::UnexpectedOperator.at_column(*first_token_start_column)),
+			// Identifiers
+			TokenVariant::Identifier { .. } => {
+				match parse_l_value(tokens)? {
+					Some(AnyTypeLValue::Int(l_value)) => AnyTypeExpression::Int(IntExpression::LValue(l_value)),
+					Some(AnyTypeLValue::Float(l_value)) => AnyTypeExpression::Float(FloatExpression::LValue(l_value)),
+					Some(AnyTypeLValue::Complex(l_value)) => AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)),
+					Some(AnyTypeLValue::String(l_value)) => AnyTypeExpression::String(StringExpression::LValue(l_value)),
+					None => return Ok(None),
+				}
+			}
+			// End of expression
+			TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
+			TokenVariant::SingleQuestionMark =>
+				return Err(ErrorVariant::NotYetImplemented("Question mark not as type".into()).at_column(*first_token_start_column)),
+			TokenVariant::Datum(_) => unreachable!(),
+		}
 	};
-	// Parse the expression primary
-	Ok(Some(match first_token_variant {
-		// Literals
-		TokenVariant::IntegerLiteral(value) => {
-			tokens.take_next_token();
-			AnyTypeExpression::Int(IntExpression::ConstantValue { value: IntValue { value: Rc::new(value.clone().into()) }, start_column: *first_token_start_column })
-		}
-		TokenVariant::FloatLiteral { value, is_imaginary } => {
-			tokens.take_next_token();
-			match *is_imaginary {
-				false => AnyTypeExpression::Float(FloatExpression::ConstantValue { value: FloatValue::new(*value), start_column: *first_token_start_column }),
-				true => AnyTypeExpression::Complex(ComplexExpression::ConstantValue { value: ComplexValue { value: Complex64::new(0., *value) }, start_column: *first_token_start_column }),
-			}
-		}
-		TokenVariant::StringLiteral(value) => {
-			tokens.take_next_token();
-			AnyTypeExpression::String(StringExpression::ConstantValue { value: StringValue { value: Rc::new(value.to_string().clone()) }, start_column: *first_token_start_column })
-		}
-		// An expression in parentheses
-		TokenVariant::LeftParenthesis => {
-			tokens.take_next_token();
-			// Get the sub-expression
-			let sub_expression = match parse_expression(tokens)? {
-				None => return Err(ErrorVariant::ExpectedExpression.at_column(tokens.last_removed_token_end_column)),
-				Some(sub_expression) => sub_expression,
+	// Parse slicings
+	loop {
+		if let AnyTypeExpression::String(expression_primary_before_slicing) = &mut expression_primary {
+			// Get left parenthesis or break
+			let slice_operator_start_column = match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::LeftParenthesis, start_column, .. }) => start_column,
+				_ => break,
 			};
-			// Make sure that there is a closing parenthesis after the sub-expression
-			match tokens.take_next_token() {
-				Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {}
-				Some(Token { variant: _, start_column, .. }) => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(*start_column)),
+			tokens.take_next_token();
+			// Get slice start
+			let slice_start_index_expression = Box::new(cast_to_int_expression(parse_expression(tokens)?.unwrap())?);
+			// Expect colon
+			match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::Colon, .. }) => {},
+				Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(*start_column)),
+				None => return Err(ErrorVariant::ExpectedColonAfterIfMissingThen.at_column(tokens.last_removed_token_end_column)),
+			};
+			tokens.take_next_token();
+			// Get slice end
+			let slice_end_index_expression = Box::new(cast_to_int_expression(parse_expression(tokens)?.unwrap())?);
+			// Expect closing parenthesis
+			match tokens.tokens.get(0) {
+				Some(Token { variant: TokenVariant::RightParenthesis, .. }) => {},
+				Some(Token { start_column, .. }) => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(*start_column)),
 				None => return Err(ErrorVariant::ExpectedRightParenthesis.at_column(tokens.last_removed_token_end_column)),
-			}
-			// Return
-			sub_expression
+			};
+			tokens.take_next_token();
+			// Replace expression with slicing expression containing the expression
+			expression_primary = AnyTypeExpression::String(StringExpression::StringSlicing {
+				to_slice_expression: Box::new(expression_primary_before_slicing.clone()),
+				range_start_expression: slice_start_index_expression,
+				range_end_expression: slice_end_index_expression,
+				start_column: *slice_operator_start_column,
+			})
 		}
-		// There should not be operators
-		TokenVariant::Operator(..) => return Err(ErrorVariant::UnexpectedOperator.at_column(*first_token_start_column)),
-		// Identifiers
-		TokenVariant::Identifier { .. } => {
-			match parse_l_value(tokens)? {
-				Some(AnyTypeLValue::Int(l_value)) => AnyTypeExpression::Int(IntExpression::LValue(l_value)),
-				Some(AnyTypeLValue::Float(l_value)) => AnyTypeExpression::Float(FloatExpression::LValue(l_value)),
-				Some(AnyTypeLValue::Complex(l_value)) => AnyTypeExpression::Complex(ComplexExpression::LValue(l_value)),
-				Some(AnyTypeLValue::String(l_value)) => AnyTypeExpression::String(StringExpression::LValue(l_value)),
-				None => return Ok(None),
-			}
+		else {
+			break;
 		}
-		// End of expression
-		TokenVariant::Colon | TokenVariant::Comma | TokenVariant::RightParenthesis | TokenVariant::Semicolon => return Ok(None),
-		TokenVariant::SingleQuestionMark =>
-			return Err(ErrorVariant::NotYetImplemented("Question mark not as type".into()).at_column(*first_token_start_column)),
-		TokenVariant::Datum(_) => unreachable!(),
-	}))
+	}
+	// Return
+	Ok(Some(expression_primary))
 }
 
 /// Will remove a equal sign from the start of `tokens`. Will return an error if it is not found and will not remove the token from the start.

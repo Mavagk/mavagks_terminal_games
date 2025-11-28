@@ -821,6 +821,11 @@ pub fn optimize_string_expression(expression: &mut StringExpression) {
 				_ => {}
 			}
 		}
+		StringExpression::StringSlicing { to_slice_expression, range_start_expression, range_end_expression, .. } => {
+			optimize_string_expression(to_slice_expression);
+			optimize_int_expression(range_start_expression);
+			optimize_int_expression(range_end_expression);
+		}
 	}
 }
 

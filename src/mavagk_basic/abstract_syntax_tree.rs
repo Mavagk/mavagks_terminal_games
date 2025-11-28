@@ -266,10 +266,6 @@ pub enum StatementVariant {
 	Gosub(Option<IntExpression>),
 	StringAssignment(Box<[StringLValue]>, StringExpression),
 	NumericAssignment(Box<[AnyTypeLValue]>, AnyTypeExpression),
-	//AssignInt(Box<[IntLValue]>, IntExpression),
-	//AssignFloat(Box<[FloatLValue]>, FloatExpression),
-	//AssignComplex(Box<[ComplexLValue]>, ComplexExpression),
-	//AssignString(Box<[StringLValue]>, StringExpression),
 	List(Option<IntExpression>, Option<IntExpression>),
 	OneLineIf { condition_expression: BoolExpression, then_statement: Box<Statement>, else_statement: Option<Box<Statement>> },
 	Option(Box<[(OptionVariableAndValue, NonZeroUsize)]>),
@@ -749,6 +745,7 @@ pub enum StringExpression {
 	ConstantValue { value: StringValue, start_column: NonZeroUsize },
 	LValue(StringLValue),
 	Concatenation { lhs_expression: Box<StringExpression>, rhs_expression: Box<StringExpression>, start_column: NonZeroUsize },
+	StringSlicing { to_slice_expression: Box<StringExpression>, range_start_expression: Box<IntExpression>, range_end_expression: Box<IntExpression>, start_column: NonZeroUsize },
 }
 
 impl StringExpression {
@@ -757,6 +754,7 @@ impl StringExpression {
 			Self::ConstantValue { start_column, .. } => *start_column,
 			Self::LValue(l_value) => l_value.start_column,
 			Self::Concatenation { start_column, .. } => *start_column,
+			Self::StringSlicing { start_column, .. } => *start_column,
 		}
 	}
 
@@ -777,6 +775,12 @@ impl StringExpression {
 			Self::LValue(l_value) => {
 				l_value.print(depth);
 			},
+			Self::StringSlicing { to_slice_expression, range_start_expression, range_end_expression, .. } => {
+				println!("String slicing");
+				to_slice_expression.print(depth + 1);
+				range_start_expression.print(depth + 1);
+				range_end_expression.print(depth + 1);
+			}
 		}
 	}
 }
