@@ -1800,16 +1800,6 @@ impl Machine {
 					}
 					return Ok(Some(result));
 				}
-				SuppliedFunction::Max if arguments.len() > 0 => {
-					let mut result = self.execute_any_type_expression(&arguments[0], program)?
-						.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
-					for argument in arguments.iter().skip(1) {
-						let argument_value = self.execute_any_type_expression(argument, program)?
-							.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
-						result = result.max(argument_value);
-					}
-					return Ok(Some(result));
-				}
 				// Functions that have one complex argument
 				SuppliedFunction::Real | SuppliedFunction::Imag | SuppliedFunction::Arg if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
@@ -1952,6 +1942,24 @@ impl Machine {
 						SuppliedFunction::Log10 => argument_value.ilog10().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}));
+				}
+				// Fold functions
+				SuppliedFunction::Xor | SuppliedFunction::Min | SuppliedFunction::Max if arguments.len() > 0 => {
+					// Get first argument
+					let mut result = self.execute_any_type_expression(&arguments[0], program)?
+						.to_int().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+					// Get other values and apply function
+					for argument in arguments.iter().skip(1) {
+						let argument_value = self.execute_any_type_expression(argument, program)?
+							.to_int().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
+						result = match supplied_function {
+							SuppliedFunction::Xor => result.xor(argument_value),
+							SuppliedFunction::Min => result.min(argument_value),
+							SuppliedFunction::Max => result.max(argument_value),
+							_ => unreachable!(),
+						};
+					}
+					return Ok(Some(result));
 				}
 				// Functions that have one argument that can be multiple types
 				SuppliedFunction::Int | SuppliedFunction::Floor | SuppliedFunction::Ceil | SuppliedFunction::Ip | SuppliedFunction::Sgn if arguments.len() == 1 => {

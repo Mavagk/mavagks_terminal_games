@@ -236,6 +236,20 @@ impl IntValue {
 		self
 	}
 
+	pub fn min(self, other: Self) -> Self {
+		if self.value < other.value {
+			return self
+		}
+		other
+	}
+
+	pub fn max(self, other: Self) -> Self {
+		if self.value > other.value {
+			return self
+		}
+		other
+	}
+
 	pub fn not(self) -> Self {
 		Self::new(Rc::new(!&*self.value))
 	}

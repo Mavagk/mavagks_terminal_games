@@ -938,6 +938,7 @@ pub enum SuppliedFunction {
 	Mid,
 	Arg,
 	Conj,
+	Xor,
 }
 
 impl SuppliedFunction {
@@ -1034,6 +1035,7 @@ impl SuppliedFunction {
 			Self::Floor     => &["FLOOR"],
 			Self::Arg       => &["ARG"],
 			Self::Conj      => &["CONJ"],
+			Self::Xor       => &["XOR"],
 		}
 	}
 
