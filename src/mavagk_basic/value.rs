@@ -2,7 +2,7 @@ use std::{collections::{HashMap, HashSet}, f64::{INFINITY, NAN, NEG_INFINITY, co
 
 use num::{BigInt, FromPrimitive, One, Signed, ToPrimitive, Zero, complex::Complex64};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::{AngleOption, Options}, program::Program, token::{IdentifierType, SuppliedFunction}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, StringExpression, StringLValue}, error::{Error, ErrorVariant}, machine::{Machine, StoredValues}, options::{AngleOption, Options}, program::Program, token::{IdentifierType, SuppliedFunctionIdentifier}};
 
 pub fn float_to_int(float_value: f64) -> Option<BigInt> {
 	BigInt::from_f64((float_value + 0.5).floor())
@@ -79,7 +79,7 @@ pub trait Value: Default + Clone {
 	fn get_l_value_arguments<'a>(l_value: &'a Self::LValueType) -> &'a [AnyTypeExpression];
 	fn get_l_value_has_parentheses(l_value: &Self::LValueType) -> bool;
 	fn get_l_value_start_column(l_value: &Self::LValueType) -> NonZeroUsize;
-	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction>;
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier>;
 
 	fn get_stored_values<'a>(machine: &'a Machine) -> &'a StoredValues<Self>;
 	fn get_stored_values_mut<'a>(machine: &'a mut Machine) -> &'a mut StoredValues<Self>;
@@ -388,8 +388,8 @@ impl Value for IntValue {
 		&mut machine.gosub_stack.last_mut().unwrap().local_int_variables
 	}
 
-	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
-		l_value.supplied_function
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
+		l_value.supplied_function_identifier
 	}
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
@@ -995,8 +995,8 @@ impl Value for FloatValue {
 		&mut machine.gosub_stack.last_mut().unwrap().local_float_variables
 	}
 
-	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
-		l_value.supplied_function
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
+		l_value.supplied_function_identifier
 	}
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
@@ -1551,8 +1551,8 @@ impl Value for ComplexValue {
 		&mut machine.gosub_stack.last_mut().unwrap().local_complex_variables
 	}
 
-	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
-		l_value.supplied_function
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
+		l_value.supplied_function_identifier
 	}
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
@@ -1927,8 +1927,8 @@ impl Value for StringValue {
 		&mut machine.gosub_stack.last_mut().unwrap().local_string_variables
 	}
 
-	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunction> {
-		l_value.supplied_function
+	fn get_l_value_supplied_function(l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
+		l_value.supplied_function_identifier
 	}
 
 	fn execute_supplied_function(machine: &mut Machine, l_value: &Self::LValueType, program: Option<&Program>) -> Result<Option<Self>, Error> {
@@ -2112,7 +2112,7 @@ impl Value for BoolValue {
 		unimplemented!()
 	}
 
-	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
 		unimplemented!()
 	}
 
@@ -2324,7 +2324,7 @@ impl Value for AnyTypeValue {
 		unimplemented!()
 	}
 
-	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunction> {
+	fn get_l_value_supplied_function(_l_value: &Self::LValueType) -> Option<SuppliedFunctionIdentifier> {
 		unimplemented!()
 	}
 

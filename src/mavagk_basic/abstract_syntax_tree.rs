@@ -1,8 +1,8 @@
 use std::num::NonZeroUsize;
 
-use strum_macros::EnumDiscriminants;
+use strum_macros::{EnumDiscriminants, EnumIter};
 
-use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunction}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunctionIdentifier}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -291,6 +291,8 @@ pub enum StatementVariant {
 	Clear,
 	Clr,
 	New,
+	//KeywordHelp(Keyword),
+	//FunctionHelp(SuppliedFunctionIdentifier, IdentifierType),
 }
 
 #[derive(Debug, Clone)]
@@ -500,7 +502,8 @@ pub struct IntLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function: Option<SuppliedFunction>,
+	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	pub supplied_function: Option<IntSuppliedFunction>,
 }
 
 impl IntLValue {
@@ -612,7 +615,8 @@ pub struct FloatLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function: Option<SuppliedFunction>,
+	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	pub supplied_function: Option<FloatSuppliedFunction>,
 }
 
 impl FloatLValue {
@@ -632,6 +636,112 @@ impl FloatLValue {
 			argument.print(depth + 1);
 		}
 	}
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+pub enum FloatSuppliedFunction {
+	// Constants
+	Pi,
+	E,
+	Tau,
+	Phi,
+	EGamma,
+	MaxNum,
+	NaN,
+	Inf,
+	NInf,
+	True,
+	False,
+	// Pseudovariables
+	Time,
+	Date,
+	Second,
+	Minute,
+	Hour,
+	Day,
+	Month,
+	Year,
+	// Rounding
+	Floor,
+	Ip,
+	Ceil,
+	Truncate,
+	Round,
+	// Other
+	Abs,
+	Signum,
+	Fp,
+	Deg,
+	Rad,
+	Eps,
+	Sqrt,
+	Exp,
+	Modulo,
+	Remainder,
+	Min,
+	Max,
+	Random,
+	CommodoreRandom,
+	// Logarithm
+	LogE,
+	Log10,
+	Log2,
+	LogN,
+	// Trigonometry
+	Sin,
+	Cos,
+	Tan,
+	Cot,
+	Sec,
+	Csc,
+	Asin,
+	Acos,
+	Atan,
+	Acot,
+	Asec,
+	Acsc,
+	Angle,
+	Atan2,
+	// Hyperbolic Trigonometry
+	Sinh,
+	Cosh,
+	Tanh,
+	Coth,
+	Sech,
+	Csch,
+	Asinh,
+	Acosh,
+	Atanh,
+	Acoth,
+	Asech,
+	Acsch,
+	// Complex to Float
+	Real,
+	Imag,
+	Arg,
+	AbsComplex,
+	// String to Float
+	Len,
+	Ord,
+	Asc,
+	Val,
+	MaxLen,
+	Pos,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+pub enum IntSuppliedFunction {
+	
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+pub enum ComplexSuppliedFunction {
+	
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
+pub enum StringSuppliedFunction {
+	
 }
 
 #[derive(Debug, Clone)]
@@ -718,7 +828,8 @@ pub struct ComplexLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function: Option<SuppliedFunction>,
+	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	pub supplied_function: Option<ComplexSuppliedFunction>,
 }
 
 impl ComplexLValue {
@@ -791,8 +902,9 @@ pub struct StringLValue {
 	pub arguments: Box<[AnyTypeExpression]>,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function: Option<SuppliedFunction>,
+	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
 	pub string_slicings: Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>,
+	pub supplied_function: Option<StringSuppliedFunction>,
 }
 
 impl StringLValue {

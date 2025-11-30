@@ -5,7 +5,7 @@ use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle
 use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::Options, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunction, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{handle_error, Error, ErrorVariant, FullError}, optimize::optimize_statement, options::Options, parse::{parse_line, Tokens}, program::{Line, Program}, token::{parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string, IdentifierType, SuppliedFunctionIdentifier, Token}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -370,7 +370,7 @@ impl Machine {
 					match sub_expression {
 						PrintOperand::Expression(expression) => match expression {
 							// TAB calls
-							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(SuppliedFunction::Tab), .. }))
+							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function_identifier: Some(SuppliedFunctionIdentifier::Tab), .. }))
 								if (&**arguments).len() == 1 && !self.float_stored_values.functions.contains_key(&("TAB".into(), 1)) && !self.float_stored_values.arrays.contains_key("TAB") =>
 							{
 								let argument_expression = &arguments[0];
@@ -1639,25 +1639,25 @@ impl Machine {
 
 	pub fn execute_float_supplied_function(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<Option<FloatValue>, Error> {
 		// Unpack
-		let FloatLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		let FloatLValue { arguments, has_parentheses, start_column: _, supplied_function_identifier: supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
 				// Constants and pseudo-variables
 				_ if !has_parentheses => match supplied_function {
-					SuppliedFunction::Pi => return Ok(Some(FloatValue::PI)),
-					SuppliedFunction::E => return Ok(Some(FloatValue::E)),
-					SuppliedFunction::Tau => return Ok(Some(FloatValue::TAU)),
-					SuppliedFunction::Phi => return Ok(Some(FloatValue::PHI)),
-					SuppliedFunction::EGamma => return Ok(Some(FloatValue::EGAMMA)),
-					SuppliedFunction::MaxNum => return Ok(Some(FloatValue::MAX)),
-					SuppliedFunction::NaN => return Ok(Some(FloatValue::NAN)),
-					SuppliedFunction::Inf => return Ok(Some(FloatValue::INFINITY)),
-					SuppliedFunction::NInf => return Ok(Some(FloatValue::NEG_INFINITY)),
-					SuppliedFunction::True => return Ok(Some(FloatValue::TRUE)),
-					SuppliedFunction::False => return Ok(Some(FloatValue::FALSE)),
-					SuppliedFunction::Time => return Ok(Some(FloatValue::from_u32(Local::now().num_seconds_from_midnight()))),
-					SuppliedFunction::Date => return Ok(Some({
+					SuppliedFunctionIdentifier::Pi => return Ok(Some(FloatValue::PI)),
+					SuppliedFunctionIdentifier::E => return Ok(Some(FloatValue::E)),
+					SuppliedFunctionIdentifier::Tau => return Ok(Some(FloatValue::TAU)),
+					SuppliedFunctionIdentifier::Phi => return Ok(Some(FloatValue::PHI)),
+					SuppliedFunctionIdentifier::EGamma => return Ok(Some(FloatValue::EGAMMA)),
+					SuppliedFunctionIdentifier::MaxNum => return Ok(Some(FloatValue::MAX)),
+					SuppliedFunctionIdentifier::NaN => return Ok(Some(FloatValue::NAN)),
+					SuppliedFunctionIdentifier::Inf => return Ok(Some(FloatValue::INFINITY)),
+					SuppliedFunctionIdentifier::NInf => return Ok(Some(FloatValue::NEG_INFINITY)),
+					SuppliedFunctionIdentifier::True => return Ok(Some(FloatValue::TRUE)),
+					SuppliedFunctionIdentifier::False => return Ok(Some(FloatValue::FALSE)),
+					SuppliedFunctionIdentifier::Time => return Ok(Some(FloatValue::from_u32(Local::now().num_seconds_from_midnight()))),
+					SuppliedFunctionIdentifier::Date => return Ok(Some({
 						let date = Local::now();
 						let mut day_of_year = date.day();
 						for month in 1..date.month() {
@@ -1665,104 +1665,104 @@ impl Machine {
 						}
 						FloatValue::from_u32((date.year() % 100) as u32 * 1000 + day_of_year)
 					})),
-					SuppliedFunction::Second => return Ok(Some(FloatValue::from_u32(Local::now().second()))),
-					SuppliedFunction::Minute => return Ok(Some(FloatValue::from_u32(Local::now().minute()))),
-					SuppliedFunction::Hour => return Ok(Some(FloatValue::from_u32(Local::now().hour()))),
-					SuppliedFunction::Day => return Ok(Some(FloatValue::from_u32(Local::now().day()))),
-					SuppliedFunction::Month => return Ok(Some(FloatValue::from_u32(Local::now().month()))),
-					SuppliedFunction::Year => return Ok(Some(FloatValue::from_i32(Local::now().year()))),
+					SuppliedFunctionIdentifier::Second => return Ok(Some(FloatValue::from_u32(Local::now().second()))),
+					SuppliedFunctionIdentifier::Minute => return Ok(Some(FloatValue::from_u32(Local::now().minute()))),
+					SuppliedFunctionIdentifier::Hour => return Ok(Some(FloatValue::from_u32(Local::now().hour()))),
+					SuppliedFunctionIdentifier::Day => return Ok(Some(FloatValue::from_u32(Local::now().day()))),
+					SuppliedFunctionIdentifier::Month => return Ok(Some(FloatValue::from_u32(Local::now().month()))),
+					SuppliedFunctionIdentifier::Year => return Ok(Some(FloatValue::from_i32(Local::now().year()))),
 					_ => return Ok(None),
 				}
 				// ABS(X#)
-				SuppliedFunction::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
+				SuppliedFunctionIdentifier::Abs if arguments.len() == 1 && arguments[0].is_complex() => {
 					let argument = &arguments[0];
 					return Ok(Some(self.execute_any_type_expression(argument, program)?.to_complex().map_err(|error| error.at_column(argument.get_start_column()))?
 						.abs(&self.options).map_err(|error| error.at_column(argument.get_start_column()))?));
 				}
 				// Functions that have one float argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Int | SuppliedFunction::Sgn | SuppliedFunction::Log | SuppliedFunction::Exp |
-				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
-				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
-				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch |
-				SuppliedFunction::Ip | SuppliedFunction::Fp | SuppliedFunction::Deg | SuppliedFunction::Rad | SuppliedFunction::Ceil | SuppliedFunction::Floor |
-				SuppliedFunction::Log10 | SuppliedFunction::Log2 | SuppliedFunction::Eps if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Sqr | SuppliedFunctionIdentifier::Abs | SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Sgn | SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Exp |
+				SuppliedFunctionIdentifier::Sin | SuppliedFunctionIdentifier::Cos | SuppliedFunctionIdentifier::Tan | SuppliedFunctionIdentifier::Cot | SuppliedFunctionIdentifier::Sec | SuppliedFunctionIdentifier::Csc |
+				SuppliedFunctionIdentifier::Asin | SuppliedFunctionIdentifier::Acos | SuppliedFunctionIdentifier::Atan | SuppliedFunctionIdentifier::Acot | SuppliedFunctionIdentifier::Asec | SuppliedFunctionIdentifier::Acsc |
+				SuppliedFunctionIdentifier::Sinh | SuppliedFunctionIdentifier::Cosh | SuppliedFunctionIdentifier::Tanh | SuppliedFunctionIdentifier::Coth | SuppliedFunctionIdentifier::Sech | SuppliedFunctionIdentifier::Csch |
+				SuppliedFunctionIdentifier::Asinh | SuppliedFunctionIdentifier::Acosh | SuppliedFunctionIdentifier::Atanh | SuppliedFunctionIdentifier::Acoth | SuppliedFunctionIdentifier::Asech | SuppliedFunctionIdentifier::Acsch |
+				SuppliedFunctionIdentifier::Ip | SuppliedFunctionIdentifier::Fp | SuppliedFunctionIdentifier::Deg | SuppliedFunctionIdentifier::Rad | SuppliedFunctionIdentifier::Ceil | SuppliedFunctionIdentifier::Floor |
+				SuppliedFunctionIdentifier::Log10 | SuppliedFunctionIdentifier::Log2 | SuppliedFunctionIdentifier::Eps if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_float().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Sqr =>
+						SuppliedFunctionIdentifier::Sqr =>
 							argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Abs => argument_value.abs(),
-						SuppliedFunction::Int | SuppliedFunction::Floor => argument_value.floor(),
-						SuppliedFunction::Sgn => argument_value.signum(),
-						SuppliedFunction::Sin =>
+						SuppliedFunctionIdentifier::Abs => argument_value.abs(),
+						SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Floor => argument_value.floor(),
+						SuppliedFunctionIdentifier::Sgn => argument_value.signum(),
+						SuppliedFunctionIdentifier::Sin =>
 							argument_value.sin(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cos =>
+						SuppliedFunctionIdentifier::Cos =>
 							argument_value.cos(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tan =>
+						SuppliedFunctionIdentifier::Tan =>
 							argument_value.tan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cot =>
+						SuppliedFunctionIdentifier::Cot =>
 							argument_value.cot(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sec =>
+						SuppliedFunctionIdentifier::Sec =>
 							argument_value.sec(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Csc =>
+						SuppliedFunctionIdentifier::Csc =>
 							argument_value.csc(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asin => argument_value.asin(&self.options)
+						SuppliedFunctionIdentifier::Asin => argument_value.asin(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acos => argument_value.acos(&self.options)
+						SuppliedFunctionIdentifier::Acos => argument_value.acos(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Atan =>
+						SuppliedFunctionIdentifier::Atan =>
 							argument_value.atan(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acot =>
+						SuppliedFunctionIdentifier::Acot =>
 							argument_value.acot(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asec => argument_value.asec(&self.options)
+						SuppliedFunctionIdentifier::Asec => argument_value.asec(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsc => argument_value.acsc(&self.options)
+						SuppliedFunctionIdentifier::Acsc => argument_value.acsc(&self.options)
 							.map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sinh =>
+						SuppliedFunctionIdentifier::Sinh =>
 							argument_value.sinh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cosh =>
+						SuppliedFunctionIdentifier::Cosh =>
 							argument_value.cosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tanh =>
+						SuppliedFunctionIdentifier::Tanh =>
 							argument_value.tanh(),
-						SuppliedFunction::Coth =>
+						SuppliedFunctionIdentifier::Coth =>
 							argument_value.coth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sech =>
+						SuppliedFunctionIdentifier::Sech =>
 							argument_value.sech(),
-						SuppliedFunction::Csch =>
+						SuppliedFunctionIdentifier::Csch =>
 							argument_value.csch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asinh =>
+						SuppliedFunctionIdentifier::Asinh =>
 							argument_value.asinh(),
-						SuppliedFunction::Acosh =>
+						SuppliedFunctionIdentifier::Acosh =>
 							argument_value.acosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Atanh =>
+						SuppliedFunctionIdentifier::Atanh =>
 							argument_value.atanh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acoth =>
+						SuppliedFunctionIdentifier::Acoth =>
 							argument_value.acoth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asech =>
+						SuppliedFunctionIdentifier::Asech =>
 							argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsch =>
+						SuppliedFunctionIdentifier::Acsch =>
 							argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log =>
+						SuppliedFunctionIdentifier::Log =>
 							argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log10 =>
+						SuppliedFunctionIdentifier::Log10 =>
 							argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log2 =>
+						SuppliedFunctionIdentifier::Log2 =>
 							argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Ceil => argument_value.ceil(),
-						SuppliedFunction::Rad => argument_value.degrees_to_radians(),
-						SuppliedFunction::Ip => argument_value.integer_part(),
-						SuppliedFunction::Fp => argument_value.fractional_part(),
-						SuppliedFunction::Eps => argument_value.basic_eps(),
-						SuppliedFunction::Deg =>
+						SuppliedFunctionIdentifier::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Ceil => argument_value.ceil(),
+						SuppliedFunctionIdentifier::Rad => argument_value.degrees_to_radians(),
+						SuppliedFunctionIdentifier::Ip => argument_value.integer_part(),
+						SuppliedFunctionIdentifier::Fp => argument_value.fractional_part(),
+						SuppliedFunctionIdentifier::Eps => argument_value.basic_eps(),
+						SuppliedFunctionIdentifier::Deg =>
 							argument_value.radians_to_degrees(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}))
 				}
 				// Functions that have two float arguments
-				SuppliedFunction::Angle | SuppliedFunction::Atan2 | SuppliedFunction::Mod | SuppliedFunction::Remainder | SuppliedFunction::Log if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Angle | SuppliedFunctionIdentifier::Atan2 | SuppliedFunctionIdentifier::Mod | SuppliedFunctionIdentifier::Remainder | SuppliedFunctionIdentifier::Log if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1770,21 +1770,21 @@ impl Machine {
 					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
 						.to_float().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Angle =>
+						SuppliedFunctionIdentifier::Angle =>
 							argument_value_1.atan2(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Atan2 =>
+						SuppliedFunctionIdentifier::Atan2 =>
 							argument_value_0.atan2(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Mod =>
+						SuppliedFunctionIdentifier::Mod =>
 							argument_value_0.basic_modulo(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Remainder =>
+						SuppliedFunctionIdentifier::Remainder =>
 							argument_value_0.remainder(argument_value_1, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Log =>
+						SuppliedFunctionIdentifier::Log =>
 							argument_value_1.log(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!()
 					}))
 				}
 				// Fold functions
-				SuppliedFunction::Min | SuppliedFunction::Max if arguments.len() > 0 => {
+				SuppliedFunctionIdentifier::Min | SuppliedFunctionIdentifier::Max if arguments.len() > 0 => {
 					// Get first argument
 					let mut result = self.execute_any_type_expression(&arguments[0], program)?
 						.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
@@ -1793,37 +1793,37 @@ impl Machine {
 						let argument_value = self.execute_any_type_expression(argument, program)?
 							.to_float().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
 						result = match supplied_function {
-							SuppliedFunction::Min => result.min(argument_value),
-							SuppliedFunction::Max => result.max(argument_value),
+							SuppliedFunctionIdentifier::Min => result.min(argument_value),
+							SuppliedFunctionIdentifier::Max => result.max(argument_value),
 							_ => unreachable!(),
 						};
 					}
 					return Ok(Some(result));
 				}
 				// Functions that have one complex argument
-				SuppliedFunction::Real | SuppliedFunction::Imag | SuppliedFunction::Arg if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Real | SuppliedFunctionIdentifier::Imag | SuppliedFunctionIdentifier::Arg if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_complex().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Real => argument_value.re(),
-						SuppliedFunction::Imag => argument_value.im(),
-						SuppliedFunction::Arg => argument_value.arg(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Real => argument_value.re(),
+						SuppliedFunctionIdentifier::Imag => argument_value.im(),
+						SuppliedFunctionIdentifier::Arg => argument_value.arg(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}))
 				}
 				// Functions that have one string argument
-				SuppliedFunction::Len | SuppliedFunction::Ord | SuppliedFunction::Asc | SuppliedFunction::Val | SuppliedFunction::MaxLen if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Len | SuppliedFunctionIdentifier::Ord | SuppliedFunctionIdentifier::Asc | SuppliedFunctionIdentifier::Val | SuppliedFunctionIdentifier::MaxLen if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Len => FloatValue::from_usize(argument_value.count_chars()),
-						SuppliedFunction::Ord =>
+						SuppliedFunctionIdentifier::Len => FloatValue::from_usize(argument_value.count_chars()),
+						SuppliedFunctionIdentifier::Ord =>
 							FloatValue::from_u32(argument_value.value_of_char_or_mnemonic(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
-						SuppliedFunction::Asc =>
+						SuppliedFunctionIdentifier::Asc =>
 							FloatValue::from_u32(argument_value.value_of_first_char(&self.options).map_err(|error| error.at_column(l_value.start_column))?),
-						SuppliedFunction::Val => {
+						SuppliedFunctionIdentifier::Val => {
 							let result = parse_datum_float(&argument_value.value, Some(&self.options)).map_err(|error| error.at_column(l_value.start_column))?;
 							match result {
 								(None, _) => return Err(ErrorVariant::MalformedNumber.at_column(l_value.start_column)),
@@ -1832,12 +1832,12 @@ impl Machine {
 								(Some(value), _) => value,
 							}
 						}
-						SuppliedFunction::MaxLen => FloatValue::MAX,
+						SuppliedFunctionIdentifier::MaxLen => FloatValue::MAX,
 						_ => unreachable!()
 					}))
 				}
 				// Functions that have two string arguments
-				SuppliedFunction::Pos if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Pos if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1845,7 +1845,7 @@ impl Machine {
 					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Pos => {
+						SuppliedFunctionIdentifier::Pos => {
 							match argument_value_0.find_substring_char_index(&argument_value_1) {
 								Some(index) => FloatValue::from_usize(index + 1),
 								None => FloatValue::ZERO,
@@ -1855,7 +1855,7 @@ impl Machine {
 					}))
 				}
 				// TRUNCATE(X, N)
-				SuppliedFunction::Truncate if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Truncate if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1865,7 +1865,7 @@ impl Machine {
 					return Ok(Some(argument_value_0.truncate_to_digits(argument_value_1)));
 				}
 				// ROUND(X, N)
-				SuppliedFunction::Round if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Round if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -1875,7 +1875,7 @@ impl Machine {
 					return Ok(Some(argument_value_0.round_to_digits(argument_value_1)));
 				}
 				// RND(X)
-				SuppliedFunction::Rnd if arguments.len() < 2 => {
+				SuppliedFunctionIdentifier::Rnd if arguments.len() < 2 => {
 					// If the function has an argument
 					if arguments.len() == 1 {
 						// Execute the argument and cast to a float
@@ -1905,16 +1905,16 @@ impl Machine {
 
 	pub fn execute_int_supplied_function(&mut self, l_value: &IntLValue, program: Option<&Program>) -> Result<Option<IntValue>, Error> {
 		// Unpack
-		let IntLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		let IntLValue { arguments, has_parentheses, start_column: _, supplied_function_identifier: supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
 				// Constants and pseudo-variables
 				_ if !has_parentheses => match supplied_function {
-					SuppliedFunction::True => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
-					SuppliedFunction::False => return Ok(Some(IntValue::zero())),
-					SuppliedFunction::Time => return Ok(Some(IntValue::from_u32(Local::now().num_seconds_from_midnight()))),
-					SuppliedFunction::Date => return Ok(Some({
+					SuppliedFunctionIdentifier::True => return Ok(Some(IntValue::new(Rc::new((-1i8).into())))),
+					SuppliedFunctionIdentifier::False => return Ok(Some(IntValue::zero())),
+					SuppliedFunctionIdentifier::Time => return Ok(Some(IntValue::from_u32(Local::now().num_seconds_from_midnight()))),
+					SuppliedFunctionIdentifier::Date => return Ok(Some({
 						let date = Local::now();
 						let mut day_of_year = date.day();
 						for month in 1..date.month() {
@@ -1922,29 +1922,29 @@ impl Machine {
 						}
 						IntValue::from_u32((date.year() % 100) as u32 * 1000 + day_of_year)
 					})),
-					SuppliedFunction::Second => return Ok(Some(IntValue::from_u32(Local::now().second()))),
-					SuppliedFunction::Minute => return Ok(Some(IntValue::from_u32(Local::now().minute()))),
-					SuppliedFunction::Hour => return Ok(Some(IntValue::from_u32(Local::now().hour()))),
-					SuppliedFunction::Day => return Ok(Some(IntValue::from_u32(Local::now().day()))),
-					SuppliedFunction::Month => return Ok(Some(IntValue::from_u32(Local::now().month()))),
-					SuppliedFunction::Year => return Ok(Some(IntValue::from_i32(Local::now().year()))),
+					SuppliedFunctionIdentifier::Second => return Ok(Some(IntValue::from_u32(Local::now().second()))),
+					SuppliedFunctionIdentifier::Minute => return Ok(Some(IntValue::from_u32(Local::now().minute()))),
+					SuppliedFunctionIdentifier::Hour => return Ok(Some(IntValue::from_u32(Local::now().hour()))),
+					SuppliedFunctionIdentifier::Day => return Ok(Some(IntValue::from_u32(Local::now().day()))),
+					SuppliedFunctionIdentifier::Month => return Ok(Some(IntValue::from_u32(Local::now().month()))),
+					SuppliedFunctionIdentifier::Year => return Ok(Some(IntValue::from_i32(Local::now().year()))),
 					_ => return Ok(None),
 				}
 				// Functions that have one int argument
-				SuppliedFunction::Sqr | SuppliedFunction::Abs | SuppliedFunction::Log2 | SuppliedFunction::Log10 if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Sqr | SuppliedFunctionIdentifier::Abs | SuppliedFunctionIdentifier::Log2 | SuppliedFunctionIdentifier::Log10 if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Sqr => argument_value.sqrt().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Abs => argument_value.abs(),
-						SuppliedFunction::Log2 => argument_value.ilog2().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log10 => argument_value.ilog10().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sqr => argument_value.sqrt().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Abs => argument_value.abs(),
+						SuppliedFunctionIdentifier::Log2 => argument_value.ilog2().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Log10 => argument_value.ilog10().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}));
 				}
 				// Fold functions
-				SuppliedFunction::Xor | SuppliedFunction::Min | SuppliedFunction::Max if arguments.len() > 0 => {
+				SuppliedFunctionIdentifier::Xor | SuppliedFunctionIdentifier::Min | SuppliedFunctionIdentifier::Max if arguments.len() > 0 => {
 					// Get first argument
 					let mut result = self.execute_any_type_expression(&arguments[0], program)?
 						.to_int().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
@@ -1953,33 +1953,33 @@ impl Machine {
 						let argument_value = self.execute_any_type_expression(argument, program)?
 							.to_int().map_err(|err| err.at_column(arguments[0].get_start_column()))?;
 						result = match supplied_function {
-							SuppliedFunction::Xor => result.xor(argument_value),
-							SuppliedFunction::Min => result.min(argument_value),
-							SuppliedFunction::Max => result.max(argument_value),
+							SuppliedFunctionIdentifier::Xor => result.xor(argument_value),
+							SuppliedFunctionIdentifier::Min => result.min(argument_value),
+							SuppliedFunctionIdentifier::Max => result.max(argument_value),
 							_ => unreachable!(),
 						};
 					}
 					return Ok(Some(result));
 				}
 				// Functions that have one argument that can be multiple types
-				SuppliedFunction::Int | SuppliedFunction::Floor | SuppliedFunction::Ceil | SuppliedFunction::Ip | SuppliedFunction::Sgn if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Floor | SuppliedFunctionIdentifier::Ceil | SuppliedFunctionIdentifier::Ip | SuppliedFunctionIdentifier::Sgn if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Int | SuppliedFunction::Floor => argument_value.floor_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Ceil => argument_value.ceil_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Ip => argument_value.integer_part_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sgn => argument_value.signum_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Floor => argument_value.floor_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Ceil => argument_value.ceil_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Ip => argument_value.integer_part_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sgn => argument_value.signum_to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!()
 					}));
 				}
 				// Functions that have one string argument
-				SuppliedFunction::Len if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Len if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Len => IntValue::from_usize(argument_value.count_chars()),
+						SuppliedFunctionIdentifier::Len => IntValue::from_usize(argument_value.count_chars()),
 						_ => unreachable!()
 					}))
 				}
@@ -1991,58 +1991,58 @@ impl Machine {
 
 	pub fn execute_complex_supplied_function(&mut self, l_value: &ComplexLValue, program: Option<&Program>) -> Result<Option<ComplexValue>, Error> {
 		// Unpack
-		let ComplexLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		let ComplexLValue { arguments, has_parentheses, start_column: _, supplied_function_identifier: supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
 				// Constants
-				SuppliedFunction::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
+				SuppliedFunctionIdentifier::I if !has_parentheses => return Ok(Some(ComplexValue::I)),
 				// Functions that have one complex number as an argument
-				SuppliedFunction::Sqr | SuppliedFunction::Exp | SuppliedFunction::Log | SuppliedFunction::Log2 | SuppliedFunction::Log10 | SuppliedFunction::Conj |
-				SuppliedFunction::Sin | SuppliedFunction::Cos | SuppliedFunction::Tan | SuppliedFunction::Cot | SuppliedFunction::Sec | SuppliedFunction::Csc |
-				SuppliedFunction::Asin | SuppliedFunction::Acos | SuppliedFunction::Atan | SuppliedFunction::Acot | SuppliedFunction::Asec | SuppliedFunction::Acsc |
-				SuppliedFunction::Sinh | SuppliedFunction::Cosh | SuppliedFunction::Tanh | SuppliedFunction::Coth | SuppliedFunction::Sech | SuppliedFunction::Csch |
-				SuppliedFunction::Asinh | SuppliedFunction::Acosh | SuppliedFunction::Atanh | SuppliedFunction::Acoth | SuppliedFunction::Asech | SuppliedFunction::Acsch if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Sqr | SuppliedFunctionIdentifier::Exp | SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Log2 | SuppliedFunctionIdentifier::Log10 | SuppliedFunctionIdentifier::Conj |
+				SuppliedFunctionIdentifier::Sin | SuppliedFunctionIdentifier::Cos | SuppliedFunctionIdentifier::Tan | SuppliedFunctionIdentifier::Cot | SuppliedFunctionIdentifier::Sec | SuppliedFunctionIdentifier::Csc |
+				SuppliedFunctionIdentifier::Asin | SuppliedFunctionIdentifier::Acos | SuppliedFunctionIdentifier::Atan | SuppliedFunctionIdentifier::Acot | SuppliedFunctionIdentifier::Asec | SuppliedFunctionIdentifier::Acsc |
+				SuppliedFunctionIdentifier::Sinh | SuppliedFunctionIdentifier::Cosh | SuppliedFunctionIdentifier::Tanh | SuppliedFunctionIdentifier::Coth | SuppliedFunctionIdentifier::Sech | SuppliedFunctionIdentifier::Csch |
+				SuppliedFunctionIdentifier::Asinh | SuppliedFunctionIdentifier::Acosh | SuppliedFunctionIdentifier::Atanh | SuppliedFunctionIdentifier::Acoth | SuppliedFunctionIdentifier::Asech | SuppliedFunctionIdentifier::Acsch if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?.to_complex()
 						.map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Sqr => argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log => argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log2 => argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Log10 => argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Conj => argument_value.conj(),
+						SuppliedFunctionIdentifier::Sqr => argument_value.sqrt(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Exp => argument_value.exp(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Log => argument_value.ln(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Log2 => argument_value.log2(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Log10 => argument_value.log10(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Conj => argument_value.conj(),
 
-						SuppliedFunction::Sin =>   argument_value.sin  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cos =>   argument_value.cos  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tan =>   argument_value.tan  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cot =>   argument_value.cot  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sec =>   argument_value.sec  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Csc =>   argument_value.csc  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asin =>  argument_value.asin (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acos =>  argument_value.acos (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Atan =>  argument_value.atan (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acot =>  argument_value.acot (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asec =>  argument_value.asec (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsc =>  argument_value.acsc (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sinh =>  argument_value.sinh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Cosh =>  argument_value.cosh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Tanh =>  argument_value.tanh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Coth =>  argument_value.coth (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Sech =>  argument_value.sech (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Csch =>  argument_value.csch (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asinh => argument_value.asinh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acosh => argument_value.acosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Atanh => argument_value.atanh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acoth => argument_value.acoth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Asech => argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Acsch => argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sin =>   argument_value.sin  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Cos =>   argument_value.cos  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Tan =>   argument_value.tan  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Cot =>   argument_value.cot  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sec =>   argument_value.sec  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Csc =>   argument_value.csc  (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Asin =>  argument_value.asin (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acos =>  argument_value.acos (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Atan =>  argument_value.atan (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acot =>  argument_value.acot (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Asec =>  argument_value.asec (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acsc =>  argument_value.acsc (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sinh =>  argument_value.sinh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Cosh =>  argument_value.cosh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Tanh =>  argument_value.tanh (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Coth =>  argument_value.coth (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Sech =>  argument_value.sech (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Csch =>  argument_value.csch (&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Asinh => argument_value.asinh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acosh => argument_value.acosh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Atanh => argument_value.atanh(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acoth => argument_value.acoth(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Asech => argument_value.asech(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Acsch => argument_value.acsch(&self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}))
 				}
 				// Functions that have two complex arguments
-				SuppliedFunction::Log if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Log if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -2050,7 +2050,7 @@ impl Machine {
 					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
 						.to_complex().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Log => argument_value_1.log(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunctionIdentifier::Log => argument_value_1.log(argument_value_0, &self.options).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!()
 					}))
 				}
@@ -2062,50 +2062,50 @@ impl Machine {
 
 	pub fn execute_string_supplied_function(&mut self, l_value: &StringLValue, program: Option<&Program>) -> Result<Option<StringValue>, Error> {
 		// Unpack
-		let StringLValue { arguments, has_parentheses, start_column: _, supplied_function, .. } = l_value;
+		let StringLValue { arguments, has_parentheses, start_column: _, supplied_function_identifier: supplied_function, .. } = l_value;
 		// Else try to execute a supplied (built-in) function
 		if let Some(supplied_function) = supplied_function {
 			match supplied_function {
 				// Constants and pseudo-variables
 				_ if !has_parentheses => match supplied_function {
-					SuppliedFunction::Time => return Ok(Some({
+					SuppliedFunctionIdentifier::Time => return Ok(Some({
 						let time = Local::now();
 						StringValue::new(Rc::new(format!("{:02}:{:02}:{:02}", time.hour(), time.minute(), time.second())))
 					})),
-					SuppliedFunction::Date => return Ok(Some({
+					SuppliedFunctionIdentifier::Date => return Ok(Some({
 						let time = Local::now();
 						StringValue::new(Rc::new(format!("{:04}{:02}{:02}", time.year(), time.month(), time.day())))
 					})),
 					_ => return Ok(None),
 				}
 				// Functions that have one string argument
-				SuppliedFunction::UCase | SuppliedFunction::LCase | SuppliedFunction::LTrim | SuppliedFunction::RTrim | SuppliedFunction::Left | SuppliedFunction::Right if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::UCase | SuppliedFunctionIdentifier::LCase | SuppliedFunctionIdentifier::LTrim | SuppliedFunctionIdentifier::RTrim | SuppliedFunctionIdentifier::Left | SuppliedFunctionIdentifier::Right if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_string().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::UCase => argument_value.to_uppercase(),
-						SuppliedFunction::LCase => argument_value.to_lowercase(),
-						SuppliedFunction::LTrim => argument_value.trim_start_spaces(),
-						SuppliedFunction::RTrim => argument_value.trim_end_spaces(),
-						SuppliedFunction::Left  => argument_value.pop_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
-						SuppliedFunction::Right => argument_value.take_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::UCase => argument_value.to_uppercase(),
+						SuppliedFunctionIdentifier::LCase => argument_value.to_lowercase(),
+						SuppliedFunctionIdentifier::LTrim => argument_value.trim_start_spaces(),
+						SuppliedFunctionIdentifier::RTrim => argument_value.trim_end_spaces(),
+						SuppliedFunctionIdentifier::Left  => argument_value.pop_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
+						SuppliedFunctionIdentifier::Right => argument_value.take_last_char().map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}));
 				}
 				// Functions that have one int argument
-				SuppliedFunction::Chr if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Chr if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Chr =>
+						SuppliedFunctionIdentifier::Chr =>
 							StringValue::from_char_value(argument_value, &self.options).map_err(|error| error.at_column(argument_expression.get_start_column()))?,
 						_ => unreachable!(),
 					}))
 				}
 				// Functions that have one string argument and an int argument
-				SuppliedFunction::Repeat | SuppliedFunction::Left | SuppliedFunction::Right | SuppliedFunction::Mid if arguments.len() == 2 => {
+				SuppliedFunctionIdentifier::Repeat | SuppliedFunctionIdentifier::Left | SuppliedFunctionIdentifier::Right | SuppliedFunctionIdentifier::Mid if arguments.len() == 2 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_value_0 = self.execute_any_type_expression(argument_expression_0, program)?
@@ -2113,15 +2113,15 @@ impl Machine {
 					let argument_value_1 = self.execute_any_type_expression(argument_expression_1, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression_1.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Repeat => argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Left => argument_value_0.take_left_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
-						SuppliedFunction::Right | SuppliedFunction::Mid =>
+						SuppliedFunctionIdentifier::Repeat => argument_value_0.repeat(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunctionIdentifier::Left => argument_value_0.take_left_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
+						SuppliedFunctionIdentifier::Right | SuppliedFunctionIdentifier::Mid =>
 							argument_value_0.take_right_chars(argument_value_1).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!(),
 					}));
 				}
 				// Functions that have one string argument and two int arguments
-				SuppliedFunction::Mid if arguments.len() == 3 => {
+				SuppliedFunctionIdentifier::Mid if arguments.len() == 3 => {
 					let argument_expression_0 = &arguments[0];
 					let argument_expression_1 = &arguments[1];
 					let argument_expression_2 = &arguments[2];
@@ -2132,13 +2132,13 @@ impl Machine {
 					let argument_value_2 = self.execute_any_type_expression(argument_expression_2, program)?
 						.to_int().map_err(|error| error.at_column(argument_expression_2.get_start_column()))?;
 					return Ok(Some(match supplied_function {
-						SuppliedFunction::Mid =>
+						SuppliedFunctionIdentifier::Mid =>
 							argument_value_0.take_middle_chars(argument_value_1, argument_value_2).map_err(|error| error.at_column(l_value.start_column))?,
 						_ => unreachable!(),
 					}));
 				}
 				// STR$(X)
-				SuppliedFunction::Str if arguments.len() == 1 => {
+				SuppliedFunctionIdentifier::Str if arguments.len() == 1 => {
 					let argument_expression = &arguments[0];
 					let argument_value = self.execute_any_type_expression(argument_expression, program)?;
 					if matches!(argument_value, AnyTypeValue::String(..)) {

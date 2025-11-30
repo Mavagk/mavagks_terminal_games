@@ -42,7 +42,7 @@ pub enum TokenVariant {
 		is_reserved_keyword: bool,
 		/// The supplied (built-in) function that that identifier could be used as. Eg. ABS, INT, RND, SQR, TRUE, PI.
 		/// The trailing type chars are ignored when parsing this value, so ABS and ABS% parse to the same value.
-		supplied_function: Option<SuppliedFunction>
+		supplied_function: Option<SuppliedFunctionIdentifier>
 	},
 	/// An integer literal. Eg. 123, 420, 69. A leading minus sign will be parsed as it's own separate operator.
 	IntegerLiteral(BigUint),
@@ -175,7 +175,7 @@ impl Token {
 				};
 				// Get if the identifier is a supplied function
 				let supplied_function = match is_optional {
-					false => SuppliedFunction::from_name(&name),
+					false => SuppliedFunctionIdentifier::from_name(&name),
 					true => None,
 				};
 				// Get if this a reserved keyword
@@ -681,6 +681,8 @@ pub enum Keyword {
 	Minimal,
 	Ascii,
 	Unicode,
+	Help,
+	Command,
 }
 
 impl Keyword {
@@ -820,6 +822,8 @@ impl Keyword {
 			Self::Minimal =>      &[("MINIMAL",      IdentifierType::UnmarkedOrFloat)],
 			Self::Ascii =>        &[("ASCII",        IdentifierType::UnmarkedOrFloat)],
 			Self::Unicode =>      &[("UNICODE",      IdentifierType::UnmarkedOrFloat)],
+			Self::Help =>         &[("HELP",         IdentifierType::UnmarkedOrFloat)],
+			Self::Command =>      &[("Command",      IdentifierType::UnmarkedOrFloat)],
 		}
 	}
 
@@ -847,7 +851,7 @@ impl Keyword {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 /// A supplied (built-in) function that an identifier could be used as. Eg. ABS, SGN, PI, RND.
-pub enum SuppliedFunction {
+pub enum SuppliedFunctionIdentifier {
 	Abs,
 	Sqr,
 	True,
@@ -941,7 +945,7 @@ pub enum SuppliedFunction {
 	Xor,
 }
 
-impl SuppliedFunction {
+impl SuppliedFunctionIdentifier {
 	/// Returns the full caps name of this supplied function.
 	pub fn get_names(self) -> &'static [&'static str] {
 		match self {

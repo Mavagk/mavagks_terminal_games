@@ -1,9 +1,9 @@
-use std::{collections::HashSet, mem::replace, num::NonZeroUsize, rc::Rc};
+use std::{collections::HashSet, default, mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
 use strum::IntoDiscriminant;
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, Datum, FloatExpression, FloatLValue, IntExpression, IntLValue, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, ArrayDimension, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, Datum, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant}, options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{BinaryOperator, IdentifierType, Keyword, SuppliedFunctionIdentifier, Token, TokenVariant, UnaryOperator}, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
 /// Parses the a line or tokens into a list of statements and an error if the line has an error. Takes in the tokens received by tokenizing the line.
 pub fn parse_line<'a>(tokens: &mut Tokens) -> (Box<[Statement]>, Option<Error>) {
@@ -1247,7 +1247,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 			Some(token_after_fn) => token_after_fn,
 			None => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*first_token_end_column)),
 		};
-		let (identifier_name, identifier_type, identifier_is_optional, supplied_function) = match token_after_fn_variant {
+		let (identifier_name, identifier_type, identifier_is_optional, supplied_function_identifier) = match token_after_fn_variant {
 			TokenVariant::Identifier { name, identifier_type, is_optional, supplied_function, .. } => (name, identifier_type, is_optional, *supplied_function),
 			_ => return Err(ErrorVariant::ExpectedFunctionNameAfterFn.at_column(*token_after_fn_start_column)),
 		};
@@ -1269,16 +1269,32 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 			Some(Token { variant: TokenVariant::LeftParenthesis, .. }) if !has_slicing_next => {},
 			_ => break 'a match identifier_type {
 				IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					supplied_function: match supplied_function_identifier {
+						Some(supplied_function_identifier) => parse_int_supplied_function(supplied_function_identifier, Default::default()),
+						None => None,
+					}
 				}),
 				IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					supplied_function: match supplied_function_identifier {
+						Some(supplied_function_identifier) => parse_float_supplied_function(supplied_function_identifier, Default::default()),
+						None => None,
+					}
 				}),
 				IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					supplied_function: match supplied_function_identifier {
+						Some(supplied_function_identifier) => parse_complex_supplied_function(supplied_function_identifier, Default::default()),
+						None => None,
+					}
 				}),
 				IdentifierType::String => AnyTypeLValue::String(StringLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function, string_slicings: Box::default(),
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier, string_slicings: Box::default(),
+					supplied_function: match supplied_function_identifier {
+						Some(supplied_function_identifier) => parse_string_supplied_function(supplied_function_identifier, Default::default()),
+						None => None,
+					}
 				}),
 			},
 		}
@@ -1330,16 +1346,32 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 		// Return
 		break 'a match identifier_type {
 			IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
+				supplied_function: match supplied_function_identifier {
+					Some(supplied_function_identifier) => parse_int_supplied_function(supplied_function_identifier, &arguments),
+					None => None,
+				},
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier
 			}),
 			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
+				supplied_function: match supplied_function_identifier {
+					Some(supplied_function_identifier) => parse_float_supplied_function(supplied_function_identifier, &arguments),
+					None => None,
+				},
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier,
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function
+				supplied_function: match supplied_function_identifier {
+					Some(supplied_function_identifier) => parse_complex_supplied_function(supplied_function_identifier, &arguments),
+					None => None,
+				},
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function, string_slicings: Box::default(),
+				supplied_function: match supplied_function_identifier {
+					Some(supplied_function_identifier) => parse_string_supplied_function(supplied_function_identifier, &arguments),
+					None => None,
+				},
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier, string_slicings: Box::default(),
 			}),
 		}
 	};
@@ -1378,6 +1410,120 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 	}
 	// Return
 	Ok(Some(l_value_expression))
+}
+
+fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<FloatSuppliedFunction> {
+	let argument_count = arguments.len();
+	Some(match (identifier, argument_count) {
+		(SuppliedFunctionIdentifier::Pi,     0) => FloatSuppliedFunction::Pi,
+		(SuppliedFunctionIdentifier::E,      0) => FloatSuppliedFunction::E,
+		(SuppliedFunctionIdentifier::Tau,    0) => FloatSuppliedFunction::Tau,
+		(SuppliedFunctionIdentifier::Phi,    0) => FloatSuppliedFunction::Phi,
+		(SuppliedFunctionIdentifier::EGamma, 0) => FloatSuppliedFunction::EGamma,
+		(SuppliedFunctionIdentifier::MaxNum, 0) => FloatSuppliedFunction::MaxNum,
+		(SuppliedFunctionIdentifier::NaN,    0) => FloatSuppliedFunction::NaN,
+		(SuppliedFunctionIdentifier::Inf,    0) => FloatSuppliedFunction::Inf,
+		(SuppliedFunctionIdentifier::NInf,   0) => FloatSuppliedFunction::NInf,
+		(SuppliedFunctionIdentifier::True,   0) => FloatSuppliedFunction::True,
+		(SuppliedFunctionIdentifier::False,  0) => FloatSuppliedFunction::False,
+
+		(SuppliedFunctionIdentifier::Time,   0) => FloatSuppliedFunction::Time,
+		(SuppliedFunctionIdentifier::Date,   0) => FloatSuppliedFunction::Date,
+		(SuppliedFunctionIdentifier::Second, 0) => FloatSuppliedFunction::Second,
+		(SuppliedFunctionIdentifier::Minute, 0) => FloatSuppliedFunction::Minute,
+		(SuppliedFunctionIdentifier::Hour,   0) => FloatSuppliedFunction::Hour,
+		(SuppliedFunctionIdentifier::Day,    0) => FloatSuppliedFunction::Day,
+		(SuppliedFunctionIdentifier::Month,  0) => FloatSuppliedFunction::Month,
+		(SuppliedFunctionIdentifier::Year,   0) => FloatSuppliedFunction::Year,
+
+		(SuppliedFunctionIdentifier::Floor,    1) => FloatSuppliedFunction::Floor,
+		(SuppliedFunctionIdentifier::Ip,       1) => FloatSuppliedFunction::Ip,
+		(SuppliedFunctionIdentifier::Ceil,     1) => FloatSuppliedFunction::Ceil,
+		(SuppliedFunctionIdentifier::Truncate, 2) => FloatSuppliedFunction::Truncate,
+		(SuppliedFunctionIdentifier::Round,    2) => FloatSuppliedFunction::Round,
+
+		(SuppliedFunctionIdentifier::Abs,       1) if !arguments[0].is_complex() => FloatSuppliedFunction::Abs,
+		(SuppliedFunctionIdentifier::Sgn,       1)                               => FloatSuppliedFunction::Signum,
+		(SuppliedFunctionIdentifier::Fp,        1)                               => FloatSuppliedFunction::Fp,
+		(SuppliedFunctionIdentifier::Deg,       1)                               => FloatSuppliedFunction::Deg,
+		(SuppliedFunctionIdentifier::Rad,       1)                               => FloatSuppliedFunction::Rad,
+		(SuppliedFunctionIdentifier::Eps,       1)                               => FloatSuppliedFunction::Eps,
+		(SuppliedFunctionIdentifier::Sqr,       1)                               => FloatSuppliedFunction::Sqrt,
+		(SuppliedFunctionIdentifier::Exp,       1)                               => FloatSuppliedFunction::Exp,
+		(SuppliedFunctionIdentifier::Mod,       2)                               => FloatSuppliedFunction::Modulo,
+		(SuppliedFunctionIdentifier::Remainder, 2)                               => FloatSuppliedFunction::Remainder,
+		(SuppliedFunctionIdentifier::Min,       _)                               => FloatSuppliedFunction::Min,
+		(SuppliedFunctionIdentifier::Max,       _)                               => FloatSuppliedFunction::Max,
+		(SuppliedFunctionIdentifier::Rnd,       0)                               => FloatSuppliedFunction::Rad,
+		(SuppliedFunctionIdentifier::Rnd,       1)                               => FloatSuppliedFunction::CommodoreRandom,
+
+		(SuppliedFunctionIdentifier::Log,   1) => FloatSuppliedFunction::LogE,
+		(SuppliedFunctionIdentifier::Log10, 1) => FloatSuppliedFunction::Log10,
+		(SuppliedFunctionIdentifier::Log2,  1) => FloatSuppliedFunction::Log2,
+		(SuppliedFunctionIdentifier::Log,   2) => FloatSuppliedFunction::LogN,
+
+		(SuppliedFunctionIdentifier::Sin,   1) => FloatSuppliedFunction::Sin,
+		(SuppliedFunctionIdentifier::Cos,   1) => FloatSuppliedFunction::Cos,
+		(SuppliedFunctionIdentifier::Tan,   1) => FloatSuppliedFunction::Tan,
+		(SuppliedFunctionIdentifier::Cot,   1) => FloatSuppliedFunction::Cot,
+		(SuppliedFunctionIdentifier::Sec,   1) => FloatSuppliedFunction::Sec,
+		(SuppliedFunctionIdentifier::Csc,   1) => FloatSuppliedFunction::Csc,
+		(SuppliedFunctionIdentifier::Asin,  1) => FloatSuppliedFunction::Asin,
+		(SuppliedFunctionIdentifier::Acos,  1) => FloatSuppliedFunction::Acos,
+		(SuppliedFunctionIdentifier::Atan,  1) => FloatSuppliedFunction::Atan,
+		(SuppliedFunctionIdentifier::Acot,  1) => FloatSuppliedFunction::Acot,
+		(SuppliedFunctionIdentifier::Asec,  1) => FloatSuppliedFunction::Asec,
+		(SuppliedFunctionIdentifier::Acsc,  1) => FloatSuppliedFunction::Acsc,
+		(SuppliedFunctionIdentifier::Angle, 2) => FloatSuppliedFunction::Angle,
+		(SuppliedFunctionIdentifier::Atan2, 2) => FloatSuppliedFunction::Atan2,
+
+		(SuppliedFunctionIdentifier::Sinh,  1) => FloatSuppliedFunction::Sinh,
+		(SuppliedFunctionIdentifier::Cosh,  1) => FloatSuppliedFunction::Cosh,
+		(SuppliedFunctionIdentifier::Tanh,  1) => FloatSuppliedFunction::Tanh,
+		(SuppliedFunctionIdentifier::Coth,  1) => FloatSuppliedFunction::Coth,
+		(SuppliedFunctionIdentifier::Sech,  1) => FloatSuppliedFunction::Sech,
+		(SuppliedFunctionIdentifier::Csch,  1) => FloatSuppliedFunction::Csch,
+		(SuppliedFunctionIdentifier::Asinh, 1) => FloatSuppliedFunction::Asinh,
+		(SuppliedFunctionIdentifier::Acosh, 1) => FloatSuppliedFunction::Acosh,
+		(SuppliedFunctionIdentifier::Atanh, 1) => FloatSuppliedFunction::Atanh,
+		(SuppliedFunctionIdentifier::Acoth, 1) => FloatSuppliedFunction::Acoth,
+		(SuppliedFunctionIdentifier::Asech, 1) => FloatSuppliedFunction::Asech,
+		(SuppliedFunctionIdentifier::Acsch, 1) => FloatSuppliedFunction::Acsch,
+
+		(SuppliedFunctionIdentifier::Real, 1)                              => FloatSuppliedFunction::Real,
+		(SuppliedFunctionIdentifier::Imag, 1)                              => FloatSuppliedFunction::Imag,
+		(SuppliedFunctionIdentifier::Arg,  1)                              => FloatSuppliedFunction::Arg,
+		(SuppliedFunctionIdentifier::Abs,  1) if arguments[0].is_complex() => FloatSuppliedFunction::Abs,
+
+		(SuppliedFunctionIdentifier::Len,    1) => FloatSuppliedFunction::Len,
+		(SuppliedFunctionIdentifier::Ord,    1) => FloatSuppliedFunction::Ord,
+		(SuppliedFunctionIdentifier::Asc,    1) => FloatSuppliedFunction::Asc,
+		(SuppliedFunctionIdentifier::Val,    1) => FloatSuppliedFunction::Val,
+		(SuppliedFunctionIdentifier::MaxLen, 1) => FloatSuppliedFunction::MaxLen,
+		(SuppliedFunctionIdentifier::Pos,    1) => FloatSuppliedFunction::Pos,
+		_ => return None,
+	})
+}
+
+fn parse_int_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<IntSuppliedFunction> {
+	let argument_count = arguments.len();
+	Some(match (identifier, argument_count) {
+		_ => return None,
+	})
+}
+
+fn parse_complex_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<ComplexSuppliedFunction> {
+	let argument_count = arguments.len();
+	Some(match (identifier, argument_count) {
+		_ => return None,
+	})
+}
+
+fn parse_string_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<StringSuppliedFunction> {
+	let argument_count = arguments.len();
+	Some(match (identifier, argument_count) {
+		_ => return None,
+	})
 }
 
 /// Gets the length of an l-value
