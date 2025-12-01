@@ -180,6 +180,13 @@ impl ErrorVariant {
 	}
 }
 
+pub fn error_at_column<T>(value: Result<T, ErrorVariant>, column_number: NonZeroUsize) -> Result<T, Error> {
+	match value {
+		Ok(value) => Ok(value),
+		Err(error) => Err(error.at_column(column_number))
+	}
+}
+
 impl Display for ErrorVariant {
 	fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
 		match self {

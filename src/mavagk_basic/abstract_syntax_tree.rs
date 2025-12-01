@@ -652,7 +652,7 @@ pub enum FloatSuppliedFunction {
 	NInf,
 	True,
 	False,
-	// Pseudovariables
+	// Time
 	Time,
 	Date,
 	Second,
@@ -683,7 +683,7 @@ pub enum FloatSuppliedFunction {
 	Random,
 	CommodoreRandom,
 	// Logarithm
-	LogE,
+	Ln,
 	Log10,
 	Log2,
 	LogN,
