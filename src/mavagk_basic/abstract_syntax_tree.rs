@@ -731,17 +731,97 @@ pub enum FloatSuppliedFunction {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum IntSuppliedFunction {
-	
+	// Constant
+	True,
+	False,
+	// Time
+	Time,
+	Date,
+	Second,
+	Minute,
+	Hour,
+	Day,
+	Month,
+	Year,
+	// Other Math
+	Sqr,
+	Abs,
+	Log2,
+	Log10,
+	Xor,
+	Min,
+	Max,
+	Sgn,
+	// Rounding
+	Floor,
+	Ceil,
+	Ip,
+	// String to Int
+	Len,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum ComplexSuppliedFunction {
-	
+	// Constants
+	I,
+	// Other Math
+	Sqr,
+	Exp,
+	Conj,
+	// Logarithm
+	LogE,
+	Log2,
+	Log10,
+	LogN,
+	// Trigonometry
+	Sin,
+	Cos,
+	Tan,
+	Cot,
+	Sec,
+	Csc,
+	Asin,
+	Acos,
+	Atan,
+	Acot,
+	Asec,
+	Acsc,
+	// Hyperbolic Trigonometry
+	Sinh,
+	Cosh,
+	Tanh,
+	Coth,
+	Sech,
+	Csch,
+	Asinh,
+	Acosh,
+	Atanh,
+	Acoth,
+	Asech,
+	Acsch,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum StringSuppliedFunction {
-	
+	// Time
+	Time,
+	Date,
+	// String Editing
+	UCase,
+	LCase,
+	LTrim,
+	RTrim,
+	Left1Arg,
+	Right1Arg,
+	Repeat,
+	Left2Args,
+	Right2Args,
+	Mid2Args,
+	Mid3Args,
+	// Int to String
+	Chr,
+	// Any value to String
+	Str,
 }
 
 #[derive(Debug, Clone)]

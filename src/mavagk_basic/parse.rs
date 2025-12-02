@@ -1,4 +1,4 @@
-use std::{collections::HashSet, default, mem::replace, num::NonZeroUsize, rc::Rc};
+use std::{collections::HashSet, mem::replace, num::NonZeroUsize, rc::Rc};
 
 use num::{bigint::ToBigInt, complex::Complex64, Zero, One};
 use strum::IntoDiscriminant;
@@ -1508,6 +1508,34 @@ fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, argumen
 fn parse_int_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<IntSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
+		// Constant
+		(SuppliedFunctionIdentifier::True,  0) => IntSuppliedFunction::True,
+		(SuppliedFunctionIdentifier::False, 0) => IntSuppliedFunction::False,
+		// Time
+		(SuppliedFunctionIdentifier::Time,   0) => IntSuppliedFunction::Time,
+		(SuppliedFunctionIdentifier::Date,   0) => IntSuppliedFunction::Date,
+		(SuppliedFunctionIdentifier::Second, 0) => IntSuppliedFunction::Second,
+		(SuppliedFunctionIdentifier::Minute, 0) => IntSuppliedFunction::Minute,
+		(SuppliedFunctionIdentifier::Hour,   0) => IntSuppliedFunction::Hour,
+		(SuppliedFunctionIdentifier::Day,    0) => IntSuppliedFunction::Day,
+		(SuppliedFunctionIdentifier::Month,  0) => IntSuppliedFunction::Month,
+		(SuppliedFunctionIdentifier::Year,   0) => IntSuppliedFunction::Year,
+		// Other Math
+		(SuppliedFunctionIdentifier::Sqr,   1)                 => IntSuppliedFunction::Sqr,
+		(SuppliedFunctionIdentifier::Abs,   1)                 => IntSuppliedFunction::Abs,
+		(SuppliedFunctionIdentifier::Log2,  1)                 => IntSuppliedFunction::Log2,
+		(SuppliedFunctionIdentifier::Log10, 1)                 => IntSuppliedFunction::Log10,
+		(SuppliedFunctionIdentifier::Xor,   n) if n > 1 => IntSuppliedFunction::Xor,
+		(SuppliedFunctionIdentifier::Min,   n) if n > 1 => IntSuppliedFunction::Min,
+		(SuppliedFunctionIdentifier::Max,   n) if n > 1 => IntSuppliedFunction::Max,
+		(SuppliedFunctionIdentifier::Sgn,   1)                 => IntSuppliedFunction::Sgn,
+		// Rounding
+		(SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Floor, 1) => IntSuppliedFunction::Floor,
+		(SuppliedFunctionIdentifier::Ceil,                                    1) => IntSuppliedFunction::Ceil,
+		(SuppliedFunctionIdentifier::Ip,                                      1) => IntSuppliedFunction::Ip,
+		// String to Int
+		(SuppliedFunctionIdentifier::Len, 1) => IntSuppliedFunction::Len,
+
 		_ => return None,
 	})
 }
@@ -1515,6 +1543,43 @@ fn parse_int_supplied_function(identifier: SuppliedFunctionIdentifier, arguments
 fn parse_complex_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<ComplexSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
+		// Constants
+		(SuppliedFunctionIdentifier::I, 0) => ComplexSuppliedFunction::I,
+		// Other Math
+		(SuppliedFunctionIdentifier::Sqr,  1) => ComplexSuppliedFunction::Sqr,
+		(SuppliedFunctionIdentifier::Exp,  1) => ComplexSuppliedFunction::Exp,
+		(SuppliedFunctionIdentifier::Conj, 1) => ComplexSuppliedFunction::Conj,
+		// Logarithm
+		(SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Ln, 1) => ComplexSuppliedFunction::LogE,
+		(SuppliedFunctionIdentifier::Log2,                                 1) => ComplexSuppliedFunction::Log2,
+		(SuppliedFunctionIdentifier::Log10,                                1) => ComplexSuppliedFunction::Log10,
+		(SuppliedFunctionIdentifier::Log,                                  2) => ComplexSuppliedFunction::LogN,
+		// Trigonometry
+		(SuppliedFunctionIdentifier::Sin,  1) => ComplexSuppliedFunction::Sin,
+		(SuppliedFunctionIdentifier::Cos,  1) => ComplexSuppliedFunction::Cos,
+		(SuppliedFunctionIdentifier::Tan,  1) => ComplexSuppliedFunction::Tan,
+		(SuppliedFunctionIdentifier::Cot,  1) => ComplexSuppliedFunction::Cot,
+		(SuppliedFunctionIdentifier::Sec,  1) => ComplexSuppliedFunction::Sec,
+		(SuppliedFunctionIdentifier::Csc,  1) => ComplexSuppliedFunction::Csc,
+		(SuppliedFunctionIdentifier::Asin, 1) => ComplexSuppliedFunction::Asin,
+		(SuppliedFunctionIdentifier::Acos, 1) => ComplexSuppliedFunction::Acos,
+		(SuppliedFunctionIdentifier::Atan, 1) => ComplexSuppliedFunction::Atan,
+		(SuppliedFunctionIdentifier::Acot, 1) => ComplexSuppliedFunction::Acot,
+		(SuppliedFunctionIdentifier::Asec, 1) => ComplexSuppliedFunction::Asec,
+		(SuppliedFunctionIdentifier::Acsc, 1) => ComplexSuppliedFunction::Acsc,
+		// Hyperbolic Trigonometry
+		(SuppliedFunctionIdentifier::Sinh,  1) => ComplexSuppliedFunction::Sinh,
+		(SuppliedFunctionIdentifier::Cosh,  1) => ComplexSuppliedFunction::Cosh,
+		(SuppliedFunctionIdentifier::Tanh,  1) => ComplexSuppliedFunction::Tanh,
+		(SuppliedFunctionIdentifier::Coth,  1) => ComplexSuppliedFunction::Coth,
+		(SuppliedFunctionIdentifier::Sech,  1) => ComplexSuppliedFunction::Sech,
+		(SuppliedFunctionIdentifier::Csch,  1) => ComplexSuppliedFunction::Csch,
+		(SuppliedFunctionIdentifier::Asinh, 1) => ComplexSuppliedFunction::Asinh,
+		(SuppliedFunctionIdentifier::Acosh, 1) => ComplexSuppliedFunction::Acosh,
+		(SuppliedFunctionIdentifier::Atanh, 1) => ComplexSuppliedFunction::Atanh,
+		(SuppliedFunctionIdentifier::Acoth, 1) => ComplexSuppliedFunction::Acoth,
+		(SuppliedFunctionIdentifier::Asech, 1) => ComplexSuppliedFunction::Asech,
+		(SuppliedFunctionIdentifier::Acsch, 1) => ComplexSuppliedFunction::Acsch,
 		_ => return None,
 	})
 }
@@ -1522,6 +1587,25 @@ fn parse_complex_supplied_function(identifier: SuppliedFunctionIdentifier, argum
 fn parse_string_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<StringSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
+		// Time
+		(SuppliedFunctionIdentifier::Time, 0) => StringSuppliedFunction::Time,
+		(SuppliedFunctionIdentifier::Date, 0) => StringSuppliedFunction::Date,
+		// String Editing
+		(SuppliedFunctionIdentifier::UCase,  1) => StringSuppliedFunction::UCase,
+		(SuppliedFunctionIdentifier::LCase,  1) => StringSuppliedFunction::LCase,
+		(SuppliedFunctionIdentifier::LTrim,  1) => StringSuppliedFunction::LTrim,
+		(SuppliedFunctionIdentifier::RTrim,  1) => StringSuppliedFunction::RTrim,
+		(SuppliedFunctionIdentifier::Left,   1) => StringSuppliedFunction::Left1Arg,
+		(SuppliedFunctionIdentifier::Right,  1) => StringSuppliedFunction::Right1Arg,
+		(SuppliedFunctionIdentifier::Repeat, 2) => StringSuppliedFunction::Repeat,
+		(SuppliedFunctionIdentifier::Left,   2) => StringSuppliedFunction::Left2Args,
+		(SuppliedFunctionIdentifier::Right,  2) => StringSuppliedFunction::Right2Args,
+		(SuppliedFunctionIdentifier::Mid,    2) => StringSuppliedFunction::Mid2Args,
+		(SuppliedFunctionIdentifier::Mid,    3) => StringSuppliedFunction::Mid3Args,
+		// Int to String
+		(SuppliedFunctionIdentifier::Chr, 1) => StringSuppliedFunction::Chr,
+		// Any value to String
+		(SuppliedFunctionIdentifier::Str, 1) => StringSuppliedFunction::Str,
 		_ => return None,
 	})
 }
