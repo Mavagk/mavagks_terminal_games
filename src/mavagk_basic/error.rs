@@ -143,6 +143,7 @@ pub enum ErrorVariant {
 	OptionStatementWithTwoOfAnOptionVariable,
 	StrSliceFnOutOfRange,
 	SlicingOperatorWithTooManyArguments,
+	TabNotAsPrintItem,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -306,6 +307,7 @@ impl Display for ErrorVariant {
 			Self::SlicingOperatorWithTooManyArguments => write!(f, "Slicing operator has too many arguments."),
 			Self::ExpectedColonInStringSlicingOperator => write!(f, "Expected colon in string slicing operator."),
 			Self::VariableWriteToSliceUninitialized => write!(f, "Attempted to write to a string slice of a variable that is uninitialized."),
+			Self::TabNotAsPrintItem => write!(f, "Attempted to evaluate a TAB function that was not a PRINT item and while TAB was not a user-defined function."),
 		}
 	}
 }

@@ -1269,28 +1269,28 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 			Some(Token { variant: TokenVariant::LeftParenthesis, .. }) if !has_slicing_next => {},
 			_ => break 'a match identifier_type {
 				IdentifierType::Integer => AnyTypeLValue::Int(IntLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column,
 					supplied_function: match supplied_function_identifier {
 						Some(supplied_function_identifier) => parse_int_supplied_function(supplied_function_identifier, Default::default()),
 						None => None,
 					}
 				}),
 				IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column,
 					supplied_function: match supplied_function_identifier {
 						Some(supplied_function_identifier) => parse_float_supplied_function(supplied_function_identifier, Default::default()),
 						None => None,
 					}
 				}),
 				IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier,
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column,
 					supplied_function: match supplied_function_identifier {
 						Some(supplied_function_identifier) => parse_complex_supplied_function(supplied_function_identifier, Default::default()),
 						None => None,
 					}
 				}),
 				IdentifierType::String => AnyTypeLValue::String(StringLValue {
-					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, supplied_function_identifier, string_slicings: Box::default(),
+					name: identifier_name.clone(), arguments: Box::default(), has_parentheses: false, start_column: *first_token_start_column, string_slicings: Box::default(),
 					supplied_function: match supplied_function_identifier {
 						Some(supplied_function_identifier) => parse_string_supplied_function(supplied_function_identifier, Default::default()),
 						None => None,
@@ -1350,28 +1350,28 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 					Some(supplied_function_identifier) => parse_int_supplied_function(supplied_function_identifier, &arguments),
 					None => None,
 				},
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column
 			}),
 			IdentifierType::UnmarkedOrFloat => AnyTypeLValue::Float(FloatLValue {
 				supplied_function: match supplied_function_identifier {
 					Some(supplied_function_identifier) => parse_float_supplied_function(supplied_function_identifier, &arguments),
 					None => None,
 				},
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier,
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column,
 			}),
 			IdentifierType::ComplexNumber => AnyTypeLValue::Complex(ComplexLValue {
 				supplied_function: match supplied_function_identifier {
 					Some(supplied_function_identifier) => parse_complex_supplied_function(supplied_function_identifier, &arguments),
 					None => None,
 				},
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column
 			}),
 			IdentifierType::String => AnyTypeLValue::String(StringLValue {
 				supplied_function: match supplied_function_identifier {
 					Some(supplied_function_identifier) => parse_string_supplied_function(supplied_function_identifier, &arguments),
 					None => None,
 				},
-				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, supplied_function_identifier, string_slicings: Box::default(),
+				name: identifier_name.clone(), arguments: arguments.into(), has_parentheses: true, start_column: *first_token_start_column, string_slicings: Box::default(),
 			}),
 		}
 	};
@@ -1415,6 +1415,8 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<FloatSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
+		(SuppliedFunctionIdentifier::Tab, 1) => FloatSuppliedFunction::Pi,
+
 		(SuppliedFunctionIdentifier::Pi,     0) => FloatSuppliedFunction::Pi,
 		(SuppliedFunctionIdentifier::E,      0) => FloatSuppliedFunction::E,
 		(SuppliedFunctionIdentifier::Tau,    0) => FloatSuppliedFunction::Tau,

@@ -5,7 +5,7 @@ use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle
 use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, parse_line}, program::{Line, Program}, token::{IdentifierType, SuppliedFunctionIdentifier, Token, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -370,7 +370,7 @@ impl Machine {
 					match sub_expression {
 						PrintOperand::Expression(expression) => match expression {
 							// TAB calls
-							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function_identifier: Some(SuppliedFunctionIdentifier::Tab), .. }))
+							AnyTypeExpression::Float(FloatExpression::LValue(FloatLValue { arguments, supplied_function: Some(FloatSuppliedFunction::Tab), .. }))
 								if (&**arguments).len() == 1 && !self.float_stored_values.functions.contains_key(&("TAB".into(), 1)) && !self.float_stored_values.arrays.contains_key("TAB") =>
 							{
 								let argument_expression = &arguments[0];
@@ -1639,7 +1639,7 @@ impl Machine {
 
 	pub fn execute_float_supplied_function(&mut self, l_value: &FloatLValue, program: Option<&Program>) -> Result<Option<FloatValue>, Error> {
 		// Unpack
-		let FloatLValue { arguments: argument_expressions, has_parentheses: _, start_column, supplied_function_identifier: _, supplied_function, .. } = l_value;
+		let FloatLValue { arguments: argument_expressions, has_parentheses: _, start_column, supplied_function, .. } = l_value;
 		let supplied_function = match supplied_function {
 			Some(supplied_function) => *supplied_function,
 			None => return Ok(None),
@@ -1651,6 +1651,8 @@ impl Machine {
 		}
 		// Else try to execute a supplied (built-in) function
 		let result = 'a: { match supplied_function {
+			FloatSuppliedFunction::Tab => return Err(ErrorVariant::TabNotAsPrintItem.at_column(*start_column)),
+
 			FloatSuppliedFunction::Pi =>     Ok(FloatValue::PI),
 			FloatSuppliedFunction::E =>      Ok(FloatValue::E),
 			FloatSuppliedFunction::Tau =>    Ok(FloatValue::TAU),

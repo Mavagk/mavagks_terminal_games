@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use strum_macros::{EnumDiscriminants, EnumIter};
 
-use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{IdentifierType, SuppliedFunctionIdentifier}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::IdentifierType, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -502,7 +502,7 @@ pub struct IntLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	//pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
 	pub supplied_function: Option<IntSuppliedFunction>,
 }
 
@@ -615,7 +615,7 @@ pub struct FloatLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	//pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
 	pub supplied_function: Option<FloatSuppliedFunction>,
 }
 
@@ -727,6 +727,8 @@ pub enum FloatSuppliedFunction {
 	Val,
 	MaxLen,
 	Pos,
+	// PRINT string function
+	Tab,
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
@@ -908,7 +910,7 @@ pub struct ComplexLValue {
 	//pub uses_fn_keyword: bool,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	//pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
 	pub supplied_function: Option<ComplexSuppliedFunction>,
 }
 
@@ -982,7 +984,7 @@ pub struct StringLValue {
 	pub arguments: Box<[AnyTypeExpression]>,
 	pub has_parentheses: bool,
 	pub start_column: NonZeroUsize,
-	pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
+	//pub supplied_function_identifier: Option<SuppliedFunctionIdentifier>,
 	pub string_slicings: Box<[(Box<IntExpression>, Box<IntExpression>, NonZeroUsize)]>,
 	pub supplied_function: Option<StringSuppliedFunction>,
 }
