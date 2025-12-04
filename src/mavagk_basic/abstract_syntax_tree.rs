@@ -687,7 +687,7 @@ pub enum FloatSuppliedFunction {
 	Random,
 	CommodoreRandom,
 	// Logarithm
-	Ln,
+	LogE,
 	Log10,
 	Log2,
 	LogN,

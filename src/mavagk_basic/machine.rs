@@ -5,7 +5,7 @@ use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle
 use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, TokenVariant, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, get_complex_supplied_functions, get_float_supplied_functions, get_int_supplied_functions, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, TokenVariant, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -358,12 +358,30 @@ impl Machine {
 					None => return Err(ErrorVariant::NotYetImplemented("HELP with no arguments".into()).at_column(*statement_keyword_start_column)),
 					Some(Token { variant, .. }) => variant,
 				};
-				// If the token after the HELP keyword was an identifier then extract the identifier fields. Else print info about the token entered if it is not an identifier.
-				let (_identifier_name, _identifier_type, _binary_operator, _unary_operator, _keyword, _is_reserved_keyword, _supplied_function) = match token_variant {
+				// Get features that this token refers to.
+				let mut _binary_operator = None;
+				let mut _unary_operator = None;
+				let mut _keyword = None;
+				let mut _float_supplied_functions = Default::default();
+				let mut _int_supplied_functions = Default::default();
+				let mut _complex_supplied_functions = Default::default();
+				match token_variant {
 					TokenVariant::Datum(..) => unreachable!(),
 					TokenVariant::Identifier {
-						name, identifier_type, is_optional: _, binary_operator, unary_operator, keyword, is_reserved_keyword, supplied_function
-					} => (name, identifier_type, binary_operator, unary_operator, keyword, is_reserved_keyword, supplied_function),
+						binary_operator: identifier_binary_operator,
+						unary_operator: identifier_unary_operator,
+						keyword: identifier_keyword,
+						supplied_function, ..
+					} => {
+						_binary_operator = *identifier_binary_operator;
+						_unary_operator = *identifier_unary_operator;
+						_keyword = *identifier_keyword;
+						if let Some(supplied_function) = supplied_function {
+							_float_supplied_functions = get_float_supplied_functions(*supplied_function);
+							_int_supplied_functions = get_int_supplied_functions(*supplied_function);
+							_complex_supplied_functions = get_complex_supplied_functions(*supplied_function);
+						}
+					}
 					_ => return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column)),
 				};
 				// If the token is an identifier
@@ -1701,7 +1719,7 @@ impl Machine {
 			// Other
 			FloatSuppliedFunction::Random => Ok(FloatValue::new(self.rng.random_range(0.0..1.))),
 			// Functions that have one float argument
-			FloatSuppliedFunction::Sqrt | FloatSuppliedFunction::Abs | FloatSuppliedFunction::Signum | FloatSuppliedFunction::Ln | FloatSuppliedFunction::Exp |
+			FloatSuppliedFunction::Sqrt | FloatSuppliedFunction::Abs | FloatSuppliedFunction::Signum | FloatSuppliedFunction::LogE | FloatSuppliedFunction::Exp |
 			FloatSuppliedFunction::Sin | FloatSuppliedFunction::Cos | FloatSuppliedFunction::Tan | FloatSuppliedFunction::Cot | FloatSuppliedFunction::Sec | FloatSuppliedFunction::Csc |
 			FloatSuppliedFunction::Asin | FloatSuppliedFunction::Acos | FloatSuppliedFunction::Atan | FloatSuppliedFunction::Acot | FloatSuppliedFunction::Asec | FloatSuppliedFunction::Acsc |
 			FloatSuppliedFunction::Sinh | FloatSuppliedFunction::Cosh | FloatSuppliedFunction::Tanh | FloatSuppliedFunction::Coth | FloatSuppliedFunction::Sech | FloatSuppliedFunction::Csch |
@@ -1766,7 +1784,7 @@ impl Machine {
 					FloatSuppliedFunction::Asech => argument_value.asech(&self.options),
 					FloatSuppliedFunction::Acsch => argument_value.acsch(&self.options),
 					// Logarithm
-					FloatSuppliedFunction::Ln =>    argument_value.ln(&self.options),
+					FloatSuppliedFunction::LogE =>    argument_value.ln(&self.options),
 					FloatSuppliedFunction::Log10 => argument_value.log10(&self.options),
 					FloatSuppliedFunction::Log2 =>  argument_value.log2(&self.options),
 

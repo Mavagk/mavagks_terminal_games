@@ -1422,7 +1422,7 @@ fn parse_l_value<'a, 'b>(tokens: &mut Tokens) -> Result<Option<AnyTypeLValue>, E
 fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<FloatSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
-		(SuppliedFunctionIdentifier::Tab, 1) => FloatSuppliedFunction::Pi,
+		(SuppliedFunctionIdentifier::Tab, 1) => FloatSuppliedFunction::Tab,
 
 		(SuppliedFunctionIdentifier::Pi,     0) => FloatSuppliedFunction::Pi,
 		(SuppliedFunctionIdentifier::E,      0) => FloatSuppliedFunction::E,
@@ -1466,7 +1466,7 @@ fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, argumen
 		(SuppliedFunctionIdentifier::Rnd,       0)                               => FloatSuppliedFunction::Rad,
 		(SuppliedFunctionIdentifier::Rnd,       1)                               => FloatSuppliedFunction::CommodoreRandom,
 
-		(SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Ln, 1) => FloatSuppliedFunction::Ln,
+		(SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Ln, 1) => FloatSuppliedFunction::LogE,
 		(SuppliedFunctionIdentifier::Log10, 1)                                => FloatSuppliedFunction::Log10,
 		(SuppliedFunctionIdentifier::Log2,  1)                                => FloatSuppliedFunction::Log2,
 		(SuppliedFunctionIdentifier::Log,   2)                                => FloatSuppliedFunction::LogN,
@@ -1502,7 +1502,7 @@ fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, argumen
 		(SuppliedFunctionIdentifier::Real, 1)                              => FloatSuppliedFunction::Real,
 		(SuppliedFunctionIdentifier::Imag, 1)                              => FloatSuppliedFunction::Imag,
 		(SuppliedFunctionIdentifier::Arg,  1)                              => FloatSuppliedFunction::Arg,
-		(SuppliedFunctionIdentifier::Abs,  1) if arguments[0].is_complex() => FloatSuppliedFunction::Abs,
+		(SuppliedFunctionIdentifier::Abs,  1) if arguments[0].is_complex() => FloatSuppliedFunction::AbsComplex,
 
 		(SuppliedFunctionIdentifier::Len,    1) => FloatSuppliedFunction::Len,
 		(SuppliedFunctionIdentifier::Ord,    1) => FloatSuppliedFunction::Ord,
@@ -1512,6 +1512,99 @@ fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, argumen
 		(SuppliedFunctionIdentifier::Pos,    1) => FloatSuppliedFunction::Pos,
 		_ => return None,
 	})
+}
+
+pub fn get_float_supplied_functions(identifier: SuppliedFunctionIdentifier) -> &'static [FloatSuppliedFunction] {
+	match identifier {
+		SuppliedFunctionIdentifier::Tab => &[FloatSuppliedFunction::Tab],
+
+		SuppliedFunctionIdentifier::Pi     => &[FloatSuppliedFunction::Pi],
+		SuppliedFunctionIdentifier::E      => &[FloatSuppliedFunction::E],
+		SuppliedFunctionIdentifier::Tau    => &[FloatSuppliedFunction::Tau],
+		SuppliedFunctionIdentifier::Phi    => &[FloatSuppliedFunction::Phi],
+		SuppliedFunctionIdentifier::EGamma => &[FloatSuppliedFunction::EGamma],
+		SuppliedFunctionIdentifier::MaxNum => &[FloatSuppliedFunction::MaxNum],
+		SuppliedFunctionIdentifier::NaN    => &[FloatSuppliedFunction::NaN],
+		SuppliedFunctionIdentifier::Inf    => &[FloatSuppliedFunction::Inf],
+		SuppliedFunctionIdentifier::NInf   => &[FloatSuppliedFunction::NInf],
+		SuppliedFunctionIdentifier::True   => &[FloatSuppliedFunction::True],
+		SuppliedFunctionIdentifier::False  => &[FloatSuppliedFunction::False],
+
+		SuppliedFunctionIdentifier::Time   => &[FloatSuppliedFunction::Time],
+		SuppliedFunctionIdentifier::Date   => &[FloatSuppliedFunction::Date],
+		SuppliedFunctionIdentifier::Second => &[FloatSuppliedFunction::Second],
+		SuppliedFunctionIdentifier::Minute => &[FloatSuppliedFunction::Minute],
+		SuppliedFunctionIdentifier::Hour   => &[FloatSuppliedFunction::Hour],
+		SuppliedFunctionIdentifier::Day    => &[FloatSuppliedFunction::Day],
+		SuppliedFunctionIdentifier::Month  => &[FloatSuppliedFunction::Month],
+		SuppliedFunctionIdentifier::Year   => &[FloatSuppliedFunction::Year],
+
+		SuppliedFunctionIdentifier::Floor | SuppliedFunctionIdentifier::Int => &[FloatSuppliedFunction::Floor],
+		SuppliedFunctionIdentifier::Ip                                      => &[FloatSuppliedFunction::Ip],
+		SuppliedFunctionIdentifier::Ceil                                    => &[FloatSuppliedFunction::Ceil],
+		SuppliedFunctionIdentifier::Truncate                                => &[FloatSuppliedFunction::Truncate],
+		SuppliedFunctionIdentifier::Round                                   => &[FloatSuppliedFunction::Round],
+
+		SuppliedFunctionIdentifier::Abs       => &[FloatSuppliedFunction::Abs, FloatSuppliedFunction::AbsComplex],
+		SuppliedFunctionIdentifier::Sgn       => &[FloatSuppliedFunction::Signum],
+		SuppliedFunctionIdentifier::Fp        => &[FloatSuppliedFunction::Fp],
+		SuppliedFunctionIdentifier::Deg       => &[FloatSuppliedFunction::Deg],
+		SuppliedFunctionIdentifier::Rad       => &[FloatSuppliedFunction::Rad],
+		SuppliedFunctionIdentifier::Eps       => &[FloatSuppliedFunction::Eps],
+		SuppliedFunctionIdentifier::Sqr       => &[FloatSuppliedFunction::Sqrt],
+		SuppliedFunctionIdentifier::Exp       => &[FloatSuppliedFunction::Exp],
+		SuppliedFunctionIdentifier::Mod       => &[FloatSuppliedFunction::Modulo],
+		SuppliedFunctionIdentifier::Remainder => &[FloatSuppliedFunction::Remainder],
+		SuppliedFunctionIdentifier::Min       => &[FloatSuppliedFunction::Min],
+		SuppliedFunctionIdentifier::Max       => &[FloatSuppliedFunction::Max],
+		SuppliedFunctionIdentifier::Rnd       => &[FloatSuppliedFunction::Rad, FloatSuppliedFunction::CommodoreRandom],
+
+		SuppliedFunctionIdentifier::Ln    => &[FloatSuppliedFunction::LogE],
+		SuppliedFunctionIdentifier::Log10 => &[FloatSuppliedFunction::Log10],
+		SuppliedFunctionIdentifier::Log2  => &[FloatSuppliedFunction::Log2],
+		SuppliedFunctionIdentifier::Log   => &[FloatSuppliedFunction::LogN, FloatSuppliedFunction::LogE],
+
+		SuppliedFunctionIdentifier::Sin   => &[FloatSuppliedFunction::Sin],
+		SuppliedFunctionIdentifier::Cos   => &[FloatSuppliedFunction::Cos],
+		SuppliedFunctionIdentifier::Tan   => &[FloatSuppliedFunction::Tan],
+		SuppliedFunctionIdentifier::Cot   => &[FloatSuppliedFunction::Cot],
+		SuppliedFunctionIdentifier::Sec   => &[FloatSuppliedFunction::Sec],
+		SuppliedFunctionIdentifier::Csc   => &[FloatSuppliedFunction::Csc],
+		SuppliedFunctionIdentifier::Asin  => &[FloatSuppliedFunction::Asin],
+		SuppliedFunctionIdentifier::Acos  => &[FloatSuppliedFunction::Acos],
+		SuppliedFunctionIdentifier::Atan  => &[FloatSuppliedFunction::Atan],
+		SuppliedFunctionIdentifier::Acot  => &[FloatSuppliedFunction::Acot],
+		SuppliedFunctionIdentifier::Asec  => &[FloatSuppliedFunction::Asec],
+		SuppliedFunctionIdentifier::Acsc  => &[FloatSuppliedFunction::Acsc],
+		SuppliedFunctionIdentifier::Angle => &[FloatSuppliedFunction::Angle],
+		SuppliedFunctionIdentifier::Atan2 => &[FloatSuppliedFunction::Atan2],
+
+		SuppliedFunctionIdentifier::Sinh  => &[FloatSuppliedFunction::Sinh],
+		SuppliedFunctionIdentifier::Cosh  => &[FloatSuppliedFunction::Cosh],
+		SuppliedFunctionIdentifier::Tanh  => &[FloatSuppliedFunction::Tanh],
+		SuppliedFunctionIdentifier::Coth  => &[FloatSuppliedFunction::Coth],
+		SuppliedFunctionIdentifier::Sech  => &[FloatSuppliedFunction::Sech],
+		SuppliedFunctionIdentifier::Csch  => &[FloatSuppliedFunction::Csch],
+		SuppliedFunctionIdentifier::Asinh => &[FloatSuppliedFunction::Asinh],
+		SuppliedFunctionIdentifier::Acosh => &[FloatSuppliedFunction::Acosh],
+		SuppliedFunctionIdentifier::Atanh => &[FloatSuppliedFunction::Atanh],
+		SuppliedFunctionIdentifier::Acoth => &[FloatSuppliedFunction::Acoth],
+		SuppliedFunctionIdentifier::Asech => &[FloatSuppliedFunction::Asech],
+		SuppliedFunctionIdentifier::Acsch => &[FloatSuppliedFunction::Acsch],
+
+		SuppliedFunctionIdentifier::Real => &[FloatSuppliedFunction::Real],
+		SuppliedFunctionIdentifier::Imag => &[FloatSuppliedFunction::Imag],
+		SuppliedFunctionIdentifier::Arg  => &[FloatSuppliedFunction::Arg],
+
+		SuppliedFunctionIdentifier::Len    => &[FloatSuppliedFunction::Len],
+		SuppliedFunctionIdentifier::Ord    => &[FloatSuppliedFunction::Ord],
+		SuppliedFunctionIdentifier::Asc    => &[FloatSuppliedFunction::Asc],
+		SuppliedFunctionIdentifier::Val    => &[FloatSuppliedFunction::Val],
+		SuppliedFunctionIdentifier::MaxLen => &[FloatSuppliedFunction::MaxLen],
+		SuppliedFunctionIdentifier::Pos    => &[FloatSuppliedFunction::Pos],
+
+		_ => &[],
+	}
 }
 
 fn parse_int_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<IntSuppliedFunction> {
@@ -1547,6 +1640,39 @@ fn parse_int_supplied_function(identifier: SuppliedFunctionIdentifier, arguments
 
 		_ => return None,
 	})
+}
+
+pub fn get_int_supplied_functions(identifier: SuppliedFunctionIdentifier) -> &'static [IntSuppliedFunction] {
+	match identifier {
+		SuppliedFunctionIdentifier::True  => &[IntSuppliedFunction::True],
+		SuppliedFunctionIdentifier::False => &[IntSuppliedFunction::False],
+		
+		SuppliedFunctionIdentifier::Time   => &[IntSuppliedFunction::Time],
+		SuppliedFunctionIdentifier::Date   => &[IntSuppliedFunction::Date],
+		SuppliedFunctionIdentifier::Second => &[IntSuppliedFunction::Second],
+		SuppliedFunctionIdentifier::Minute => &[IntSuppliedFunction::Minute],
+		SuppliedFunctionIdentifier::Hour   => &[IntSuppliedFunction::Hour],
+		SuppliedFunctionIdentifier::Day    => &[IntSuppliedFunction::Day],
+		SuppliedFunctionIdentifier::Month  => &[IntSuppliedFunction::Month],
+		SuppliedFunctionIdentifier::Year   => &[IntSuppliedFunction::Year],
+		
+		SuppliedFunctionIdentifier::Sqr   => &[IntSuppliedFunction::Sqr],
+		SuppliedFunctionIdentifier::Abs   => &[IntSuppliedFunction::Abs],
+		SuppliedFunctionIdentifier::Log2  => &[IntSuppliedFunction::Log2],
+		SuppliedFunctionIdentifier::Log10 => &[IntSuppliedFunction::Log10],
+		SuppliedFunctionIdentifier::Xor   => &[IntSuppliedFunction::Xor],
+		SuppliedFunctionIdentifier::Min   => &[IntSuppliedFunction::Min],
+		SuppliedFunctionIdentifier::Max   => &[IntSuppliedFunction::Max],
+		SuppliedFunctionIdentifier::Sgn   => &[IntSuppliedFunction::Sgn],
+		
+		SuppliedFunctionIdentifier::Int | SuppliedFunctionIdentifier::Floor => &[IntSuppliedFunction::Floor],
+		SuppliedFunctionIdentifier::Ceil                                    => &[IntSuppliedFunction::Ceil],
+		SuppliedFunctionIdentifier::Ip                                      => &[IntSuppliedFunction::Ip],
+		
+		SuppliedFunctionIdentifier::Len => &[IntSuppliedFunction::Len],
+
+		_ => return &[],
+	}
 }
 
 fn parse_complex_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<ComplexSuppliedFunction> {
@@ -1593,6 +1719,48 @@ fn parse_complex_supplied_function(identifier: SuppliedFunctionIdentifier, argum
 	})
 }
 
+pub fn get_complex_supplied_functions(identifier: SuppliedFunctionIdentifier) -> &'static [ComplexSuppliedFunction] {
+	match identifier {
+		SuppliedFunctionIdentifier::I => &[ComplexSuppliedFunction::I],
+		
+		SuppliedFunctionIdentifier::Sqr  => &[ComplexSuppliedFunction::Sqr],
+		SuppliedFunctionIdentifier::Exp  => &[ComplexSuppliedFunction::Exp],
+		SuppliedFunctionIdentifier::Conj => &[ComplexSuppliedFunction::Conj],
+		
+		SuppliedFunctionIdentifier::Ln    => &[ComplexSuppliedFunction::LogE],
+		SuppliedFunctionIdentifier::Log2  => &[ComplexSuppliedFunction::Log2],
+		SuppliedFunctionIdentifier::Log10 => &[ComplexSuppliedFunction::Log10],
+		SuppliedFunctionIdentifier::Log   => &[ComplexSuppliedFunction::LogN, ComplexSuppliedFunction::LogE],
+		
+		SuppliedFunctionIdentifier::Sin  => &[ComplexSuppliedFunction::Sin],
+		SuppliedFunctionIdentifier::Cos  => &[ComplexSuppliedFunction::Cos],
+		SuppliedFunctionIdentifier::Tan  => &[ComplexSuppliedFunction::Tan],
+		SuppliedFunctionIdentifier::Cot  => &[ComplexSuppliedFunction::Cot],
+		SuppliedFunctionIdentifier::Sec  => &[ComplexSuppliedFunction::Sec],
+		SuppliedFunctionIdentifier::Csc  => &[ComplexSuppliedFunction::Csc],
+		SuppliedFunctionIdentifier::Asin => &[ComplexSuppliedFunction::Asin],
+		SuppliedFunctionIdentifier::Acos => &[ComplexSuppliedFunction::Acos],
+		SuppliedFunctionIdentifier::Atan => &[ComplexSuppliedFunction::Atan],
+		SuppliedFunctionIdentifier::Acot => &[ComplexSuppliedFunction::Acot],
+		SuppliedFunctionIdentifier::Asec => &[ComplexSuppliedFunction::Asec],
+		SuppliedFunctionIdentifier::Acsc => &[ComplexSuppliedFunction::Acsc],
+		
+		SuppliedFunctionIdentifier::Sinh  => &[ComplexSuppliedFunction::Sinh],
+		SuppliedFunctionIdentifier::Cosh  => &[ComplexSuppliedFunction::Cosh],
+		SuppliedFunctionIdentifier::Tanh  => &[ComplexSuppliedFunction::Tanh],
+		SuppliedFunctionIdentifier::Coth  => &[ComplexSuppliedFunction::Coth],
+		SuppliedFunctionIdentifier::Sech  => &[ComplexSuppliedFunction::Sech],
+		SuppliedFunctionIdentifier::Csch  => &[ComplexSuppliedFunction::Csch],
+		SuppliedFunctionIdentifier::Asinh => &[ComplexSuppliedFunction::Asinh],
+		SuppliedFunctionIdentifier::Acosh => &[ComplexSuppliedFunction::Acosh],
+		SuppliedFunctionIdentifier::Atanh => &[ComplexSuppliedFunction::Atanh],
+		SuppliedFunctionIdentifier::Acoth => &[ComplexSuppliedFunction::Acoth],
+		SuppliedFunctionIdentifier::Asech => &[ComplexSuppliedFunction::Asech],
+		SuppliedFunctionIdentifier::Acsch => &[ComplexSuppliedFunction::Acsch],
+		_ => &[],
+	}
+}
+
 fn parse_string_supplied_function(identifier: SuppliedFunctionIdentifier, arguments: &[AnyTypeExpression]) -> Option<StringSuppliedFunction> {
 	let argument_count = arguments.len();
 	Some(match (identifier, argument_count) {
@@ -1617,6 +1785,27 @@ fn parse_string_supplied_function(identifier: SuppliedFunctionIdentifier, argume
 		(SuppliedFunctionIdentifier::Str, 1) => StringSuppliedFunction::Str,
 		_ => return None,
 	})
+}
+
+pub fn get_string_supplied_functions(identifier: SuppliedFunctionIdentifier) -> &'static [StringSuppliedFunction] {
+	match identifier {
+		SuppliedFunctionIdentifier::Time => &[StringSuppliedFunction::Time],
+		SuppliedFunctionIdentifier::Date => &[StringSuppliedFunction::Date],
+		
+		SuppliedFunctionIdentifier::UCase  => &[StringSuppliedFunction::UCase],
+		SuppliedFunctionIdentifier::LCase  => &[StringSuppliedFunction::LCase],
+		SuppliedFunctionIdentifier::LTrim  => &[StringSuppliedFunction::LTrim],
+		SuppliedFunctionIdentifier::RTrim  => &[StringSuppliedFunction::RTrim],
+		SuppliedFunctionIdentifier::Left   => &[StringSuppliedFunction::Left1Arg, StringSuppliedFunction::Left2Args],
+		SuppliedFunctionIdentifier::Right  => &[StringSuppliedFunction::Right1Arg, StringSuppliedFunction::Right2Args],
+		SuppliedFunctionIdentifier::Repeat => &[StringSuppliedFunction::Repeat],
+		SuppliedFunctionIdentifier::Mid    => &[StringSuppliedFunction::Mid2Args, StringSuppliedFunction::Mid3Args],
+		
+		SuppliedFunctionIdentifier::Chr => &[StringSuppliedFunction::Chr],
+		
+		SuppliedFunctionIdentifier::Str => &[StringSuppliedFunction::Str],
+		_ => &[],
+	}
 }
 
 /// Gets the length of an l-value
