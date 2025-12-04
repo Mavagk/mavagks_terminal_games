@@ -990,6 +990,13 @@ fn parse_statement<'a, 'b>(tokens: &mut Tokens, is_root_statement: bool) -> Resu
 			}
 		}
 		Keyword::Go => return Err(ErrorVariant::SingleGoKeyword.at_column(statement_keyword_start_column)),
+		Keyword::Help => {
+			let token_after_help_keyword = tokens.take_next_token();
+			Statement {
+				column: statement_keyword_start_column,
+				variant: StatementVariant::Help(token_after_help_keyword.cloned()),
+			}
+		}
 		other_keyword => return Err(ErrorVariant::NotYetImplemented(format!("{} Statement", other_keyword.get_names()[0].0)).at_column(statement_keyword_start_column)),
 	}))
 }

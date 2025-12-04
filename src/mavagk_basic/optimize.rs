@@ -64,7 +64,7 @@ pub fn optimize_statement(statement: &mut Statement) {
 				optimize_statement(else_statement);
 			}
 		}
-		StatementVariant::Option(_) => {}
+		StatementVariant::Option(_) | StatementVariant::Help(_) => {}
 		StatementVariant::NumericAssignment(l_values, r_value) => {
 			for l_value in l_values {
 				match l_value {

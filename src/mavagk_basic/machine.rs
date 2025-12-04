@@ -5,7 +5,7 @@ use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle
 use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, TokenVariant, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -269,13 +269,13 @@ impl Machine {
 
 	/// Called when executing a statement in direct mode. Can modify the program since it is not executing it.
 	fn execute_direct_mode_statement(&mut self, statement: &Statement, program: &mut Program) -> Result<bool, Error> {
-		let Statement { variant, column } = &statement;
+		let Statement { variant, column: statement_keyword_start_column } = &statement;
 		match variant {
 			StatementVariant::Load(filepath_expression) => {
 				// Execute expression
 				let filename_value = match filepath_expression {
 					Some(filepath_expression) => self.execute_string_expression(filepath_expression, Some(program))?,
-					None => return Err(ErrorVariant::Unimplemented("LOAD without arguments".into()).at_column(*column)),
+					None => return Err(ErrorVariant::Unimplemented("LOAD without arguments".into()).at_column(*statement_keyword_start_column)),
 				};
 				// Convert string value to filepath
 				let filepath = self.string_to_full_filepath(&filename_value.value)
@@ -327,7 +327,7 @@ impl Machine {
 				// Execute expression
 				let filename_value = match filepath_expression {
 					Some(filepath_expression) => self.execute_string_expression(filepath_expression, Some(program))?,
-					None => return Err(ErrorVariant::Unimplemented("SAVE without arguments".into()).at_column(*column)),
+					None => return Err(ErrorVariant::Unimplemented("SAVE without arguments".into()).at_column(*statement_keyword_start_column)),
 				};
 				// Convert string value to filepath
 				let filepath = self.string_to_full_filepath(&filename_value.value)
@@ -351,6 +351,24 @@ impl Machine {
 				program.clear_program();
 				self.execution_source = ExecutionSource::ProgramEnded;
 				Ok(true)
+			}
+			StatementVariant::Help(token) => {
+				// If nothing was entered after the HELP keyword, print a list of sub-menus. Else get the token variant.
+				let token_variant = match token {
+					None => return Err(ErrorVariant::NotYetImplemented("HELP with no arguments".into()).at_column(*statement_keyword_start_column)),
+					Some(Token { variant, .. }) => variant,
+				};
+				// If the token after the HELP keyword was an identifier then extract the identifier fields. Else print info about the token entered if it is not an identifier.
+				let (_identifier_name, _identifier_type, _binary_operator, _unary_operator, _keyword, _is_reserved_keyword, _supplied_function) = match token_variant {
+					TokenVariant::Datum(..) => unreachable!(),
+					TokenVariant::Identifier {
+						name, identifier_type, is_optional: _, binary_operator, unary_operator, keyword, is_reserved_keyword, supplied_function
+					} => (name, identifier_type, binary_operator, unary_operator, keyword, is_reserved_keyword, supplied_function),
+					_ => return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column)),
+				};
+				// If the token is an identifier
+				return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column));
+				//Ok(false)
 			}
 			_ => self.execute_statement(statement, program),
 		}
@@ -823,7 +841,7 @@ impl Machine {
 					}
 				}
 			}
-			StatementVariant::Load(..) | StatementVariant::Save(..) | StatementVariant::New => return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column)),
+			StatementVariant::Load(..) | StatementVariant::Save(..) | StatementVariant::New | StatementVariant::Help(..) => return Err(ErrorVariant::CanOnlyExecuteInDirectMode.at_column(*column)),
 			StatementVariant::End => {
 				// TODO: Should store stop location to allow a CONT
 				self.execution_source = ExecutionSource::ProgramEnded;

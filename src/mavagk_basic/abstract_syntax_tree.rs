@@ -2,7 +2,7 @@ use std::num::NonZeroUsize;
 
 use strum_macros::{EnumDiscriminants, EnumIter};
 
-use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::IdentifierType, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
+use crate::mavagk_basic::{options::{AngleOption, BaseOption, CollateOption, MachineOption, MathOption}, token::{IdentifierType, Token}, value::{BoolValue, ComplexValue, FloatValue, IntValue, StringValue}};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -17,6 +17,9 @@ impl Statement {
 		}
 		print!(" {:03}: ", self.column);
 		match &self.variant {
+			StatementVariant::Help(token) => {
+				println!("HELP {token:?}");
+			}
 			StatementVariant::Print(arguments) => {
 				println!("PRINT");
 				for argument in arguments {
@@ -291,6 +294,7 @@ pub enum StatementVariant {
 	Clear,
 	Clr,
 	New,
+	Help(Option<Token>),
 	//KeywordHelp(Keyword),
 	//FunctionHelp(SuppliedFunctionIdentifier, IdentifierType),
 }

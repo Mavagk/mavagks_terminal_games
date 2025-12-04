@@ -6,7 +6,7 @@ use strum::IntoEnumIterator;
 
 use crate::mavagk_basic::{abstract_syntax_tree::Datum, error::{Error, ErrorVariant}, options::Options, value::{ComplexValue, FloatValue, IntValue, StringValue}};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// A token received from parsing a line of text
 pub struct Token {
 	/// The token variant, eg. numeric literal, identifier.
@@ -17,7 +17,7 @@ pub struct Token {
 	pub end_column: NonZeroUsize,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 /// A token variant, eg. numeric literal, identifier.
 pub enum TokenVariant {
 	/// An operator. Eg. +, -, <=.
