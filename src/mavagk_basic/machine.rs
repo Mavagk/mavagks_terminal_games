@@ -5,7 +5,7 @@ use crossterm::{cursor::{position, MoveTo}, execute, style::{Color, ContentStyle
 use num::{BigInt, Signed, Zero};
 use rand::{random_range, rngs::SmallRng, Rng, SeedableRng};
 
-use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, get_complex_supplied_functions, get_float_supplied_functions, get_int_supplied_functions, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, TokenVariant, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
+use crate::mavagk_basic::{abstract_syntax_tree::{AnyTypeExpression, AnyTypeLValue, BoolExpression, ComplexExpression, ComplexLValue, ComplexSuppliedFunction, FloatExpression, FloatLValue, FloatSuppliedFunction, IntExpression, IntLValue, IntSuppliedFunction, OptionVariableAndValue, PrintOperand, Statement, StatementVariant, StringExpression, StringLValue, StringSuppliedFunction}, error::{Error, ErrorVariant, FullError, error_at_column, handle_error}, optimize::optimize_statement, options::Options, parse::{Tokens, get_complex_supplied_functions, get_float_supplied_functions, get_int_supplied_functions, get_string_supplied_functions, parse_line}, program::{Line, Program}, token::{IdentifierType, Token, TokenVariant, parse_datum_complex, parse_datum_float, parse_datum_int, parse_datum_string}, value::{AnyTypeValue, BoolValue, ComplexValue, FloatValue, IntValue, StringValue, Value}};
 
 /// A MavagkBasic virtual machine with its execution state, variables, options. Does not contain the program being executed.
 pub struct Machine {
@@ -359,12 +359,13 @@ impl Machine {
 					Some(Token { variant, .. }) => variant,
 				};
 				// Get features that this token refers to.
-				let mut _binary_operator = None;
-				let mut _unary_operator = None;
-				let mut _keyword = None;
-				let mut _float_supplied_functions = Default::default();
-				let mut _int_supplied_functions = Default::default();
-				let mut _complex_supplied_functions = Default::default();
+				let mut binary_operator = None;
+				let mut unary_operator = None;
+				let mut keyword = None;
+				let mut float_supplied_functions = Default::default();
+				let mut int_supplied_functions = Default::default();
+				let mut complex_supplied_functions = Default::default();
+				let mut string_supplied_functions = Default::default();
 				match token_variant {
 					TokenVariant::Datum(..) => unreachable!(),
 					TokenVariant::Identifier {
@@ -373,20 +374,31 @@ impl Machine {
 						keyword: identifier_keyword,
 						supplied_function, ..
 					} => {
-						_binary_operator = *identifier_binary_operator;
-						_unary_operator = *identifier_unary_operator;
-						_keyword = *identifier_keyword;
+						binary_operator = *identifier_binary_operator;
+						unary_operator = *identifier_unary_operator;
+						keyword = *identifier_keyword;
 						if let Some(supplied_function) = supplied_function {
-							_float_supplied_functions = get_float_supplied_functions(*supplied_function);
-							_int_supplied_functions = get_int_supplied_functions(*supplied_function);
-							_complex_supplied_functions = get_complex_supplied_functions(*supplied_function);
+							float_supplied_functions = get_float_supplied_functions(*supplied_function);
+							int_supplied_functions = get_int_supplied_functions(*supplied_function);
+							complex_supplied_functions = get_complex_supplied_functions(*supplied_function);
+							string_supplied_functions = get_string_supplied_functions(*supplied_function);
 						}
 					}
 					_ => return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column)),
 				};
-				// If the token is an identifier
-				return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column));
-				//Ok(false)
+				// If no feature could be found
+				if binary_operator == None && unary_operator == None && keyword == None &&
+					float_supplied_functions.is_empty() && int_supplied_functions.is_empty() && complex_supplied_functions.is_empty() && string_supplied_functions.is_empty()
+				{
+					return Err(ErrorVariant::ItemNotFoundForHelp.at_column(*statement_keyword_start_column));
+				}
+				// Print out info about feature
+				//println!("Name                          Syntax                        Description");
+				for float_supplied_function in float_supplied_functions {
+					let (syntax, name, brief_description, extended_description) = float_supplied_function.get_help_info();
+					println!("{syntax} - {name} - {brief_description} {extended_description}");
+				}
+				Ok(false)
 			}
 			_ => self.execute_statement(statement, program),
 		}

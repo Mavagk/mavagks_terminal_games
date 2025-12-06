@@ -144,6 +144,7 @@ pub enum ErrorVariant {
 	StrSliceFnOutOfRange,
 	SlicingOperatorWithTooManyArguments,
 	TabNotAsPrintItem,
+	ItemNotFoundForHelp,
 	//ArrayNotDimensioned,
 	// TODO Different overflows
 	ValueOverflow,
@@ -308,6 +309,7 @@ impl Display for ErrorVariant {
 			Self::ExpectedColonInStringSlicingOperator => write!(f, "Expected colon in string slicing operator."),
 			Self::VariableWriteToSliceUninitialized => write!(f, "Attempted to write to a string slice of a variable that is uninitialized."),
 			Self::TabNotAsPrintItem => write!(f, "Attempted to evaluate a TAB function that was not a PRINT item and while TAB was not a user-defined function."),
+			Self::ItemNotFoundForHelp => write!(f, "Could not find a function, operator, keyword or any other programming language feature with that name/symbol."),
 		}
 	}
 }

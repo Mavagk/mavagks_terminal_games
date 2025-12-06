@@ -295,8 +295,6 @@ pub enum StatementVariant {
 	Clr,
 	New,
 	Help(Option<Token>),
-	//KeywordHelp(Keyword),
-	//FunctionHelp(SuppliedFunctionIdentifier, IdentifierType),
 }
 
 #[derive(Debug, Clone)]
@@ -733,6 +731,28 @@ pub enum FloatSuppliedFunction {
 	Pos,
 	// PRINT string function
 	Tab,
+}
+
+impl FloatSuppliedFunction {
+	/// Returns a (syntax, name, description brief, extended description) tuple for the given function.
+	pub fn get_help_info(self) -> (&'static str, &'static str, &'static str, &'static str) {
+		match self {
+			// Constants
+			Self::Pi =>     ("PI",     "Archimedes' Constant / Pi", "3.14159.... The ratio of a circle's circumference to its diameter.", "Half a turn in radians."),
+			Self::E =>      ("E",      "Euler's Number / E", "2.71828.... The base of natural logarithms and the exponential function.",
+				"Also the sum of the reciprocals of the factorials of all the non-negative integers."),
+			Self::Tau =>    ("TAU",    "Archimedes' Constant Doubled / Tau", "6.28318.... The ratio of a circle's circumference to its radius.", "A full turn in radians."),
+			Self::Phi =>    ("PHI",    "Golden Ratio Constant / Phi", "1.61803.... The number that is equal to itself plus one when squared.", "Also equal to (1 + SQR(5)) / 2."),
+			Self::EGamma => ("EGAMMA", "Euler-Mascheroni Constant / Euler's Constant", "0.57721.... Negation or the digamma of 1.", ""),
+			Self::MaxNum => ("MAXNUM", "Maximum float", "The largest floating point value that can be represented.", ""),
+			Self::NaN =>    ("NAN",    "Not a Number", "The floating point not a number constant.", ""),
+			Self::Inf =>    ("INF",    "Positive Infinity", "The floating point positive infinity constant.", ""),
+			Self::NInf =>   ("NINF",   "Negative Infinity", "The floating point negative infinity constant.", ""),
+			Self::True =>   ("TRUE",   "True", "The result of a true comparison or -1.", ""),
+			Self::False =>  ("FALSE",  "False", "The result of a false comparison or 0.", ""),
+			_ => todo!()
+		}
+	}
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
