@@ -1463,7 +1463,7 @@ fn parse_float_supplied_function(identifier: SuppliedFunctionIdentifier, argumen
 		(SuppliedFunctionIdentifier::Remainder, 2)                               => FloatSuppliedFunction::Remainder,
 		(SuppliedFunctionIdentifier::Min,       n) if n > 0               => FloatSuppliedFunction::Min,
 		(SuppliedFunctionIdentifier::Max,       n) if n > 0               => FloatSuppliedFunction::Max,
-		(SuppliedFunctionIdentifier::Rnd,       0)                               => FloatSuppliedFunction::Rad,
+		(SuppliedFunctionIdentifier::Rnd,       0)                               => FloatSuppliedFunction::Random,
 		(SuppliedFunctionIdentifier::Rnd,       1)                               => FloatSuppliedFunction::CommodoreRandom,
 
 		(SuppliedFunctionIdentifier::Log | SuppliedFunctionIdentifier::Ln, 1) => FloatSuppliedFunction::LogE,
@@ -1557,7 +1557,7 @@ pub fn get_float_supplied_functions(identifier: SuppliedFunctionIdentifier) -> &
 		SuppliedFunctionIdentifier::Remainder => &[FloatSuppliedFunction::Remainder],
 		SuppliedFunctionIdentifier::Min       => &[FloatSuppliedFunction::Min],
 		SuppliedFunctionIdentifier::Max       => &[FloatSuppliedFunction::Max],
-		SuppliedFunctionIdentifier::Rnd       => &[FloatSuppliedFunction::Rad, FloatSuppliedFunction::CommodoreRandom],
+		SuppliedFunctionIdentifier::Rnd       => &[FloatSuppliedFunction::Random, FloatSuppliedFunction::CommodoreRandom],
 
 		SuppliedFunctionIdentifier::Ln    => &[FloatSuppliedFunction::LogE],
 		SuppliedFunctionIdentifier::Log10 => &[FloatSuppliedFunction::Log10],

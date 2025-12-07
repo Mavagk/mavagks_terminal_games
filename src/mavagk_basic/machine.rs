@@ -393,10 +393,22 @@ impl Machine {
 					return Err(ErrorVariant::ItemNotFoundForHelp.at_column(*statement_keyword_start_column));
 				}
 				// Print out info about feature
-				//println!("Name                          Syntax                        Description");
+				println!();
 				for float_supplied_function in float_supplied_functions {
-					let (syntax, name, brief_description, extended_description) = float_supplied_function.get_help_info();
-					println!("{syntax} - {name} - {brief_description} {extended_description}");
+					let (syntax, name, brief_description, extended_description, formulae) = float_supplied_function.get_help_info();
+					println!("--- Name ---");
+					println!("{name}");
+					println!("--- Syntax ---");
+					println!("{syntax}");
+					println!("--- Description ---");
+					println!("{brief_description} {extended_description}");
+					if !formulae.is_empty() {
+						println!("--- Formulae ---");
+					}
+					for formula in formulae {
+						println!("{formula}");
+					}
+					println!();
 				}
 				Ok(false)
 			}
