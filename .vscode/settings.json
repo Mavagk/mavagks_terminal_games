@@ -24,6 +24,7 @@
 		"hexdigit",
 		"hite",
 		"IMAG",
+		"Integerize",
 		"LCASE",
 		"LTRIM",
 		"Mascheroni",
@@ -57,6 +58,7 @@
 		"unflags",
 		"Ungenerated",
 		"Unshifted",
+		"YYDDD",
 		"ZONEWIDTH"
 	],
 	"terminal.explorerKind": "external",

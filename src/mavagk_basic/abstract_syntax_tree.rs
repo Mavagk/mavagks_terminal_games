@@ -738,18 +738,33 @@ impl FloatSuppliedFunction {
 	pub fn get_help_info(self) -> (&'static str, &'static str, &'static str, &'static str) {
 		match self {
 			// Constants
-			Self::Pi =>     ("PI",     "Archimedes' Constant / Pi", "3.14159.... The ratio of a circle's circumference to its diameter.", "Half a turn in radians."),
-			Self::E =>      ("E",      "Euler's Number / E", "2.71828.... The base of natural logarithms and the exponential function.",
+			Self::Pi     => ("PI",     "Archimedes' Constant / Pi", "3.14159..., the ratio of a circle's circumference to its diameter.", "Half a turn in radians."),
+			Self::E      => ("E",      "Euler's Number / E", "2.71828..., the base of natural logarithms and the exponential function.",
 				"Also the sum of the reciprocals of the factorials of all the non-negative integers."),
-			Self::Tau =>    ("TAU",    "Archimedes' Constant Doubled / Tau", "6.28318.... The ratio of a circle's circumference to its radius.", "A full turn in radians."),
-			Self::Phi =>    ("PHI",    "Golden Ratio Constant / Phi", "1.61803.... The number that is equal to itself plus one when squared.", "Also equal to (1 + SQR(5)) / 2."),
-			Self::EGamma => ("EGAMMA", "Euler-Mascheroni Constant / Euler's Constant", "0.57721.... Negation or the digamma of 1.", ""),
-			Self::MaxNum => ("MAXNUM", "Maximum float", "The largest floating point value that can be represented.", ""),
-			Self::NaN =>    ("NAN",    "Not a Number", "The floating point not a number constant.", ""),
-			Self::Inf =>    ("INF",    "Positive Infinity", "The floating point positive infinity constant.", ""),
-			Self::NInf =>   ("NINF",   "Negative Infinity", "The floating point negative infinity constant.", ""),
-			Self::True =>   ("TRUE",   "True", "The result of a true comparison or -1.", ""),
-			Self::False =>  ("FALSE",  "False", "The result of a false comparison or 0.", ""),
+			Self::Tau    => ("TAU",    "Archimedes' Constant Doubled / Tau", "6.28318..., the ratio of a circle's circumference to its radius.", "A full turn in radians."),
+			Self::Phi    => ("PHI",    "Golden Ratio Constant / Phi", "1.61803..., the number that is equal to itself plus one when squared.", "Also equal to (1 + SQR(5)) / 2."),
+			Self::EGamma => ("EGAMMA", "Euler-Mascheroni Constant / Euler's Constant", "0.57721..., negation of the digamma of 1.", ""),
+			Self::MaxNum => ("MAXNUM", "Maximum Float", "The largest floating point value that can be represented.", ""),
+			Self::NaN    => ("NAN",    "Not a Number", "The floating point not a number constant.", ""),
+			Self::Inf    => ("INF",    "Positive Infinity", "The floating point positive infinity constant.", ""),
+			Self::NInf   => ("NINF",   "Negative Infinity", "The floating point negative infinity constant.", ""),
+			Self::True   => ("TRUE",   "True", "The result of a true comparison or -1.", ""),
+			Self::False  => ("FALSE",  "False", "The result of a false comparison or 0.", ""),
+			// Time
+			Self::Time   => ("TIME", "Time of Day (Seconds)", "Returns how many seconds have passed since the last midnight.",
+				"Returns a value between 0 (midnight) and 86399 (second before midnight) using the local timezone."),
+			Self::Date   => ("DATE", "Date", "Returns the current date in YYDDD format.",
+				"YY is the last two digits of the current year number and DDD is the day number of the year starting at 1. The local timezone is used."),
+			Self::Second => ("SECOND", "Second of Minute", "Returns the current second of the current minute.", "Returns a value between 0 and 59 using the local timezone."),
+			Self::Minute => ("MINUTE", "Minute of Hour", "Returns the current minute of the current hour.", "Returns a value between 0 and 59 using the local timezone."),
+			Self::Hour   => ("HOUR", "Hour of Day (24H)", "Returns the current hour of the current day in 24 hour format.", "Returns a value between 0 (midnight) and 23 using the local timezone."),
+			Self::Day    => ("DAY", "Day of Month", "Returns the current day of the current month.", "Returns a value between 1 and 31 (longest months) using the local timezone."),
+			Self::Month  => ("MONTH", "Month of Year", "Returns the current month of the current year.", "Returns a value between 1 and 12 using the local timezone."),
+			Self::Year   => ("YEAR", "Year", "Returns the current year in the local timezone.", ""),
+			// Rounding
+			Self::Floor => ("FLOOR(X), INT(X)", "Floor / Integerize", "Rounds all non-integers down or towards negative infinity.",
+				"Returns the largest integer less than or equal to X and returns X unchanged if it is an integer."),
+			Self::Ceil => ("CEIL(X)", "Ceiling", "Rounds all non-integers up or towards positive infinity.", "Returns the smallest integer greater than or equal to X and returns X unchanged if it is an integer."),
 			_ => todo!()
 		}
 	}
