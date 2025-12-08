@@ -812,6 +812,25 @@ impl FloatSuppliedFunction {
 			Self::Log10 => ("LOG10(X)", "Common Logarithm", "Returns the base 10 logarithm or X.",
 				"Throws fatal exception 3004 if X is non-positive and OPTION MATH ANSI is set (default) or returns NaN if OPTION MATH IEEE is set.",
 				&["LOG10(X) = LOG(10, X)", "LOG10(X) = NAN if X <= 0 and OPTION MATH IEEE is set", "LOG10(10 ^ X) = X", "LOG10(10) = 1", "LOG10(1) = 0"]),
+			// Complex to Float
+			Self::Real => ("REAL(X#)", "Real Part", "Returns the real part of complex number X#.", "", &["REAL(X) = X if X is real", "REAL(X * Y * I#) = X if X and Y are real"]),
+			Self::Imag => ("IMAG(X#)", "Imaginary Part", "Returns the imaginary part of complex number X#.", "", &["IMAG(X * I#) = X if X is real", "IMAG(X * Y * I#) = Y if X and Y are real"]),
+			Self::Arg => ("ARG(X#)", "Argument", "The angle between the positive real axis and a line from the origin to X#.", "",
+				&["ARG(X#) = ATAN2(IMAG(X#), REAL(X#)) = ANGLE(REAL(X#), IMAG(X#))", "ARG(1) = 0", "ARG(1I) = PI / 2", "ARG(-1) = PI", "ARG(-1I) = -PI / 2"]),
+			// String to Float
+			Self::Len =>    ("LEN(X$)", "String Length", "Returns how many characters are in X$.", "", &["LEN(\"\") = 0"]),
+			Self::Ord =>    ("ORD(X$)", "Ordinal Position", "Returns the ordinal position of the character that string X$ contains.",
+			"The ordinal value of characters is dependent on the current COLLATE OPTION. Throws fatal exception 4003 if X$ does not contain exactly one character.", &["ORD(\"A\") = 65"]), // TODO: Mnemonics
+			Self::Asc =>    ("ASC(X$)", "First Character Ordinal Position", "Returns the ordinal position of the first character that string X$ contains.",
+			"The ordinal value of characters is dependent on the current COLLATE OPTION. Returns 0 if the string is empty.", &["ORD(\"A\") = 65", "ORD(\"AB\") = 65", "ORD(\"\") = 0"]), // TODO: Mnemonics
+			Self::Val =>    ("VAL(X$)", "Numeric Value", "Parses X$ into a numeric value.",
+			"Ignores leading and trailing spaces. Throws fatal exception 1004 if X$ cannot be parsed to a number and 1504 if the parsed value overflows and OPTION MATH ANSI is set (default).",
+			&["VAL(\"420.5\") = 420.5", "VAL(\"  5.6E40   \") = 5.6E40"]),
+			Self::MaxLen => ("MAXLEN(X$)", "Max String Length", "Returns the maximum length of string X$ (equal to MAXNUM since there is no set limit).", "", &[]),
+			Self::Pos => ("POS(X$, Y$)", "Substring Position", "Returns the character position of substring Y$ in X$ starting at 1.", "Returns 0 if the substring could not be found.", &[]),
+			// PRINT string function
+			Self::Tab => ("TAB(X%)", "Set Columnar Position", "Prints spaces until the columnar position is X% (first position is 1).",
+			"Must be used directly as a print item in a PRINT statement. Does nothing if the current columnar position is less then X%.", &[]),
 			_ => todo!()
 		}
 	}
