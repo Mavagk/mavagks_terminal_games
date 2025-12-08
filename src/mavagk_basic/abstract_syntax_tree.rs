@@ -831,6 +831,12 @@ impl FloatSuppliedFunction {
 			// PRINT string function
 			Self::Tab => ("TAB(X%)", "Set Columnar Position", "Prints spaces until the columnar position is X% (first position is 1).",
 			"Must be used directly as a print item in a PRINT statement. Does nothing if the current columnar position is less then X%.", &[]),
+			// Trigonometry
+			Self::Sin => ("SIN(X)", "Sine", "Gives the the opposite to hypotenuse lengths ratio of a right triangle given a non-right angle.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
+			&["SIN(X) = TAN(X) / COS(X)", "SIN(X) = 1 / CSC(X)", "SIN(ASIN(X)) = X if -1 <= X <= 1", "SIN(0) = 0",
+			"SIN(X) = COS(PI / 2 - X)", "SIN(PI / 6) = 1 / 2", "SIN(PI / 3) = SQR(3) / 2", "SIN(PI / 2) = 1",
+			"SIN(X + 2 * PI) = SIN(X)", "SIN(X) = -SIN(X + PI)", "SIN(X) ^ 2 = (1 - COS(X * 2)) / 2"]),
 			_ => todo!()
 		}
 	}
