@@ -782,7 +782,7 @@ impl FloatValue {
 	}
 
 	pub fn acot(self, options: &Options) -> Result<Self, ErrorVariant> {
-		Self::new(1. / (self.value).atan()).from_radians(options)
+		Self::new((PI / 2.) - (self.value).atan()).from_radians(options)
 	}
 
 	pub fn asec(self, options: &Options) -> Result<Self, ErrorVariant> {

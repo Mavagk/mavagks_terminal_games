@@ -359,9 +359,9 @@ impl Machine {
 					Some(Token { variant, .. }) => variant,
 				};
 				// Get features that this token refers to.
-				let mut binary_operator = None;
-				let mut unary_operator = None;
-				let mut keyword = None;
+				let mut _binary_operator = None;
+				let mut _unary_operator = None;
+				let mut _keyword = None;
 				let mut float_supplied_functions = Default::default();
 				let mut int_supplied_functions = Default::default();
 				let mut complex_supplied_functions = Default::default();
@@ -374,9 +374,9 @@ impl Machine {
 						keyword: identifier_keyword,
 						supplied_function, ..
 					} => {
-						binary_operator = *identifier_binary_operator;
-						unary_operator = *identifier_unary_operator;
-						keyword = *identifier_keyword;
+						_binary_operator = *identifier_binary_operator;
+						_unary_operator = *identifier_unary_operator;
+						_keyword = *identifier_keyword;
 						if let Some(supplied_function) = supplied_function {
 							float_supplied_functions = get_float_supplied_functions(*supplied_function);
 							int_supplied_functions = get_int_supplied_functions(*supplied_function);
@@ -387,7 +387,7 @@ impl Machine {
 					_ => return Err(ErrorVariant::NotYetImplemented("HELP".into()).at_column(*statement_keyword_start_column)),
 				};
 				// If no feature could be found
-				if binary_operator == None && unary_operator == None && keyword == None &&
+				if _binary_operator == None && _unary_operator == None && _keyword == None &&
 					float_supplied_functions.is_empty() && int_supplied_functions.is_empty() && complex_supplied_functions.is_empty() && string_supplied_functions.is_empty()
 				{
 					return Err(ErrorVariant::ItemNotFoundForHelp.at_column(*statement_keyword_start_column));
