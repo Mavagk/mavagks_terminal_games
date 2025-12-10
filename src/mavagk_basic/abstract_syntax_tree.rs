@@ -840,7 +840,7 @@ impl FloatSuppliedFunction {
 			Self::Cos => ("COS(X)", "Cosine", "Gives the the adjacent to hypotenuse lengths ratio of a right triangle given a non-right angle.",
 			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
 			&["COS(X) = SIN(X) / TAN(X)", "COS(X) = 1 / SEC(X)", "COS(ACOS(X)) = X if -1 <= X <= 1",
-			"COS(X) = SIN(PI / 2 - X)", "COS(0) = 1", "COS(PI / 6) = SQR(3) / 2", "COS(PI / 4) = SQR(2) / 2", "COS(PI / 3) = 1 / 2", "SIN(PI / 2) = 0",
+			"COS(X) = SIN(PI / 2 - X)", "COS(0) = 1", "COS(PI / 6) = SQR(3) / 2", "COS(PI / 4) = SQR(2) / 2", "COS(PI / 3) = 1 / 2", "COS(PI / 2) = 0",
 			"COS(X + 2 * PI) = COS(X)", "COS(X) = -COS(X + PI)", "COS(X) ^ 2 = (1 + COS(X * 2)) / 2"]),
 			Self::Tan => ("TAN(X)", "Tangent", "Gives the the opposite to adjacent lengths ratio of a right triangle given a non-right angle.",
 			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
@@ -856,6 +856,37 @@ impl FloatSuppliedFunction {
 			Self::Csc => ("CSC(X)", "Cosecant", "Gives the the hypotenuse to opposite lengths ratio of a right triangle given a non-right angle.",
 			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
 			&["CSC(X) = TAN(X) / COS(X)", "CSC(X) = 1 / SIN(X)", "CSC(ACSC(X)) = X if X <= -1 or X >= 1"]),
+			Self::Asin => ("ASIN(X)", "Arcsine / Inverse Sine", "Gives the value that when entered into the SIN function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			X must be in the range -1 to 1 inclusive or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ASIN(X) = ACOS(1 - 2 * X ^ 2) / 2 if -1 <= X <= 1", "ASIN(X) = ATAN(X / SQR(1 - X ^ 2))", "ASIN(SIN(X)) = X if -PI / 2 <= X <= PI / 2",
+			"ASIN(X) = PI / 2 - ACOS(X) if -1 <= X <= 1", "ASIN(-X) = -ASIN(X) if -1 <= X <= 1", "ASIN(X) = ACSC(1 / X) if -1 <= X <= 1",
+			"ASIN(0) = 0", "ASIN(1 / 2) = PI / 6", "ASIN(SQR(2) / 2) = PI / 4 ", "ASIN(SQR(3) / 2) = PI / 3", "ASIN(1) = PI / 2"]),
+			Self::Acos => ("ACOS(X)", "Arccosine / Inverse Cosine", "Gives the value that when entered into the COS function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			X must be in the range -1 to 1 inclusive or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ACOS(X) = ACOS(2 * X ^ 2 - 1) / 2 if -1 <= X <= 1", "ACOS(X) = ATAN(SQR(1 - X ^ 2) / X)", "ACOS(COS(X)) = X if 0 <= X <= PI",
+			"ACOS(X) = PI / 2 - ASIN(X) if -1 <= X <= 1", "ACOS(-X) = PI - ACOS(X) if -1 <= X <= 1", "ACOS(X) = ASEC(1 / X) if -1 <= X <= 1",
+			"ACOS(1) = 0", "ACOS(SQR(3) / 2) = PI / 6", "ACOS(SQR(2) / 2) = PI / 4", "ACOS(1 / 2) = PI / 3", "ACOS(0) = PI / 2"]),
+			Self::Atan => ("ATAN(X), ATN(X)", "Arctangent / Inverse Tangent", "Gives the value that when entered into the TAN function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
+			&["ATAN(TAN(X)) = X if -PI / 2 <= X <= PI / 2",
+			"ATAN(X) = PI / 2 - ACOT(X)", "ATAN(-X) = -ATAN(X)", "ATAN(X) = ACOT(1 / X)",
+			"ATAN(0) = 0", "ATAN(SQR(3) / 3) = PI / 6", "ATAN(1) = PI / 4", "ATAN(SQR(3)) = PI / 3"]),
+			Self::Acot => ("ACOT(X)", "Arccotangent / Inverse Cotangent", "Gives the value that when entered into the COT function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
+			&["ACOT(COT(X)) = X if 0 < X <= PI",
+			"ACOT(X) = PI / 2 - ATAN(X)", "ACOT(-X) = PI - ACOT(X)", "ACOT(X) = ATAN(1 / X)"]),
+			Self::Asec => ("ASEC(X)", "Arcsecant / Inverse Secant", "Gives the value that when entered into the SEC function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			X must not be in the range -1 to 1 or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ASEC(SEC(X)) = X if 0 <= X <= PI",
+			"ASEC(X) = PI / 2 - ACSC(X)", "ASEC(-X) = PI - ASEC(X)", "ASEC(X) = ACOS(1 / X)"]),
+			Self::Acsc => ("ACSC(X)", "Arccosecant / Inverse Cosecant", "Gives the value that when entered into the CSC function, gives X.",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			X must not be in the range -1 to 1 or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ACSC(CSC(X)) = X if -PI / 2 <= X <= PI / 2 and X <> 0",
+			"ASEC(X) = PI / 2 - ASEC(X)", "ACSC(-X) = -ACSC(X)", "ACSC(X) = ASIN(1 / X)"]),
 			_ => todo!()
 		}
 	}
