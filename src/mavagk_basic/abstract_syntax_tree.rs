@@ -856,6 +856,7 @@ impl FloatSuppliedFunction {
 			Self::Csc => ("CSC(X)", "Cosecant", "Gives the the hypotenuse to opposite lengths ratio of a right triangle given a non-right angle.",
 			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively.",
 			&["CSC(X) = TAN(X) / COS(X)", "CSC(X) = 1 / SIN(X)", "CSC(ACSC(X)) = X if X <= -1 or X >= 1"]),
+
 			Self::Asin => ("ASIN(X)", "Arcsine / Inverse Sine", "Gives the value that when entered into the SIN function, gives X.",
 			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
 			X must be in the range -1 to 1 inclusive or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
@@ -887,6 +888,19 @@ impl FloatSuppliedFunction {
 			X must not be in the range -1 to 1 or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
 			&["ACSC(CSC(X)) = X if -PI / 2 <= X <= PI / 2 and X <> 0",
 			"ASEC(X) = PI / 2 - ASEC(X)", "ACSC(-X) = -ACSC(X)", "ACSC(X) = ASIN(1 / X)"]),
+
+			Self::Atan2 => ("ATAN2(Y, X), ATN2(Y, X)", "Two Argument Arctangent", "Gives the angle between the positive X axis and a line from the origin to point (X, Y).",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			Both arguments must be 0 or else fatal exception 3008 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ATAN2(Y, X) = ANGLE(X, Y)",
+			"ATAN2(Y, X) = ATAN(Y / X) if X > 0", "ATAN2(Y, X) = ATAN(Y / X) + PI if X < 0 and Y >= 0", "ATAN2(Y, X) = ATAN(Y / X) - PI if X < 0 and Y < 0",
+			"ATAN2(Y, 0) = PI / 2 if Y > 0", "ATAN2(Y, 0) = -PI / 2 if Y < 0"]),
+			Self::Angle => ("ANGLE(X, Y)", "Angle", "Gives the angle between the positive X axis and a line from the origin to point (X, Y).",
+			"The angle will be in radians by default but can be set to degrees, gradians or turns by setting OPTION ANGLE to DEGREES, GRADIANS or TURNS respectively. \
+			Both arguments must be 0 or else fatal exception 3008 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			&["ANGLE(X, Y) = ATAN2(Y, X)",
+			"ANGLE(X, Y) = ATAN(Y / X) if X > 0", "ANGLE(X, Y) = ATAN(Y / X) + PI if X < 0 and Y >= 0", "ANGLE(X, Y) = ATAN(Y / X) - PI if X < 0 and Y < 0",
+			"ANGLE(0, Y) = PI / 2 if Y > 0", "ANGLE(0, Y) = -PI / 2 if Y < 0"]),
 			// Hyperbolic Trigonometry
 			Self::Sinh => ("SINH(X)", "Hyperbolic Sine", "The odd part of the exponential function.",
 			"This function is not affected by the currently set ANGLE OPTION.",
@@ -906,7 +920,30 @@ impl FloatSuppliedFunction {
 			Self::Csch => ("CSCH(X)", "Hyperbolic Cosecant", "The reciprocal of the hyperbolic sine.",
 			"This function is not affected by the currently set ANGLE OPTION.",
 			&["SECH(X) = 1 / SINH(X) = 2 / (EXP(X) - EXP(-X)) = 2 / (E ^ X - E ^ -X)", "CSCH(ACSCH(X)) = X if X <> 0"]),
-			_ => todo!()
+
+			Self::Asinh => ("ASINH(X)", "Hyperbolic Arcsine / Inverse Hyperbolic Sine", "Gives the value that when entered into the SINH function, gives X.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ASINH(X) = LOG(X + SQR(X ^ 2 + 1))", "ASINH(SINH(X)) = X"]),
+			Self::Acosh => ("ACOSH(X)", "Hyperbolic Arccosine / Inverse Hyperbolic Cosine", "Gives the value that when entered into the COSH function, gives X. \
+			X must not be less than 1 or else a fatal exception will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ACOSH(X) = LOG(X + SQR(X ^ 2 - 1))", "ACOSH(COSH(X)) = X"]),
+			Self::Atanh => ("ATANH(X), ATNH(X)", "Hyperbolic Arctangent / Inverse Hyperbolic Tangent", "Gives the value that when entered into the TANH function, gives X. \
+			X must be in the range -1 to 1 or else a fatal exception will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ATANH(X) = LOG((1 + X) / (1 - X)) / 2", "ATANH(TANH(X)) = X"]),
+			Self::Acoth => ("ACOTH(X)", "Hyperbolic Arccotangent / Inverse Hyperbolic Cotangent", "Gives the value that when entered into the COTH function, gives X. \
+			X must not be between -1 and 1 inclusive or else a fatal exception will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ACOTH(X) = LOG((X + 1) / (X - 1)) / 2", "ACOTH(COTH(X)) = X"]),
+			Self::Asech => ("ASECH(X)", "Hyperbolic Arcsecant / Inverse Hyperbolic Secant", "Gives the value that when entered into the SECH function, gives X. \
+			X must be between 0 and 1 or else a fatal exception will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ASECH(X) = LOG(1 / X + SQR(1 / X ^ 2 - 1))", "ASECH(SECH(X)) = X"]),
+			Self::Acsch => ("ACSCH(X)", "Hyperbolic Arccosecant / Inverse Hyperbolic Cosecant", "Gives the value that when entered into the CSCH function, gives X. \
+			X must not be 0 else a fatal exception will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["ASECH(X) = LOG(1 / X + SQR(1 / X ^ 2 + 1))", "ACSCH(CSCH(X)) = X if X <> 0"]),
 		}
 	}
 }
