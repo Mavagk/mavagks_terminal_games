@@ -699,7 +699,7 @@ impl FloatValue {
 		if self.is_zero() && !options.allow_tanh_csch_of_zero() {
 			return Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero);
 		}
-		match Self::try_new(self.value.sinh() / self.value.cosh(), Some(options)) {
+		match Self::try_new(self.value.cosh() / self.value.sinh(), Some(options)) {
 			Ok(value) => Ok(value),
 			Err(_) => Err(ErrorVariant::HyperbolicCotangentOrCosecantOfZero),
 		}

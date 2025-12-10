@@ -887,6 +887,25 @@ impl FloatSuppliedFunction {
 			X must not be in the range -1 to 1 or else fatal exception 3007 will be thrown if OPTION MATH ANSI is set (default) or NAN will be returned if OPTION MATH IEEE is set.",
 			&["ACSC(CSC(X)) = X if -PI / 2 <= X <= PI / 2 and X <> 0",
 			"ASEC(X) = PI / 2 - ASEC(X)", "ACSC(-X) = -ACSC(X)", "ACSC(X) = ASIN(1 / X)"]),
+			// Hyperbolic Trigonometry
+			Self::Sinh => ("SINH(X)", "Hyperbolic Sine", "The odd part of the exponential function.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["SINH(X) = (EXP(X) - EXP(-X)) / 2 = (E ^ X - E ^ -X) / 2", "SINH(ASINH(X)) = X"]),
+			Self::Cosh => ("COSH(X)", "Hyperbolic Cosine", "The even part of the exponential function.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["SINH(X) = (EXP(X) + EXP(-X)) / 2 = (E ^ X + E ^ -X) / 2", "COSH(ACOSH(X)) = X if X >= 1"]),
+			Self::Tanh => ("TANH(X)", "Hyperbolic Tangent", "hyperbolic sine of X divided by hyperbolic cosine of X.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["TANH(X) = SINH(X) / COSH(X) = (EXP(X) + EXP(-X)) / (EXP(X) - EXP(-X)) = (E ^ X + E ^ -X) / (E ^ X - E ^ -X)", "TANH(ATANH(X)) = X if -1 < X < 1"]),
+			Self::Coth => ("COTH(X)", "Hyperbolic Cotangent", "hyperbolic cosine of X divided by hyperbolic sine of X.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["TANH(X) = COSH(X) / SINH(X) = (EXP(X) - EXP(-X)) / (EXP(X) + EXP(-X)) = (E ^ X - E ^ -X) / (E ^ X + E ^ -X)", "COTH(ACOTH(X)) = X if X < -1 or X > 1"]),
+			Self::Sech => ("SECH(X)", "Hyperbolic Secant", "The reciprocal of the hyperbolic cosine.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["SECH(X) = 1 / COSH(X) = 2 / (EXP(X) + EXP(-X)) = 2 / (E ^ X + E ^ -X)", "SECH(ASECH(X)) = X if 0 < X <= 1"]),
+			Self::Csch => ("CSCH(X)", "Hyperbolic Cosecant", "The reciprocal of the hyperbolic sine.",
+			"This function is not affected by the currently set ANGLE OPTION.",
+			&["SECH(X) = 1 / SINH(X) = 2 / (EXP(X) - EXP(-X)) = 2 / (E ^ X - E ^ -X)", "CSCH(ACSCH(X)) = X if X <> 0"]),
 			_ => todo!()
 		}
 	}
