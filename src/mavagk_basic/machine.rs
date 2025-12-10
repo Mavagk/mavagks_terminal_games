@@ -394,8 +394,12 @@ impl Machine {
 				}
 				// Print out info about feature
 				println!();
-				for float_supplied_function in float_supplied_functions {
-					let (syntax, name, brief_description, extended_description, formulae) = float_supplied_function.get_help_info();
+				for (syntax, name, brief_description, extended_description, formulae) in float_supplied_functions.iter()
+					.map(|function| function.get_help_info())
+					.chain(int_supplied_functions.iter().map(|function| function.get_help_info()))
+					.chain(complex_supplied_functions.iter().map(|function| function.get_help_info()))
+					.chain(string_supplied_functions.iter().map(|function| function.get_help_info()))
+				{
 					println!("--- Name ---");
 					println!("{name}");
 					println!("--- Syntax ---");

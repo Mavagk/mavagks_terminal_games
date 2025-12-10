@@ -979,6 +979,49 @@ pub enum IntSuppliedFunction {
 	Len,
 }
 
+impl IntSuppliedFunction {
+	/// Returns a (syntax, name, description brief, extended description, formulae) tuple for the given function.
+	pub fn get_help_info(self) -> (&'static str, &'static str, &'static str, &'static str, &'static [&'static str]) {
+		match self {
+			// Constants
+			Self::True  => ("TRUE%",   "True", "The result of a true comparison or -1.", "", &["TRUE = -1"]),
+			Self::False => ("FALSE%",  "False", "The result of a false comparison or 0.", "", &["FALSE = 0"]),
+			// Time
+			Self::Time   => ("TIME%", "Time of Day (Seconds)", "Returns how many seconds have passed since the last midnight.",
+				"Returns a value between 0 (midnight) and 86399 (second before midnight) using the local timezone.", &[]),
+			Self::Date   => ("DATE%", "Date", "Returns the current date in YYDDD format.",
+				"YY is the last two digits of the current year number and DDD is the day number of the year starting at 1. The local timezone is used.", &[]),
+			Self::Second => ("SECOND%", "Second of Minute", "Returns the current second of the current minute.", "Returns a value between 0 and 59 using the local timezone.", &[]),
+			Self::Minute => ("MINUTE%", "Minute of Hour", "Returns the current minute of the current hour.", "Returns a value between 0 and 59 using the local timezone.", &[]),
+			Self::Hour   => ("HOUR%", "Hour of Day (24H)", "Returns the current hour of the current day in 24 hour format.", "Returns a value between 0 (midnight) and 23 using the local timezone.", &[]),
+			Self::Day    => ("DAY%", "Day of Month", "Returns the current day of the current month.", "Returns a value between 1 and 31 (longest months) using the local timezone.", &[]),
+			Self::Month  => ("MONTH%", "Month of Year", "Returns the current month of the current year.", "Returns a value between 1 and 12 using the local timezone.", &[]),
+			Self::Year   => ("YEAR%", "Year", "Returns the current year in the local timezone.", "", &[]),
+			// Other
+			Self::Sqr   => ("SQR%(X%), SQRT%(X%)", "Floored Square Root", "The square root of X% rounded down.",
+				"Throws a fatal exception 3005 if X% is negative.", &[]),
+			Self::Abs   => ("ABS%(X%)", "Absolute Value", "Returns X% with a positive or zero sign.", "Returns X% as-is if it is non-negative.", &[]),
+			Self::Log2  => ("LOG2%(X%)", "Floored Binary Logarithm", "Returns the base 2 logarithm of X% rounded down.",
+				"Throws fatal exception 3004 if X is non-positive.", &[]),
+			Self::Log10 => ("LOG10%(X%)", "Floored Common Logarithm", "Returns the base 10 logarithm of X% rounded down.",
+				"Throws fatal exception 3004 if X is non-positive.", &[]),
+			Self::Min   => ("MIN%(X%), MIN%(X%, Y%), MIN%(X%, Y%, Z%), ...", "Minimum", "Returns the value of the argument that is the smallest.", "Can have one or more arguments.", &[]),
+			Self::Max   => ("MAX%(X%), MAX%(X%, Y%), MAX%(X%, Y%, Z%), ...", "Maximum", "Returns the value of the argument that is the largest.", "Can have one or more arguments.", &[]),
+			Self::Sgn   => ("SGN%(X%)", "Signum", "Returns -1 if X% is negative, 0 if it is zero and 1 if it is positive.", "", &[]),
+			Self::Xor   => ("XOR%(X%, Y%), XOR%(X%, Y%, Z%), ...", "XOR", "Returns the exclusive or between all arguments.", "", &[]),
+			// Rounding
+			Self::Floor => ("FLOOR%(X), INT%(X)", "Floor / Integerize", "Rounds all non-integers down or towards negative infinity.",
+				"Returns the largest integer less than or equal to X and returns X unchanged if it is an integer.", &[]),
+			Self::Ceil  => ("CEIL%(X)", "Ceiling", "Rounds all non-integers up or towards positive infinity.",
+				"Returns the smallest integer greater than or equal to X and returns X unchanged if it is an integer.", &[]),
+			Self::Ip    => ("IP%(X)", "Integer Part", "Rounds all non-integers towards zero.",
+				"Returns X with all digits to the right of the decimal point \"cut off\" and returns X unchanged if it is an integer.", &[]),
+			// String to Int
+			Self::Len   => ("LEN(X$)", "String Length", "Returns how many characters are in X$.", "", &["LEN%(\"\") = 0"]),
+		}
+	}
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum ComplexSuppliedFunction {
 	// Constants
@@ -1020,6 +1063,73 @@ pub enum ComplexSuppliedFunction {
 	Acsch,
 }
 
+impl ComplexSuppliedFunction {
+	/// Returns a (syntax, name, description brief, extended description, formulae) tuple for the given function.
+	pub fn get_help_info(self) -> (&'static str, &'static str, &'static str, &'static str, &'static [&'static str]) {
+		match self {
+			// Constants
+			Self::I => ("I#", "Imaginary Constant", "Returns the imaginary constant.", "", &[]),
+			// Other Math
+			Self::Sqr   => ("SQR#(X#), SQRT#(X#)", "Complex Square Root", "The complex square root of X#.", "", &[]),
+			Self::Exp   => ("EXP#(X#)", "Complex Exponential", "Returns E raised to the X#th power.", "", &[]),
+			Self::Conj  => ("CONJ#(X#)", "Complex Conjugate", "X# with it's imaginary part sign flipped.", "", &[]),
+			// Logarithm
+			Self::LogE => ("LOG#(X#), LN#(X#)", "Complex Natural Logarithm", "Returns the base E logarithm of X#.", "", &[]),
+			Self::LogN => ("LOG#(N#, X#)", "Complex Base N# Logarithm", "Returns the base N# logarithm or X#.", "", &[]),
+			Self::Log2 => ("LOG2#(X#)", "Complex Binary Logarithm", "Returns the base 2 logarithm of X#.", "", &[]),
+			Self::Log10 => ("LOG10#(X#)", "Complex Common Logarithm", "Returns the base 10 logarithm or X#.","", &[]),
+			// Trigonometry
+			Self::Sin => ("SIN#(X#)", "Complex Sine", "Gives the the opposite to hypotenuse lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Cos => ("COS#(X#)", "Complex Cosine", "Gives the the adjacent to hypotenuse lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Tan => ("TAN#(X#)", "Complex Tangent", "Gives the the opposite to adjacent lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Cot => ("COT(X#)", "Complex Cotangent", "Gives the the adjacent to opposite lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Sec => ("SEC#(X#)", "Complex Secant", "Gives the the hypotenuse to adjacent lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Csc => ("CSC#(X#)", "Complex Cosecant", "Gives the the hypotenuse to opposite lengths ratio of a right triangle given a non-right angle.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+
+			Self::Asin => ("ASIN#(X#)", "Complex Arcsine / Inverse Sine", "Gives the value that when entered into the SIN# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Acos => ("ACOS#(X#)", "Complex Arccosine / Inverse Cosine", "Gives the value that when entered into the COS# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Atan => ("ATAN#(X#), ATN#(X#)", "Complex Arctangent / Inverse Tangent", "Gives the value that when entered into the TAN# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Acot => ("ACOT#(X#)", "Complex Arccotangent / Inverse Cotangent", "Gives the value that when entered into the COT# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Asec => ("ASEC#(X#)", "Complex Arcsecant / Inverse Secant", "Gives the value that when entered into the SEC# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			Self::Acsc => ("ACSC#(X#)", "Complex Arccosecant / Inverse Cosecant", "Gives the value that when entered into the CSC# function, gives X#.",
+				"OPTION ANGLE RADIANS must be set (default).", &[]),
+			// Hyperbolic Trigonometry
+			Self::Sinh => ("SINH#(X#)", "Complex Hyperbolic Sine", "The odd part of the exponential function.", "This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Cosh => ("COSH#(X#)", "Complex Hyperbolic Cosine", "The even part of the exponential function.", "This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Tanh => ("TANH#(X#)", "Complex Hyperbolic Tangent", "hyperbolic sine of X# divided by hyperbolic cosine of X#.",
+				"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Coth => ("COTH#(X#)", "Complex Hyperbolic Cotangent", "hyperbolic cosine of X# divided by hyperbolic sine of X#.",
+				"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Sech => ("SECH#(X#)", "Complex Hyperbolic Secant", "The reciprocal of the hyperbolic cosine.", "This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Csch => ("CSCH#(X#)", "Complex Hyperbolic Cosecant", "The reciprocal of the hyperbolic sine.", "This function is not affected by the currently set ANGLE OPTION.", &[]),
+
+			Self::Asinh => ("ASINH#(X#)", "Complex Hyperbolic Arcsine / Inverse Hyperbolic Sine", "Gives the value that when entered into the SINH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Acosh => ("ACOSH#(X#)", "Complex Hyperbolic Arccosine / Inverse Hyperbolic Cosine", "Gives the value that when entered into the COSH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Atanh => ("ATANH#(X#), ATNH#(X#)", "Complex Hyperbolic Arctangent / Inverse Hyperbolic Tangent", "Gives the value that when entered into the TANH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Acoth => ("ACOTH#(X#)", "Complex Hyperbolic Arccotangent / Inverse Hyperbolic Cotangent", "Gives the value that when entered into the COTH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Asech => ("ASECH#(X#)", "Complex Hyperbolic Arcsecant / Inverse Hyperbolic Secant", "Gives the value that when entered into the SECH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+			Self::Acsch => ("ACSCH#(X#)", "Complex Hyperbolic Arccosecant / Inverse Hyperbolic Cosecant", "Gives the value that when entered into the CSCH# function, gives X#.",
+			"This function is not affected by the currently set ANGLE OPTION.", &[]),
+		}
+	}
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Copy, EnumIter)]
 pub enum StringSuppliedFunction {
 	// Time
@@ -1041,6 +1151,39 @@ pub enum StringSuppliedFunction {
 	Chr,
 	// Any value to String
 	Str,
+}
+
+impl StringSuppliedFunction {
+	/// Returns a (syntax, name, description brief, extended description, formulae) tuple for the given function.
+	pub fn get_help_info(self) -> (&'static str, &'static str, &'static str, &'static str, &'static [&'static str]) {
+		match self {
+			// Time
+			Self::Time => ("TIME$", "Time String (24H)", "Returns a string representation of the current time.",
+				"The string will be in HH:MM:SS format. The local timezone is used.", &[]),
+			Self::Date => ("DATE$", "Date String", "Returns a string representation of the current date.",
+				"The string will be in YYYYMMDD format. The local timezone is used.", &[]),
+			// String Editing
+			Self::UCase      => ("UCASE$(X$)", "Upper Case", "Returns X$ with all lower case letters converted to upper case.", "", &[]),
+			Self::LCase      => ("LCASE$(X$)", "Lower Case", "Returns X$ with all upper case letters converted to lower case.", "", &[]),
+			Self::LTrim      => ("LTRIM$(X$)", "Left Trim", "Returns X$ with all leading spaces removed.", "", &[]),
+			Self::RTrim      => ("RTRIM$(X$)", "Right Trim", "Returns X$ with all trailing spaces removed.", "", &[]),
+			Self::Left1Arg   => ("LEFT$(X$)", "Left without Last", "Returns X$ with the last character removed.", "", &[]),
+			Self::Right1Arg  => ("RIGHT$(X$)", "Rightmost Char", "Returns a string only containing the last character of X$.", "", &[]),
+			Self::Repeat     => ("REPEAT$(X$, Y%)", "Repeat", "Returns X$ repeated Y% times.", "", &[]),
+			Self::Left2Args  => ("LEFT$(X$, Y%)", "Left Chars", "Returns a string only containing the first Y% characters of X$.",
+				"Returns all characters if Y% is greater than the amount of chars in X$", &[]),
+			Self::Right2Args => ("RIGHT$(X$, Y%)", "Right Chars", "Returns a string only containing the last Y% characters of X$.",
+				"Returns all characters if Y% is greater than the amount of chars in X$", &[]),
+			Self::Mid2Args   => ("MID$(X$, Y%)", "Left Chars (MID Syntax)", "Same as LEFT$",
+				"Returns a string only containing the first Y% characters of X$, returns all characters if Y% is greater than the amount of chars in X$", &[]),
+			Self::Mid3Args   => ("MID$(X$, Y%, Z%)", "Middle Chars", "Returns the first Z% characters of X$ starting at Y%", "The index of the first character is 1", &[]),
+			// Int to String
+			Self::Chr => ("CHR$(X%)", "Character from Number", "Returns a string consisting of one character with ordinal position X%", "", &[]),
+			// Int to String
+			Self::Str => ("STR$(X)", "To String", "Returns the characters printed if X is used as a PRINT item.",
+				"X may be a floating point number, an integer or a complex number. No leading or trailing spaces will be in the returned string.", &[]),
+		}
+	}
 }
 
 #[derive(Debug, Clone)]
